@@ -19,6 +19,12 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // App dark-only (tema forest). Forzamos modo oscuro y evitamos el flash claro.
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+  },
+
   // TypeScript estricto en todo el proyecto.
   typescript: {
     strict: true,

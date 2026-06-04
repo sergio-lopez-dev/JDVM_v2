@@ -11,6 +11,9 @@ export default withNuxt(
     rules: {
       // Permitimos nombres de página de una palabra (index.vue, login.vue…).
       'vue/multi-word-component-names': 'off',
+      // Con <script setup lang="ts"> los props opcionales se tipan con `?`;
+      // no exigimos un default explícito.
+      'vue/require-default-prop': 'off',
     },
   },
   prettier,

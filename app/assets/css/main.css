@@ -2,12 +2,17 @@
 @import '@nuxt/ui';
 
 /*
- * Tokens de marca JDVM (Tailwind v4 es CSS-first: los tokens viven aquí, no en
- * un tailwind.config.js).
+ * Sistema de diseño JDVM — tema "forest" (Verde inglés).
+ * Tailwind v4 es CSS-first: los tokens viven aquí, no en tailwind.config.js.
+ * Valores EXACTOS extraídos de inputs/designs/themes.js (dirección forest).
  *
- * PROVISIONALES — aproximados del deck de diseño (tema "forest" / verde inglés).
- * En la Fase 1 se sustituyen por los valores EXACTOS extraídos de themes.js
- * cuando estén en inputs/designs/. No tomar estos hex como definitivos.
+ * Estructura:
+ *  1. @theme  → rampas de color (gold/ink) + fuentes → generan utilidades Tailwind
+ *               y alimentan los colores `primary`/`neutral` de Nuxt UI (app.config.ts).
+ *  2. :root   → tokens crudos del tema (--jdvm-*) para fidelidad 1:1 cuando una
+ *               utilidad/escala no encaje exactamente con el diseño.
+ *  3. .dark   → remapeo de los tokens semánticos de Nuxt UI a la paleta forest,
+ *               para que todos los componentes U* hereden la marca en modo oscuro.
  */
 @theme {
   /* Tipografía */
@@ -15,22 +20,86 @@
   --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  /* Fondo base cálido casi-negro (bg0 del tema forest) */
-  --color-ink-950: #0c0f0c;
-  --color-ink-900: #11150f;
-  --color-ink-800: #181d16;
-  --color-ink-700: #232a20;
+  /* Acento dorado/mostaza — rampa anclada en 500 = accent del tema forest.
+     300/400/500 coinciden con accentTint/accentHover/accent del diseño. */
+  --color-gold-50: #faf6ea;
+  --color-gold-100: #f3eacd;
+  --color-gold-200: #e7d49e;
+  --color-gold-300: #dcc07a;
+  --color-gold-400: #d4b45f;
+  --color-gold-500: #c2a24e;
+  --color-gold-600: #a5863b;
+  --color-gold-700: #806730;
+  --color-gold-800: #5c4a28;
+  --color-gold-900: #3d3220;
+  --color-gold-950: #211a10;
 
-  /* Acento dorado/mostaza de los CTA (provisional) */
-  --color-gold-50: #fbf7ec;
-  --color-gold-100: #f4ead0;
-  --color-gold-200: #e9d3a0;
-  --color-gold-300: #ddba6e;
-  --color-gold-400: #d2a649;
-  --color-gold-500: #c9a24b;
-  --color-gold-600: #a8813a;
-  --color-gold-700: #82612f;
-  --color-gold-800: #5d462a;
-  --color-gold-900: #3e3020;
-  --color-gold-950: #221a11;
+  /* Neutro cálido verdoso ("ink"), dark-first. Los stops oscuros coinciden con
+     los fondos/bordes/textos del tema; los claros se interpolan hacia fg0. */
+  --color-ink-50: #f4f5ef;
+  --color-ink-100: #e7e9df;
+  --color-ink-200: #ccd1c0;
+  --color-ink-300: #9ca791; /* fg1 */
+  --color-ink-400: #7e8a72;
+  --color-ink-500: #62705b; /* fg2 */
+  --color-ink-600: #45503a;
+  --color-ink-700: #28301f; /* border */
+  --color-ink-800: #1a211a; /* bg2 */
+  --color-ink-900: #111711; /* bg1 */
+  --color-ink-950: #0b0f0c; /* bg0 */
+}
+
+:root {
+  /* Tokens crudos del tema forest (fidelidad 1:1). */
+  --jdvm-bg-0: #0b0f0c;
+  --jdvm-bg-1: #111711;
+  --jdvm-bg-2: #1a211a;
+  --jdvm-border: #28301f;
+  --jdvm-border-soft: #1f271b;
+  --jdvm-fg-0: #ecefe3;
+  --jdvm-fg-1: #9ca791;
+  --jdvm-fg-2: #62705b;
+  --jdvm-accent: #c2a24e;
+  --jdvm-accent-hover: #d4b45f;
+  --jdvm-accent-tint: #dcc07a;
+  --jdvm-accent-soft: rgba(194, 162, 78, 0.13);
+  --jdvm-accent-line: rgba(194, 162, 78, 0.32);
+  --jdvm-accent-text: #14180c;
+  --jdvm-success: #6fa98a;
+  --jdvm-warning: #d4a24c;
+  --jdvm-danger: #c46a4c;
+  --jdvm-service-a: #c2a24e;
+  --jdvm-service-b: #7c8c9e;
+  --jdvm-service-c: #a6857b;
+
+  /* Radio base de Nuxt UI (el diseño usa esquinas suaves, 10-16px). */
+  --ui-radius: 0.625rem;
+}
+
+/* La app es dark-only: remapeamos los tokens semánticos de Nuxt UI a forest. */
+.dark {
+  --ui-bg: var(--jdvm-bg-0);
+  --ui-bg-muted: var(--jdvm-bg-1);
+  --ui-bg-elevated: var(--jdvm-bg-1);
+  --ui-bg-accented: var(--jdvm-bg-2);
+  --ui-bg-inverted: var(--jdvm-fg-0);
+
+  --ui-border: var(--jdvm-border);
+  --ui-border-muted: var(--jdvm-border-soft);
+  --ui-border-accented: var(--jdvm-border);
+
+  --ui-text-dimmed: var(--jdvm-fg-2);
+  --ui-text-muted: var(--jdvm-fg-2);
+  --ui-text-toned: var(--jdvm-fg-1);
+  --ui-text: var(--jdvm-fg-0);
+  --ui-text-highlighted: var(--jdvm-fg-0);
+}
+
+@layer base {
+  html {
+    background: var(--jdvm-bg-0);
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 }

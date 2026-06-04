@@ -154,13 +154,32 @@ Iconos: vía `@lucide/vue` (componentes) o el sistema de iconos de Nuxt UI
 
 ---
 
-## 9. Tokens de diseño (PROVISIONALES)
+## 9. Sistema de diseño (Fase 1 — tema `forest`)
 
-En `app/assets/css/main.css` (`@theme`) y `app/app.config.ts`. Aproximados del
-deck: fondo cálido casi-negro (`--color-ink-950: #0c0f0c`), acento dorado
-(`gold`), fuentes Libre Caslon Display (display) / Hanken Grotesk (sans) /
-JetBrains Mono (mono). **Se finalizan en la Fase 1** con los `themes.js` reales.
-`app.config` usa `primary: 'gold'` y `neutral: 'stone'` (placeholder).
+Valores EXACTOS de `inputs/designs/themes.js` (dirección forest). Definidos en
+`app/assets/css/main.css`:
+
+- **`@theme`**: rampa `gold` (acento, 500 = `#C2A24E`) y rampa `ink` (neutro
+  cálido verdoso; 950 = `#0B0F0C` bg0, 900 = bg1, 800 = bg2, 700 = border,
+  500 ≈ fg2, 300 ≈ fg1) + fuentes (`--font-display/sans/mono`).
+- **`:root`**: tokens crudos `--jdvm-*` (bg/fg/accent/semánticos/service) para
+  fidelidad 1:1, y `--ui-radius: 0.625rem`.
+- **`.dark`**: remapeo de los tokens semánticos de Nuxt UI (`--ui-bg`, `--ui-text`,
+  `--ui-border`, …) a la paleta forest → todos los `U*` heredan la marca.
+- **App dark-only**: `colorMode: { preference: 'dark', fallback: 'dark' }`.
+- `app.config.ts`: `ui.colors.primary = 'gold'`, `neutral = 'ink'`.
+- Iconos: colección **`@iconify-json/lucide`** local (offline) → usar `i-lucide-*`
+  en props `icon` de Nuxt UI, o `<UIcon name="i-lucide-…">`.
+
+**Primitivos:** se usan los `U*` de Nuxt UI tematizados (no se reconstruyen).
+Componentes propios en `app/components/`: `AppLogo` (wordmark placeholder, prop
+`src` para el logo real), `UiStarRating` (display/interactiva), `UiEmptyState`,
+`UiGrain` (grano de fondo). Página **`/_styleguide`** (solo dev, 404 en prod)
+muestra tipografía, paleta y todos los componentes.
+
+> Pendiente de asset: **logo vectorial real** de JDVM. El del proyecto antiguo es
+> el logo de Vue (placeholder) y `jdvm_logo.jpeg` es ráster. `AppLogo` usa un
+> wordmark tipográfico hasta tener el SVG/PNG blanco real.
 
 ---
 
@@ -179,6 +198,17 @@ JetBrains Mono (mono). **Se finalizan en la Fase 1** con los `themes.js` reales.
   la directiva `v-motion`, añadirla como plugin en Fase 1.
 - `oxc-parser` se fija como dep directa (resolución bajo pnpm).
 - `firebase-admin` añadido por requisito de nuxt-vuefire (SSR + Auth).
+
+**Decisiones tomadas en Fase 1:**
+
+- Tema **forest** confirmado; tokens exactos cableados (ver §9).
+- App **dark-only** (sin toggle de tema): forzamos `colorMode` dark.
+- Primitivos = `U*` de Nuxt UI tematizados vía tokens semánticos; solo se crean
+  componentes propios donde Nuxt UI no llega (StarRating, EmptyState, Grain, Logo).
+- `@iconify-json/lucide` añadido (data de iconos local, offline para la PWA).
+- `lint-staged` fijado a la línea **13.x** (la 17 exige git ≥ 2.32; el sistema
+  tiene git 2.25.1).
+- Logo: wordmark tipográfico placeholder hasta tener el vectorial real.
 
 **Decisiones de producto PENDIENTES (cerrar antes de Fase 3):**
 
@@ -229,9 +259,9 @@ Colecciones Firestore actuales (app vieja): `users`, `appointments`,
 
 ## 12. Plan de fases
 
-- **Fase 0 — Arranque** ✅ (este commit): scaffold, stack, config, tooling, estructura.
-- **Fase 1 — Sistema de diseño:** tokens reales desde `themes.js`, primitivos
-  envueltos sobre Nuxt UI, layout, página `/_styleguide` (oculta en prod).
+- **Fase 0 — Arranque** ✅: scaffold, stack, config, tooling, estructura.
+- **Fase 1 — Sistema de diseño** ✅: tokens forest exactos, dark-only, primitivos
+  `U*` tematizados + componentes propios, layout, página `/_styleguide`.
 - **Fase 2 — Auth y modelo:** Auth Email/Google, esquemas Zod, composables de
   colecciones (`useBarbers`, `useServices`, `useAppointments`, `useWaitlist`,
   `useClients`), `firestore.rules`, middleware de rutas, emuladores.
