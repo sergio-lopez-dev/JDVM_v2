@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/*
+ * Tokens de marca JDVM (Tailwind v4 es CSS-first: los tokens viven aquí, no en
+ * un tailwind.config.js).
+ *
+ * PROVISIONALES — aproximados del deck de diseño (tema "forest" / verde inglés).
+ * En la Fase 1 se sustituyen por los valores EXACTOS extraídos de themes.js
+ * cuando estén en inputs/designs/. No tomar estos hex como definitivos.
+ */
+@theme {
+  /* Tipografía */
+  --font-display: 'Libre Caslon Display', ui-serif, Georgia, serif;
+  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Fondo base cálido casi-negro (bg0 del tema forest) */
+  --color-ink-950: #0c0f0c;
+  --color-ink-900: #11150f;
+  --color-ink-800: #181d16;
+  --color-ink-700: #232a20;
+
+  /* Acento dorado/mostaza de los CTA (provisional) */
+  --color-gold-50: #fbf7ec;
+  --color-gold-100: #f4ead0;
+  --color-gold-200: #e9d3a0;
+  --color-gold-300: #ddba6e;
+  --color-gold-400: #d2a649;
+  --color-gold-500: #c9a24b;
+  --color-gold-600: #a8813a;
+  --color-gold-700: #82612f;
+  --color-gold-800: #5d462a;
+  --color-gold-900: #3e3020;
+  --color-gold-950: #221a11;
+}

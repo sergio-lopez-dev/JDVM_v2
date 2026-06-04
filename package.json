@@ -1,0 +1,65 @@
+{
+  "name": "JDVM_v2",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "prepare": "husky",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "typecheck": "nuxt typecheck"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue,mjs,cjs}": "eslint --fix",
+    "*.{json,md,css,yml,yaml}": "prettier --write"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.17.0",
+    "@nuxt/ui": "^4.8.2",
+    "@pinia/nuxt": "^0.11.3",
+    "@popperjs/core": "^2.11.8",
+    "@schedule-x/calendar": "^4.6.0",
+    "@schedule-x/theme-default": "^4.6.0",
+    "@schedule-x/vue": "^4.1.0",
+    "@unovis/ts": "^1.6.5",
+    "@unovis/vue": "^1.6.5",
+    "@vee-validate/nuxt": "^4.15.1",
+    "@vee-validate/zod": "^4.15.1",
+    "@vite-pwa/nuxt": "^1.1.1",
+    "@vueuse/motion": "^3.0.3",
+    "canvas-confetti": "^1.9.4",
+    "date-fns": "^4.4.0",
+    "firebase": "^12.14.0",
+    "firebase-admin": "^13.10.0",
+    "motion-v": "^2.2.1",
+    "nuxt": "^4.4.7",
+    "nuxt-vuefire": "^1.1.2",
+    "pinia": "^3.0.4",
+    "v-calendar": "^3.1.2",
+    "vee-validate": "^4.15.1",
+    "vue": "^3.5.35",
+    "vue-router": "^5.1.0",
+    "vuefire": "^3.2.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.15.2",
+    "@types/canvas-confetti": "^1.9.0",
+    "eslint": "^10.4.1",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^13.3.0",
+    "oxc-parser": "0.133.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.6.3",
+    "vue-tsc": "^3.3.3"
+  }
+}
