@@ -1,19 +1,28 @@
 <script setup lang="ts">
-// Marca JDVM. Placeholder tipográfico (wordmark en la serif display) hasta tener
-// el logo vectorial real: pasa `src` para usar una imagen/SVG cuando lo tengamos.
+// Marca JDVM. Logo real recuperado del legacy (blanco sobre transparente).
+//  - variant 'lockup' (def): emblema + "•JDVM•"  → /logo-jdvm.png
+//  - variant 'mark'        : solo el emblema       → /logo-jdvm-mark.png
+//  - variant 'wordmark'    : wordmark tipográfico (sin imagen)
+// `src` permite forzar otra ruta. `size` = altura en px.
 const props = withDefaults(
   defineProps<{
-    src?: string
     size?: number
+    variant?: 'lockup' | 'mark' | 'wordmark'
+    src?: string
   }>(),
-  { size: 24 },
+  { size: 24, variant: 'lockup' },
+)
+
+const FILES = { lockup: '/logo-jdvm.png', mark: '/logo-jdvm-mark.png' } as const
+const resolvedSrc = computed(() =>
+  props.src ?? (props.variant === 'wordmark' ? undefined : FILES[props.variant]),
 )
 </script>
 
 <template>
   <img
-    v-if="props.src"
-    :src="props.src"
+    v-if="resolvedSrc"
+    :src="resolvedSrc"
     alt="JDVM Hair Studio"
     class="block w-auto"
     :style="{ height: `${props.size}px` }"

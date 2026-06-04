@@ -39,6 +39,9 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'es' },
       link: [
+        { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32x32.png' },
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
@@ -89,9 +92,19 @@ export default defineNuxtConfig({
       short_name: 'JDVM',
       description: 'Reserva tu cita en JDVM Hair Studio.',
       lang: 'es',
-      theme_color: '#0c0f0c',
-      background_color: '#0c0f0c',
+      theme_color: '#0b0f0c',
+      background_color: '#0b0f0c',
       display: 'standalone',
+      icons: [
+        { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+        {
+          src: '/icons/icon-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
     },
     devOptions: { enabled: false },
   },

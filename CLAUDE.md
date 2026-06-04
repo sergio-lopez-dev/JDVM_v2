@@ -152,6 +152,11 @@ Iconos: vía `@lucide/vue` (componentes) o el sistema de iconos de Nuxt UI
 - **Acceso a datos:** siempre vía VueFire / composables propios. Nunca
   `firebase/firestore` a pelo.
 
+> ⚠️ **NO alterar la base de datos de producción (`jdvm-d82b6`) todavía.** No
+> escribir datos en prod, no borrar, no desplegar `firestore.rules`/índices a prod.
+> En Fase 2 se cablean los **emuladores ANTES** de cualquier trabajo con datos, y
+> todo el desarrollo va contra emuladores hasta que se diga lo contrario.
+
 ---
 
 ## 9. Sistema de diseño (Fase 1 — tema `forest`)
@@ -172,14 +177,16 @@ Valores EXACTOS de `inputs/designs/themes.js` (dirección forest). Definidos en
   en props `icon` de Nuxt UI, o `<UIcon name="i-lucide-…">`.
 
 **Primitivos:** se usan los `U*` de Nuxt UI tematizados (no se reconstruyen).
-Componentes propios en `app/components/`: `AppLogo` (wordmark placeholder, prop
-`src` para el logo real), `UiStarRating` (display/interactiva), `UiEmptyState`,
+Componentes propios en `app/components/`: `AppLogo` (logo real, variantes
+`lockup`/`mark`/`wordmark`), `UiStarRating` (display/interactiva), `UiEmptyState`,
 `UiGrain` (grano de fondo). Página **`/_styleguide`** (solo dev, 404 en prod)
 muestra tipografía, paleta y todos los componentes.
 
-> Pendiente de asset: **logo vectorial real** de JDVM. El del proyecto antiguo es
-> el logo de Vue (placeholder) y `jdvm_logo.jpeg` es ráster. `AppLogo` usa un
-> wordmark tipográfico hasta tener el SVG/PNG blanco real.
+**Logo:** recuperado del legacy (era ráster sobre negro). Procesado con ImageMagick
+a blanco-sobre-transparente: `public/logo-jdvm.png` (emblema + "•JDVM•") y
+`public/logo-jdvm-mark.png` (solo emblema). Set de iconos PWA/favicon en
+`public/icons/` + `public/favicon.ico`. (Sigue siendo ráster; si algún día hay
+vector, sustituir.)
 
 ---
 
@@ -210,18 +217,21 @@ muestra tipografía, paleta y todos los componentes.
   tiene git 2.25.1).
 - Logo: wordmark tipográfico placeholder hasta tener el vectorial real.
 
-**Decisiones de producto PENDIENTES (cerrar antes de Fase 3):**
+**Decisiones de producto CERRADAS:**
 
-- **B) Cancelación: 24h vs 4h.** Brief y app vieja = 24h. El diseño dice "Cancela
-  gratis hasta 4h antes". Decidir cuál es la canónica.
-- **C) Pagos online.** El diseño muestra Apple Pay / tarjeta / "pagar en local",
-  pero no hay pasarela en el stack. ¿Pago online real (metería Stripe, fuera de
-  stack) o solo UI + pago en local?
-- **D) Fidelización "SOCIO ORO".** Puntos, tiers, "invita y gana" aparecen en el
-  diseño pero no en el modelo del brief. ¿Dentro o fuera del modelo v2?
-- **E) Duración variable de servicio.** El modelo nuevo tiene `durationMinutes`;
-  el algoritmo de slots de la app vieja asumía 30 min fijos → hay que reescribirlo
-  respetando duración y solapamientos por barbero.
+- **B) Cancelación = 4 h antes** (no 24h). El cliente puede cancelar/reprogramar
+  hasta 4 h antes del inicio de la cita; admin siempre puede. (El copy del diseño
+  "hasta 4 h antes" es el canónico.)
+- **C) Pagos: SIN pasarela online.** Pago **en el local** o vía **QR a Revolut**
+  (link/QR estático que el dueño pasará; no integración, no Stripe). `paymentMethod`
+  refleja esto (p. ej. `cash | revolut`); no se cobra dentro de la app.
+- **D) Fidelización "SOCIO ORO": aplazada.** Es un subsistema completo (puntos,
+  tiers, referidos, canje). NO entra en el modelo de Fase 2; se diseña en una fase
+  posterior. La tarjeta de socio del diseño quedará visual/placeholder por ahora.
+- **E) Duración de servicio = configurable por el admin.** Cada servicio tiene
+  `durationMinutes` editable desde el catálogo admin; el generador de slots respeta
+  esa duración (y los solapamientos por barbero). Las citas recurrentes/fijas
+  también las programa el admin.
 
 ---
 
@@ -243,10 +253,12 @@ muestra tipografía, paleta y todos los componentes.
 **Reglas de negocio de la app vieja (reimplementar, no copiar):**
 
 - Teléfono ES: exactamente 9 dígitos numéricos.
-- Cancelación: `now ≤ (fechaCita − 24h)`; admin siempre puede. (Ver decisión B.)
+- Cancelación/reprogramación: `now ≤ (fechaCita − 4h)`; admin siempre puede. (Decisión B.)
 - Slots: timetable − citas existentes − citas fijas (salvo excepción) − pasados
-  si es hoy. (Duración era fija 30 min; ahora variable, ver decisión E.)
-- Citas fijas (recurrentes): semanales, colección aparte + colección de excepciones.
+  si es hoy. Ahora con **duración variable por servicio** (decisión E) → respetar
+  duración y solapamientos por barbero.
+- Citas fijas (recurrentes): las **programa el admin**; semanales, colección aparte
+  - colección de excepciones.
 - Servicios privados: no salen en lista pública ni reserva.
 - Roles: la app vieja solo tiene booleano `admin`. La v2 contempla
   `client | barber | admin`.
