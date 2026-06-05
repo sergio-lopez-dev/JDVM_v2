@@ -17,8 +17,7 @@
     "format": "prettier --write .",
     "typecheck": "nuxt typecheck",
     "emulators": "firebase emulators:start --project demo-jdvm --export-on-exit .emulator-data $(test -d .emulator-data && echo --import .emulator-data)",
-    "dev:emu": "firebase emulators:exec --project demo-jdvm --import .emulator-data --ui \"nuxt dev\"",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.cjs"
   },
   "lint-staged": {
     "*.{js,ts,vue,mjs,cjs}": "eslint --fix",

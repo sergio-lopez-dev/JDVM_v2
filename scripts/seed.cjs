@@ -1,12 +1,13 @@
 // Siembra datos de prueba en los EMULADORES (nunca prod).
-// Requiere los emuladores corriendo: `pnpm emulators` y luego `pnpm seed`.
-import { initializeApp } from 'firebase-admin/app'
-import { getFirestore, FieldValue } from 'firebase-admin/firestore'
-import { getAuth } from 'firebase-admin/auth'
+// CommonJS (.cjs) a propósito: así funciona tanto con `node` como cuando
+// firebase emulators:exec lo carga vía require().
+const { initializeApp } = require('firebase-admin/app')
+const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getAuth } = require('firebase-admin/auth')
 
-// Apuntar el Admin SDK a los emuladores locales.
-process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080'
-process.env.FIREBASE_AUTH_EMULATOR_HOST ||= '127.0.0.1:9099'
+process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080'
+process.env.FIREBASE_AUTH_EMULATOR_HOST =
+  process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099'
 
 const PROJECT_ID = 'demo-jdvm'
 initializeApp({ projectId: PROJECT_ID })
@@ -27,7 +28,6 @@ async function ensureUser(email, displayName) {
   }
 }
 
-// — Horarios —
 const fullDay = {
   morning: { start: '10:00', end: '14:00' },
   afternoon: { start: '16:00', end: '20:00' },
@@ -36,9 +36,15 @@ const localDay = {
   morning: { start: '10:00', end: '14:00' },
   afternoon: { start: '16:00', end: '22:00' },
 }
-const week = (day) => ({ mon: day, tue: day, wed: day, thu: day, fri: day, sat: day.morning ? { morning: day.morning } : day })
+const week = (day) => ({
+  mon: day,
+  tue: day,
+  wed: day,
+  thu: day,
+  fri: day,
+  sat: day.morning ? { morning: day.morning } : day,
+})
 
-// — Servicios (de la carta del diseño) —
 const services = [
   { id: 'corte', name: 'Corte de pelo', description: 'Lavado, corte y peinado', durationMinutes: 30, basePrice: 13, category: 'cortes', color: '#C2A24E' },
   { id: 'corte-barba', name: 'Corte + barba', description: 'Corte completo + perfilado y toalla', durationMinutes: 45, basePrice: 18, category: 'cortes', color: '#C2A24E' },
@@ -48,24 +54,20 @@ const services = [
   { id: 'ritual', name: 'Ritual completo', description: 'Corte, barba, mascarilla y cejas', durationMinutes: 70, basePrice: 29, category: 'premium', color: '#A6857B' },
   { id: 'padre-hijo', name: 'Padre e hijo', description: 'Dos cortes, una experiencia', durationMinutes: 60, basePrice: 24, category: 'premium', color: '#A6857B' },
 ]
-
 const allServiceIds = services.map((s) => s.id)
 
-// — Barberos (con cuenta de auth; el doc usa el uid como id) —
 const barbers = [
-  { key: 'dani', name: 'Dani Ruiz', slug: 'dani-ruiz', color: '#C2A24E', email: 'dani@jdvm.test', bio: 'Especialista en degradados y trabajo a navaja.' },
-  { key: 'marco', name: 'Marco S.', slug: 'marco-s', color: '#7C8C9E', email: 'marco@jdvm.test', bio: 'Clásico y preciso.' },
-  { key: 'jon', name: 'Jon T.', slug: 'jon-t', color: '#A6857B', email: 'jon@jdvm.test', bio: 'Texturizados y estilo moderno.' },
+  { name: 'Dani Ruiz', slug: 'dani-ruiz', color: '#C2A24E', email: 'dani@jdvm.test', bio: 'Especialista en degradados y trabajo a navaja.' },
+  { name: 'Marco S.', slug: 'marco-s', color: '#7C8C9E', email: 'marco@jdvm.test', bio: 'Clásico y preciso.' },
+  { name: 'Jon T.', slug: 'jon-t', color: '#A6857B', email: 'jon@jdvm.test', bio: 'Texturizados y estilo moderno.' },
 ]
 
 async function run() {
-  // Servicios
   for (const s of services) {
     const { id, ...data } = s
     await db.collection('services').doc(id).set({ ...data, isPrivate: false }, { merge: true })
   }
 
-  // Barberos + sus cuentas + doc users
   for (const b of barbers) {
     const uid = await ensureUser(b.email, b.name)
     await db.collection('users').doc(uid).set(
@@ -88,7 +90,6 @@ async function run() {
     )
   }
 
-  // Configuración del local
   await db.collection('settings').doc('main').set(
     {
       timetable: week(localDay),
@@ -101,7 +102,6 @@ async function run() {
     { merge: true },
   )
 
-  // Admin + cliente de prueba
   const adminUid = await ensureUser('admin@jdvm.test', 'Admin JDVM')
   await db.collection('users').doc(adminUid).set(
     { name: 'Admin JDVM', email: 'admin@jdvm.test', phone: '600000000', role: 'admin', allowPush: false, createdAt: FieldValue.serverTimestamp() },
@@ -115,9 +115,8 @@ async function run() {
   )
 
   console.log('✔ Seed completado en el emulador (' + PROJECT_ID + ').')
-  console.log('  Admin:   admin@jdvm.test /', PASSWORD)
-  console.log('  Cliente: alex@jdvm.test  /', PASSWORD)
-  console.log('  Barberos: dani@/marco@/jon@jdvm.test /', PASSWORD)
+  console.log('  Admin:   admin@jdvm.test / ' + PASSWORD)
+  console.log('  Cliente: alex@jdvm.test  / ' + PASSWORD)
 }
 
 run().catch((e) => {
