@@ -70,15 +70,19 @@ export default defineNuxtConfig({
     config: {
       apiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY,
       authDomain: process.env.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NUXT_PUBLIC_FIREBASE_PROJECT_ID,
+      // Con emuladores usamos un projectId demo: imposible tocar prod por error.
+      projectId:
+        process.env.NUXT_PUBLIC_USE_EMULATORS === 'true'
+          ? 'demo-jdvm'
+          : process.env.NUXT_PUBLIC_FIREBASE_PROJECT_ID,
       storageBucket: process.env.NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       messagingSenderId: process.env.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       appId: process.env.NUXT_PUBLIC_FIREBASE_APP_ID,
       measurementId: process.env.NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
     },
     auth: { enabled: true },
-    // Emuladores en desarrollo. Se activan con NUXT_PUBLIC_USE_EMULATORS=true
-    // y se cablearán con firebase.json + firestore.rules en la Fase 2.
+    // Emuladores en desarrollo (NUXT_PUBLIC_USE_EMULATORS=true). Puertos en
+    // firebase.json. Todo el trabajo con datos va contra emuladores, no prod.
     emulators: {
       enabled: process.env.NUXT_PUBLIC_USE_EMULATORS === 'true',
     },

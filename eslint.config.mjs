@@ -5,8 +5,8 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 import prettier from 'eslint-config-prettier'
 
 export default withNuxt(
-  // inputs/ son referencias de diseño (React/JSX), no código del proyecto.
-  { ignores: ['inputs/**'] },
+  // inputs/ = referencias de diseño (React/JSX); scripts/ = utilidades Node.
+  { ignores: ['inputs/**', 'scripts/**'] },
   {
     rules: {
       // Permitimos nombres de página de una palabra (index.vue, login.vue…).

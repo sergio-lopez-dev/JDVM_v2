@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// Reglas de seguridad de JDVM v2. Roles vía doc users/{uid}.role.
+// NOTA: probadas SOLO contra el emulador. NO desplegar a prod (jdvm-d82b6) aún.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function userExists() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return userExists() && userRole() == 'admin';
+    }
+    function isStaff() {
+      return userExists() && (userRole() == 'barber' || userRole() == 'admin');
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Perfil de usuario. El propio usuario gestiona su doc; admin todo.
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      // Alta: solo uno mismo y SIEMPRE como 'client' (sin auto-elevación).
+      allow create: if isOwner(uid) && request.resource.data.role == 'client';
+      // Edición: el dueño no puede cambiarse el rol; admin sí puede todo.
+      allow update: if isAdmin()
+        || (isOwner(uid) && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    // Catálogo y configuración: lectura pública, escritura admin.
+    match /barbers/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /services/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Citas: cliente dueño, barbero asignado o admin.
+    match /appointments/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && (resource.data.clientId == request.auth.uid
+          || resource.data.barberId == request.auth.uid));
+      // El cliente crea citas a su nombre; staff/admin para cualquiera.
+      allow create: if isAdmin()
+        || (isSignedIn() && request.resource.data.clientId == request.auth.uid);
+      // Cancelar/reprogramar: dueño, barbero o admin. (La ventana de 4 h se
+      // valida en cliente/Cloud Function; las reglas garantizan propiedad.)
+      allow update: if isAdmin()
+        || (isSignedIn() && (resource.data.clientId == request.auth.uid
+          || resource.data.barberId == request.auth.uid));
+      allow delete: if isAdmin();
+    }
+
+    // Lista de espera: el cliente dueño o admin.
+    match /waitlist/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.clientId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.clientId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.clientId == request.auth.uid);
+    }
+
+    // Reseñas: lectura pública; el cliente crea/edita la suya; admin todo.
+    match /reviews/{id} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.clientId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.clientId == request.auth.uid);
+    }
+
+    // Por defecto, denegar todo lo no contemplado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -77,7 +77,15 @@ pnpm lint         # eslint .
 pnpm lint:fix     # eslint . --fix
 pnpm format       # prettier --write .
 pnpm typecheck    # nuxt typecheck (vue-tsc)
+pnpm emulators    # emuladores Firebase (auth/firestore/storage/ui) · proyecto demo-jdvm
+pnpm seed         # siembra datos de prueba en el emulador (requiere emuladores arriba)
+pnpm dev:emu      # emuladores + nuxt dev en un solo comando
 ```
+
+**Dev con datos:** terminal A `pnpm emulators` (UI en http://localhost:4000),
+terminal B `nvm use && pnpm dev`. Con `NUXT_PUBLIC_USE_EMULATORS=true` (ya en
+`.env`) la app usa el projectId `demo-jdvm` contra los emuladores. La primera vez
+`pnpm seed` crea el catálogo y los usuarios de prueba.
 
 ---
 
@@ -157,6 +165,23 @@ Iconos: vía `@lucide/vue` (componentes) o el sistema de iconos de Nuxt UI
 > En Fase 2 se cablean los **emuladores ANTES** de cualquier trabajo con datos, y
 > todo el desarrollo va contra emuladores hasta que se diga lo contrario.
 
+**Capa de datos (Fase 2):**
+
+- **Emuladores** (`firebase.json`): auth 9099, firestore 8080, storage 9199, UI 4000.
+  Proyecto **`demo-jdvm`** (`.firebaserc`) → con `NUXT_PUBLIC_USE_EMULATORS=true` la
+  app fuerza ese projectId, así es **imposible tocar prod por accidente**.
+- **Reglas** en `firestore.rules` (+ `storage.rules`, `firestore.indexes.json`).
+  Probadas SOLO contra emulador. **NO desplegar a prod.**
+- **Rol** en `users/{uid}.role` (`client|barber|admin`). Composable `useCurrentClient`.
+- Composables de datos en `app/composables/` (`useAuth`, `useBarbers`, `useServices`,
+  `useAppointments`, `useWaitlist`, `useClients`, `useSettings`, `useReviews`).
+  Matiz: estos composables SÍ usan el SDK `firebase/firestore` (son la capa de
+  encapsulación); los **componentes** nunca lo usan a pelo.
+- Esquemas Zod en `schemas/` y lógica pura en `lib/` (slots, cancelación 4h,
+  teléfono); se importan con el alias de rootDir `~~/schemas` y `~~/lib`.
+- Usuarios sembrados (`pnpm seed`): `admin@jdvm.test`, `alex@jdvm.test`,
+  `dani@/marco@/jon@jdvm.test` — contraseña `123456` (solo emulador).
+
 ---
 
 ## 9. Sistema de diseño (Fase 1 — tema `forest`)
@@ -217,6 +242,16 @@ vector, sustituir.)
   tiene git 2.25.1).
 - Logo: wordmark tipográfico placeholder hasta tener el vectorial real.
 
+**Decisiones tomadas en Fase 2:**
+
+- Emuladores con projectId **`demo-jdvm`** (aislado de prod). Dev contra emuladores.
+- **Rol en el doc `users/{uid}.role`** (no custom claims, por simplicidad inicial).
+- Nombres de colección nuevos y limpios: `users`, `barbers`, `services`,
+  `appointments`, `waitlist`, `reviews`, `settings/main`. Migración del legacy = aparte.
+- Barbero ↔ cuenta: el **id del doc `barbers/{uid}` = uid de Auth** del barbero, para
+  que `appointment.barberId == request.auth.uid` cuadre con las reglas.
+- Esquemas en `schemas/` (Zod 3) + lógica pura en `lib/`, vía alias `~~/`.
+
 **Decisiones de producto CERRADAS:**
 
 - **B) Cancelación = 4 h antes** (no 24h). El cliente puede cancelar/reprogramar
@@ -274,9 +309,9 @@ Colecciones Firestore actuales (app vieja): `users`, `appointments`,
 - **Fase 0 — Arranque** ✅: scaffold, stack, config, tooling, estructura.
 - **Fase 1 — Sistema de diseño** ✅: tokens forest exactos, dark-only, primitivos
   `U*` tematizados + componentes propios, layout, página `/_styleguide`.
-- **Fase 2 — Auth y modelo:** Auth Email/Google, esquemas Zod, composables de
-  colecciones (`useBarbers`, `useServices`, `useAppointments`, `useWaitlist`,
-  `useClients`), `firestore.rules`, middleware de rutas, emuladores.
+- **Fase 2 — Auth y modelo** ✅: emuladores (demo-jdvm), esquemas Zod, lógica pura
+  (slots/cancelación/teléfono), Auth Email/Google + roles, composables de colecciones,
+  `firestore.rules`, middleware de rutas, seed. Verificado contra emuladores.
 - **Fase 3 — Cliente:** Login → Registro → Recuperación → Google → Home/Mis citas
   → Reservar → Estudio → Perfil. Una pantalla por commit.
 - **Fase 4 — Admin:** Hoy → Agenda → Clientes → Equipo → Catálogo → Estudio admin
