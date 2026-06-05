@@ -19,6 +19,14 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Pre-empaquetar deps que se importan en runtime (esquemas Zod) para evitar
+  // el aviso de Vite y la recarga de página la primera vez.
+  vite: {
+    optimizeDeps: {
+      include: ['zod'],
+    },
+  },
+
   // App dark-only (tema forest). Forzamos modo oscuro y evitamos el flash claro.
   colorMode: {
     preference: 'dark',
