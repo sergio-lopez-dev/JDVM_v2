@@ -312,8 +312,13 @@ Colecciones Firestore actuales (app vieja): `users`, `appointments`,
 - **Fase 2 — Auth y modelo** ✅: emuladores (demo-jdvm), esquemas Zod, lógica pura
   (slots/cancelación/teléfono), Auth Email/Google + roles, composables de colecciones,
   `firestore.rules`, middleware de rutas, seed. Verificado contra emuladores.
-- **Fase 3 — Cliente:** Login → Registro → Recuperación → Google → Home/Mis citas
-  → Reservar → Estudio → Perfil. Una pantalla por commit.
+- **Fase 3 — Cliente** (en curso): ✅ Autenticación (`/login`, `/registro`,
+  `/recuperar`, `/completar-perfil`) + placeholder `/app`. Pendiente: Home/Mis citas
+  → Reservar → Estudio → Detalle barbero → Carta → Perfil → Detalle cita → Valorar.
+  - **Formularios:** se usa `UForm` de Nuxt UI validando con los esquemas **Zod**
+    (standard-schema; zod ≥3.24). VeeValidate queda instalado por si hace falta.
+  - Diseño adaptado: el mockup mostraba Apple/teléfono; usamos Email + Google
+    manteniendo el lenguaje visual (hero serif, dorado, grano). Layout `auth`.
 - **Fase 4 — Admin:** Hoy → Agenda → Clientes → Equipo → Catálogo → Estudio admin
   → Reports → Notificaciones.
 - **Fase 5 — PWA, notificaciones, pulido:** service worker, push FCM,

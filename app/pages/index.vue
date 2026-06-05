@@ -18,8 +18,8 @@ const dev = import.meta.dev
       </h1>
       <p class="text-muted">Reserva con tu barbero de siempre, sin llamadas ni esperas.</p>
       <div class="flex gap-3">
-        <UButton color="primary" size="lg" icon="i-lucide-scissors">Reservar</UButton>
-        <UButton color="neutral" variant="subtle" size="lg">El estudio</UButton>
+        <UButton to="/login" color="primary" size="lg" icon="i-lucide-scissors">Reservar</UButton>
+        <UButton to="/registro" color="neutral" variant="subtle" size="lg">Crear cuenta</UButton>
       </div>
       <NuxtLink
         v-if="dev"
