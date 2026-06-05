@@ -14,7 +14,10 @@
  *  3. .dark   → remapeo de los tokens semánticos de Nuxt UI a la paleta forest,
  *               para que todos los componentes U* hereden la marca en modo oscuro.
  */
-@theme {
+/* `static`: emite SIEMPRE estas variables (aunque no se usen como utilidades
+   Tailwind), para que Nuxt UI pueda mapear primary=gold y neutral=ink. Sin
+   `static`, Tailwind v4 hace tree-shaking de las rampas y los acentos se rompen. */
+@theme static {
   /* Tipografía */
   --font-display: 'Libre Caslon Display', ui-serif, Georgia, serif;
   --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
