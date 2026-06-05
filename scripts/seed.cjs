@@ -68,8 +68,10 @@ async function run() {
     await db.collection('services').doc(id).set({ ...data, isPrivate: false }, { merge: true })
   }
 
+  const barberUids = {}
   for (const b of barbers) {
     const uid = await ensureUser(b.email, b.name)
+    barberUids[b.slug] = uid
     await db.collection('users').doc(uid).set(
       { name: b.name, email: b.email, phone: '', role: 'barber', allowPush: false, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
@@ -111,6 +113,30 @@ async function run() {
   const clientUid = await ensureUser('alex@jdvm.test', 'Álex Morán')
   await db.collection('users').doc(clientUid).set(
     { name: 'Álex Morán', email: 'alex@jdvm.test', phone: '600123456', role: 'client', allowPush: false, createdAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  )
+
+  // Citas de ejemplo para el cliente (una próxima, una pasada) + reseña.
+  const dani = barberUids['dani-ruiz']
+  const now = new Date()
+  const at = (daysAhead, h, m) => {
+    const d = new Date(now)
+    d.setDate(d.getDate() + daysAhead)
+    d.setHours(h, m, 0, 0)
+    return d
+  }
+  const up = at(2, 17, 30)
+  const past = at(-14, 18, 0)
+  await db.collection('appointments').doc('seed-up').set(
+    { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: up, endsAt: new Date(up.getTime() + 45 * 60000), status: 'booked', priceSnapshot: 18, isRecurring: false, createdAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  )
+  await db.collection('appointments').doc('seed-past').set(
+    { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: past, endsAt: new Date(past.getTime() + 45 * 60000), status: 'completed', priceSnapshot: 18, paymentMethod: 'cash', isRecurring: false, createdAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  )
+  await db.collection('reviews').doc('seed-rev1').set(
+    { clientId: clientUid, clientName: 'Carlos M.', barberId: dani, score: 5, tags: ['Puntual', 'Profesional'], text: 'El mejor fade que me han hecho. Atento al detalle y buena charla.', createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
 

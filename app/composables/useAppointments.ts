@@ -43,6 +43,25 @@ export function useAppointments() {
     )
   }
 
+  // Citas ocupadas (reactivas) de un barbero en un día — para generar slots.
+  function busyFor(barberId: Ref<string | null>, day: Ref<Date>) {
+    const q = computed(() => {
+      if (!barberId.value) return null
+      const start = new Date(day.value)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+      return query(
+        col,
+        where('barberId', '==', barberId.value),
+        where('startsAt', '>=', start),
+        where('startsAt', '<', end),
+        where('status', '==', 'booked'),
+      )
+    })
+    return useCollection<Appointment>(q)
+  }
+
   const create = (input: AppointmentInput) =>
     addDoc(col, { ...input, createdAt: serverTimestamp() })
 
@@ -68,5 +87,5 @@ export function useAppointments() {
 
   const remove = (id: string) => deleteDoc(doc(db, 'appointments', id))
 
-  return { mine, forBarberOnDay, create, cancel, reschedule, remove }
+  return { mine, forBarberOnDay, busyFor, create, cancel, reschedule, remove }
 }

@@ -66,10 +66,20 @@ export default defineNuxtConfig({
   // Se irá afinando conforme aterricen las páginas reales en fases 3 y 4.
   routeRules: {
     '/': { prerender: true },
-    '/estudio/**': { isr: 60 * 60 },
-    '/carta': { isr: 60 * 60 },
+    // Área autenticada del cliente = SPA (datos en cliente vía VueFire; el
+    // middleware de auth corre en cliente, sin flash de redirección en SSR).
     '/app/**': { ssr: false },
     '/admin/**': { ssr: false },
+    '/perfil': { ssr: false },
+    '/reservar': { ssr: false },
+    '/estudio': { ssr: false },
+    '/estudio/**': { ssr: false },
+    '/barbero/**': { ssr: false },
+    '/carta': { ssr: false },
+    '/citas/**': { ssr: false },
+    '/valorar/**': { ssr: false },
+    '/lista-espera': { ssr: false },
+    '/avisos': { ssr: false },
   },
 
   // Configuración Firebase (config web pública — segura de exponer en cliente).

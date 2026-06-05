@@ -312,9 +312,14 @@ Colecciones Firestore actuales (app vieja): `users`, `appointments`,
 - **Fase 2 — Auth y modelo** ✅: emuladores (demo-jdvm), esquemas Zod, lógica pura
   (slots/cancelación/teléfono), Auth Email/Google + roles, composables de colecciones,
   `firestore.rules`, middleware de rutas, seed. Verificado contra emuladores.
-- **Fase 3 — Cliente** (en curso): ✅ Autenticación (`/login`, `/registro`,
-  `/recuperar`, `/completar-perfil`) + placeholder `/app`. Pendiente: Home/Mis citas
-  → Reservar → Estudio → Detalle barbero → Carta → Perfil → Detalle cita → Valorar.
+- **Fase 3 — Cliente** ✅ (pulido pendiente): Auth (`/login`, `/registro`,
+  `/recuperar`, `/completar-perfil`) + Home (`/app`), Reservar (`/reservar`, flujo
+  servicio→fecha→confirmar→confirmada con slots reales y confeti), Lista de espera
+  (`/lista-espera`), Estudio (`/estudio`), Detalle barbero (`/barbero/[slug]`),
+  Carta (`/carta`), Perfil (`/perfil`), Detalle cita (`/citas/[id]`), Valorar
+  (`/valorar/[id]`), Avisos (`/avisos`). Shell: layouts `app` (con `AppTabBar`) e
+  `inner` (con `AppBar`); componentes `UiPhoto`, helpers `lib/format`,
+  `useMyAppointments`. Tab-bar: Inicio/Reservar/Estudio/Perfil.
   - **Formularios:** se usa `UForm` de Nuxt UI validando con los esquemas **Zod**
     (standard-schema; zod ≥3.24). VeeValidate queda instalado por si hace falta.
   - Diseño adaptado: el mockup mostraba Apple/teléfono; usamos Email + Google
