@@ -1,4 +1,4 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore'
 import type { Review, ReviewInput } from '~~/schemas'
 
 export function useReviews() {
@@ -17,6 +17,7 @@ export function useReviews() {
     })
 
   const create = (input: ReviewInput) => addDoc(col, { ...input, createdAt: serverTimestamp() })
+  const remove = (id: string) => deleteDoc(doc(db, 'reviews', id))
 
-  return { reviews, byBarber, averageFor, create }
+  return { reviews, byBarber, averageFor, create, remove }
 }

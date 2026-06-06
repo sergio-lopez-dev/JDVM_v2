@@ -47,6 +47,29 @@ export function resolveDayTimetable(week: WeekTimetable, date: Date): DayTimetab
   return week[weekdayOf(date)]
 }
 
+/** "10:00 – 14:00 · 17:00 – 20:30" o "Cerrado" para mostrar el horario de un día. */
+export function formatDayHours(dt?: DayTimetable): string {
+  if (!dt || (!dt.morning && !dt.afternoon)) return 'Cerrado'
+  const parts: string[] = []
+  if (dt.morning) parts.push(`${dt.morning.start} – ${dt.morning.end}`)
+  if (dt.afternoon) parts.push(`${dt.afternoon.start} – ${dt.afternoon.end}`)
+  return parts.join(' · ')
+}
+
+/** ¿Está abierto el local en `now`? Devuelve si está abierto y a qué hora cierra. */
+export function openStatus(
+  dt: DayTimetable | undefined,
+  now: Date,
+): { open: boolean; closesAt?: string } {
+  const wins = dayWindows(now, dt)
+  for (const w of wins) {
+    if (now >= w.start && now < w.end) {
+      return { open: true, closesAt: `${String(w.end.getHours()).padStart(2, '0')}:${String(w.end.getMinutes()).padStart(2, '0')}` }
+    }
+  }
+  return { open: false }
+}
+
 /** ¿El barbero está de vacaciones ese día? */
 export function isOnVacation(date: Date, vacations: DateRange[]): boolean {
   return vacations.some((r) => isWithinRange(date, r))

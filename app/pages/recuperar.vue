@@ -4,9 +4,10 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { authErrorMessage } from '~~/lib/authErrors'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Recuperar acceso · JDVM' })
+useHead({ title: 'Recuperar acceso' })
 
 const { sendReset } = useAuth()
+const { name: studioName } = useStudio()
 
 const schema = z.object({ email: z.string().email('Email inválido') })
 type Schema = z.infer<typeof schema>
@@ -39,6 +40,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     <div class="flex flex-col items-center gap-5 text-center">
       <AppLogo variant="mark" :size="44" />
       <div class="space-y-2">
+        <p class="font-display text-xl leading-none">{{ studioName }}</p>
         <h1 class="font-display text-4xl leading-none">Recuperar acceso</h1>
         <p class="text-muted text-sm">Te enviaremos un enlace para restablecer tu contraseña.</p>
       </div>

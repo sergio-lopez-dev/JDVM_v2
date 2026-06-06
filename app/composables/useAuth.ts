@@ -65,5 +65,16 @@ export function useAuth() {
     return sendPasswordResetEmail(auth, email)
   }
 
-  return { user, signUp, signIn, signInWithGoogle, signOut, sendReset, ensureUserDoc }
+  // Lee el rol del usuario (para enrutar tras el login).
+  async function roleOf(uid: string) {
+    const snap = await getDoc(doc(db, 'users', uid))
+    return (snap.data()?.role as string | undefined) ?? 'client'
+  }
+
+  // Destino por defecto según rol: barbero → app de barbero; resto → cliente.
+  async function destinationFor(uid: string) {
+    return (await roleOf(uid)) === 'barber' ? '/staff' : '/app'
+  }
+
+  return { user, signUp, signIn, signInWithGoogle, signOut, sendReset, ensureUserDoc, roleOf, destinationFor }
 }

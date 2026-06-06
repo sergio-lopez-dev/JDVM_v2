@@ -24,6 +24,9 @@ export const barberSchema = z.object({
   servicesOffered: z.array(z.string()).default([]),
   timetable: weekTimetableSchema.default({}),
   vacations: z.array(dateRangeSchema).default([]),
+  // % de los servicios que se lleva el barbero (lo fija el admin). El resto es
+  // del local. Solo lo ve el propio barbero y el admin, no la caja total.
+  commissionPercent: z.number().int().min(0).max(100).default(50),
 })
 export type Barber = z.infer<typeof barberSchema>
 

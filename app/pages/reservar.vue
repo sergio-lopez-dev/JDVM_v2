@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import confetti from 'canvas-confetti'
-import { effectivePrice, type Service, type Barber } from '~~/schemas'
-import { generateSlots, resolveDayTimetable } from '~~/lib/slots'
+import { effectivePrice, effectiveDuration, type Service, type Barber } from '~~/schemas'
+import { generateSlots, resolveDayTimetable, isOnVacation } from '~~/lib/slots'
 import { toDate, weekdayOf } from '~~/lib/datetime'
 import { fmtDate, formatPrice, formatDuration, initials } from '~~/lib/format'
 
-definePageMeta({ layout: 'inner', middleware: 'auth' })
-useHead({ title: 'Reservar · JDVM' })
+definePageMeta({ layout: 'booking', middleware: 'auth' })
+useHead({ title: 'Reservar' })
 
 const route = useRoute()
 const user = useCurrentUser()
@@ -15,6 +15,8 @@ const { publicServices } = useServices()
 const { active: barbers } = useBarbers()
 const { settings } = useSettings()
 const { create } = useAppointments()
+const { studio, name: studioName, codePrefix } = useStudio()
+const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
 
 type Step = 0 | 1 | 2 | 'done'
 const step = ref<Step>(0)
@@ -63,9 +65,19 @@ const selectedBarberId = computed(() =>
 )
 const busy = useAppointments().busyFor(selectedBarberId, selectedDate)
 
+// ¿El barbero concreto está de vacaciones ese día? (vacations llegan como Timestamps).
+function barberOnVacation(b: Barber, date: Date) {
+  const vacs = (b.vacations ?? []).map((v) => ({ start: toDate(v.start), end: toDate(v.end) }))
+  return isOnVacation(date, vacs)
+}
+
 const slots = computed(() => {
   const svc = selectedService.value
   if (!svc) return []
+  // Si el barbero elegido está de vacaciones ese día, no hay huecos.
+  if (selectedBarber.value && !anyBarber.value && barberOnVacation(selectedBarber.value, selectedDate.value)) {
+    return []
+  }
   const localTt = settings.value
     ? resolveDayTimetable(settings.value.timetable, selectedDate.value)
     : undefined
@@ -75,7 +87,7 @@ const slots = computed(() => {
       : undefined
   return generateSlots({
     day: selectedDate.value,
-    durationMinutes: svc.durationMinutes,
+    durationMinutes: effectiveDuration(svc, selectedBarberId.value ?? undefined),
     localTimetable: localTt,
     barberTimetable: barberTt,
     busy: busy.value.map((a) => ({ start: toDate(a.startsAt), end: toDate(a.endsAt) })),
@@ -91,12 +103,19 @@ const weekDays = computed(() =>
     return d
   }),
 )
-const isClosed = (d: Date) => settings.value?.daysClosed?.includes(weekdayOf(d)) ?? false
+const isClosed = (d: Date) =>
+  (settings.value?.daysClosed?.includes(weekdayOf(d)) ?? false) ||
+  (!anyBarber.value && !!selectedBarber.value && barberOnVacation(selectedBarber.value, d))
 
 const price = computed(() =>
   selectedService.value
     ? effectivePrice(selectedService.value, selectedBarberId.value ?? undefined)
     : 0,
+)
+const duration = computed(() =>
+  selectedService.value
+    ? effectiveDuration(selectedService.value, selectedBarberId.value ?? undefined)
+    : undefined,
 )
 
 function pickService(s: Service) {
@@ -123,7 +142,7 @@ async function confirm() {
     let barber = anyBarber.value ? null : selectedBarber.value
     if (!barber) barber = eligibleBarbers.value[0] ?? barbers.value[0] ?? null
     if (!barber) throw new Error('No hay barberos disponibles.')
-    const endsAt = new Date(slot.getTime() + svc.durationMinutes * 60_000)
+    const endsAt = new Date(slot.getTime() + effectiveDuration(svc, barber.id) * 60_000)
     const ref = await create({
       clientId: user.value.uid,
       barberId: barber.id,
@@ -135,7 +154,7 @@ async function confirm() {
       paymentMethod: paymentMethod.value,
       isRecurring: false,
     })
-    bookingCode.value = `JDVM-${ref.id.slice(-4).toUpperCase()}`
+    bookingCode.value = `${codePrefix.value}-${ref.id.slice(-4).toUpperCase()}`
     selectedBarber.value = barber
     void confetti({ particleCount: 120, spread: 70, origin: { y: 0.3 }, colors: ['#C2A24E', '#DCC07A', '#6FA98A'] })
     step.value = 'done'
@@ -147,10 +166,74 @@ async function confirm() {
 }
 
 const steps = ['Servicio', 'Fecha', 'Confirmar']
+
+// ----- Soporte escritorio (vista unificada + calendario mensual) -----
+function startOfMonth(d: Date) {
+  const x = new Date(d)
+  x.setDate(1)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+const viewMonth = ref(startOfMonth(new Date()))
+const todayStart = startOfToday()
+const weekdayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+
+const monthGrid = computed(() => {
+  const first = viewMonth.value
+  const year = first.getFullYear()
+  const month = first.getMonth()
+  const lead = (first.getDay() + 6) % 7 // semana en lunes
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (Date | null)[] = Array.from({ length: lead }, () => null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d))
+  return cells
+})
+function shiftMonth(delta: number) {
+  const x = new Date(viewMonth.value)
+  x.setMonth(x.getMonth() + delta)
+  viewMonth.value = startOfMonth(x)
+}
+const canPrevMonth = computed(() => viewMonth.value.getTime() > startOfMonth(new Date()).getTime())
+function dayDisabled(d: Date) {
+  return d.getTime() < todayStart.getTime() || isClosed(d)
+}
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
+const slotEnd = computed(() =>
+  selectedSlot.value && selectedService.value
+    ? new Date(
+        selectedSlot.value.getTime() +
+          effectiveDuration(selectedService.value, selectedBarberId.value ?? undefined) * 60_000,
+      )
+    : null,
+)
+const barberLabel = computed(() =>
+  anyBarber.value || !selectedBarber.value ? 'Cualquiera disponible' : selectedBarber.value.name,
+)
+
+// Vista de escritorio combina servicio+barbero+fecha en un solo paso.
+function goConfirmDesktop() {
+  if (selectedService.value && selectedSlot.value) step.value = 2
+}
+const dLabels = ['Servicio y barbero', 'Fecha y hora', 'Confirmar']
+const dStep = computed(() => (step.value === 2 ? 2 : 0))
+
+// Enlace "Añadir a Google Calendar" para la pantalla de éxito.
+const gcalUrl = computed(() => {
+  if (!selectedSlot.value || !slotEnd.value || !selectedService.value) return ''
+  const stamp = (d: Date) => fmtDate(d, "yyyyMMdd'T'HHmmss")
+  const text = encodeURIComponent(`${selectedService.value.name} · ${studioName.value}`)
+  const loc = encodeURIComponent(`${studioName.value}${studioPlace.value ? `, ${studioPlace.value}` : ''}`)
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${stamp(selectedSlot.value)}/${stamp(slotEnd.value)}&location=${loc}`
+})
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col">
+  <div class="contents">
+  <!-- ====================== MÓVIL ====================== -->
+  <div class="flex flex-1 flex-col lg:hidden">
     <!-- ÉXITO -->
     <template v-if="step === 'done'">
       <div class="flex flex-1 flex-col items-center justify-center px-8 text-center">
@@ -270,7 +353,7 @@ const steps = ['Servicio', 'Fecha', 'Confirmar']
           <span class="bg-primary size-2.5 shrink-0 rounded" />
           <div class="flex-1">
             <p class="text-sm font-semibold">{{ selectedService?.name }}</p>
-            <p class="text-dimmed font-mono text-[0.65rem]">{{ formatDuration(selectedService?.durationMinutes) }} · {{ formatPrice(price) }}</p>
+            <p class="text-dimmed font-mono text-[0.65rem]">{{ formatDuration(duration) }} · {{ formatPrice(price) }}</p>
           </div>
           <button type="button" class="text-primary text-xs font-semibold" @click="step = 0">Cambiar</button>
         </div>
@@ -353,7 +436,7 @@ const steps = ['Servicio', 'Fecha', 'Confirmar']
           </div>
           <div>
             <p class="font-display text-2xl leading-none">{{ selectedService?.name }}</p>
-            <p class="text-muted mt-1 text-xs">{{ anyBarber ? 'Cualquier barbero' : 'con ' + selectedBarber?.name }} · JDVM Maracena</p>
+            <p class="text-muted mt-1 text-xs">{{ anyBarber ? 'Cualquier barbero' : 'con ' + selectedBarber?.name }} · {{ studioName }}</p>
           </div>
         </div>
 
@@ -404,7 +487,7 @@ const steps = ['Servicio', 'Fecha', 'Confirmar']
       <!-- CTA por paso -->
       <div class="border-default bg-default sticky bottom-0 flex items-center gap-3 border-t px-5 py-3">
         <div v-if="step === 0">
-          <p class="text-dimmed font-mono text-[0.6rem]">{{ selectedService ? formatDuration(selectedService.durationMinutes) : 'Elige un servicio' }}</p>
+          <p class="text-dimmed font-mono text-[0.6rem]">{{ selectedService ? formatDuration(duration) : 'Elige un servicio' }}</p>
           <p class="font-display text-xl">{{ formatPrice(price) }}</p>
         </div>
         <UButton v-if="step === 0" :disabled="!selectedService" color="primary" size="lg" class="flex-1 justify-center" trailing-icon="i-lucide-arrow-right" @click="goFecha">Elegir fecha</UButton>
@@ -420,5 +503,308 @@ const steps = ['Servicio', 'Fecha', 'Confirmar']
         <UButton v-else color="primary" size="lg" block :loading="submitting" icon="i-lucide-check" @click="confirm">Confirmar reserva</UButton>
       </div>
     </template>
+  </div>
+
+  <!-- ====================== ESCRITORIO ====================== -->
+  <div class="mx-auto hidden w-full max-w-[1280px] flex-1 flex-col px-8 py-9 lg:flex">
+    <!-- ÉXITO -->
+    <div v-if="step === 'done'" class="relative flex flex-1 flex-col items-center justify-center text-center">
+      <div class="bg-primary/15 border-primary/30 mb-7 flex size-24 items-center justify-center rounded-full border">
+        <div class="bg-primary flex size-[68px] items-center justify-center rounded-full">
+          <UIcon name="i-lucide-check" class="text-inverted size-9" />
+        </div>
+      </div>
+      <h1 class="font-display text-5xl leading-none">¡Cita confirmada!</h1>
+      <p class="text-muted mt-3.5 max-w-lg text-base leading-relaxed">
+        Te esperamos el
+        <span class="text-primary font-semibold">{{ fmtDate(selectedSlot!, "EEEE d 'a las' HH:mm") }}</span>.
+        Hemos enviado los detalles a tu correo.
+      </p>
+
+      <div class="border-default bg-muted mt-8 flex w-full max-w-xl items-center gap-6 rounded-[18px] border px-7 py-6 text-left">
+        <div class="border-primary/40 bg-elevated flex size-13 items-center justify-center rounded-full border text-base font-semibold">
+          {{ initials(selectedBarber?.name) }}
+        </div>
+        <div class="flex-1">
+          <p class="text-base font-semibold">{{ selectedService?.name }}</p>
+          <p class="text-muted mt-0.5 text-sm">con {{ selectedBarber?.name }}</p>
+        </div>
+        <div class="flex gap-7">
+          <div><p class="text-dimmed font-mono text-[0.55rem] tracking-wide">FECHA</p><p class="mt-1 text-sm font-semibold capitalize">{{ fmtDate(selectedSlot!, 'EEE d MMM') }}</p></div>
+          <div><p class="text-dimmed font-mono text-[0.55rem] tracking-wide">HORA</p><p class="mt-1 text-sm font-semibold">{{ fmtDate(selectedSlot!, 'HH:mm') }}</p></div>
+          <div><p class="text-dimmed font-mono text-[0.55rem] tracking-wide">CÓDIGO</p><p class="text-primary mt-1 font-mono text-sm font-semibold">{{ bookingCode }}</p></div>
+        </div>
+      </div>
+
+      <div class="mt-7 flex justify-center gap-3">
+        <UButton :to="gcalUrl" target="_blank" color="primary" size="lg" icon="i-lucide-calendar">Añadir al calendario</UButton>
+        <UButton to="/app" color="neutral" variant="outline" size="lg">Volver al inicio</UButton>
+      </div>
+    </div>
+
+    <!-- CONFIRMAR -->
+    <template v-else-if="step === 2">
+      <div class="mb-7 flex items-center justify-between">
+        <h1 class="font-display text-4xl">Confirmar reserva</h1>
+        <div class="flex items-center gap-3.5">
+          <template v-for="(lab, i) in dLabels" :key="lab">
+            <div class="flex items-center gap-2.5">
+              <div
+                class="flex size-7 items-center justify-center rounded-full border text-[0.8rem] font-bold"
+                :class="i <= dStep ? 'bg-primary border-primary text-inverted' : 'border-default text-dimmed'"
+              >
+                <UIcon v-if="i < dStep" name="i-lucide-check" class="size-3.5" />
+                <span v-else>{{ i + 1 }}</span>
+              </div>
+              <span class="text-sm" :class="i === dStep ? 'text-default font-bold' : 'text-dimmed font-medium'">{{ lab }}</span>
+            </div>
+            <span v-if="i < 2" class="bg-border h-px w-10" />
+          </template>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-[1.4fr_1fr] items-start gap-6">
+        <div class="space-y-5">
+          <div class="border-default bg-muted rounded-2xl border p-6">
+            <div class="border-default flex items-center gap-4 border-b pb-5">
+              <div class="border-primary/40 bg-elevated flex size-13 items-center justify-center rounded-full border text-sm font-semibold">
+                {{ anyBarber ? '★' : initials(selectedBarber?.name) }}
+              </div>
+              <div>
+                <p class="font-display text-2xl leading-none">{{ selectedService?.name }}</p>
+                <p class="text-muted mt-1.5 text-sm">{{ anyBarber ? 'Cualquier barbero' : 'con ' + selectedBarber?.name }} · {{ studioName }}</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-5 pt-5">
+              <div class="flex items-center gap-3.5">
+                <div class="bg-elevated flex size-10 items-center justify-center rounded-xl"><UIcon name="i-lucide-calendar" class="text-primary size-[18px]" /></div>
+                <div><p class="text-dimmed text-xs">Fecha</p><p class="mt-0.5 text-sm font-semibold capitalize">{{ fmtDate(selectedSlot!, "EEEE d 'de' MMMM") }}</p></div>
+              </div>
+              <div class="flex items-center gap-3.5">
+                <div class="bg-elevated flex size-10 items-center justify-center rounded-xl"><UIcon name="i-lucide-clock" class="text-primary size-[18px]" /></div>
+                <div><p class="text-dimmed text-xs">Hora</p><p class="mt-0.5 text-sm font-semibold">{{ fmtDate(selectedSlot!, 'HH:mm') }}<span v-if="slotEnd"> – {{ fmtDate(slotEnd, 'HH:mm') }}</span></p></div>
+              </div>
+              <div class="flex items-center gap-3.5">
+                <div class="bg-elevated flex size-10 items-center justify-center rounded-xl"><UIcon name="i-lucide-map-pin" class="text-primary size-[18px]" /></div>
+                <div><p class="text-dimmed text-xs">Lugar</p><p class="mt-0.5 text-sm font-semibold">{{ studioPlace }}</p></div>
+              </div>
+              <div class="flex items-center gap-3.5">
+                <div class="bg-elevated flex size-10 items-center justify-center rounded-xl"><UIcon name="i-lucide-scissors" class="text-primary size-[18px]" /></div>
+                <div><p class="text-dimmed text-xs">Duración</p><p class="mt-0.5 text-sm font-semibold">{{ formatDuration(duration) }}</p></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-default bg-muted rounded-2xl border p-6">
+            <h2 class="font-display mb-4 text-xl">Método de pago</h2>
+            <div class="space-y-2.5">
+              <button
+                v-for="p in [{ k: 'cash', label: 'Pagar en el local', icon: 'i-lucide-store' }, { k: 'revolut', label: 'Revolut (QR)', icon: 'i-lucide-qr-code' }]"
+                :key="p.k"
+                type="button"
+                class="flex w-full items-center gap-3.5 rounded-xl border p-4"
+                :class="paymentMethod === p.k ? 'bg-primary/10 border-primary/30' : 'bg-elevated border-default'"
+                @click="paymentMethod = p.k as 'cash' | 'revolut'"
+              >
+                <UIcon :name="p.icon" class="size-[18px]" :class="paymentMethod === p.k ? 'text-primary' : 'text-muted'" />
+                <span class="flex-1 text-left text-sm font-semibold">{{ p.label }}</span>
+                <span class="flex size-[18px] items-center justify-center rounded-full border" :class="paymentMethod === p.k ? 'border-primary bg-primary' : 'border-border'">
+                  <span v-if="paymentMethod === p.k" class="bg-inverted size-[7px] rounded-full" />
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-primary/30 bg-muted rounded-2xl border p-6">
+          <p class="text-primary mb-4 font-mono text-[0.6rem] tracking-widest uppercase">Resumen</p>
+          <div class="flex justify-between py-2 text-sm">
+            <span class="text-muted">{{ selectedService?.name }}</span>
+            <span class="font-medium">{{ formatPrice(price) }}</span>
+          </div>
+          <div class="flex justify-between py-2 text-sm">
+            <span class="text-muted">Reserva online</span>
+            <span class="text-success font-medium">Gratis</span>
+          </div>
+          <div class="border-default mt-2 flex items-baseline justify-between border-t pt-4">
+            <span class="text-sm font-semibold">Total</span>
+            <span class="font-display text-3xl">{{ formatPrice(price) }}</span>
+          </div>
+          <UButton class="mt-5 justify-center" color="primary" size="lg" block :loading="submitting" icon="i-lucide-check" @click="confirm">Confirmar reserva</UButton>
+          <div class="border-default mt-3.5 flex gap-2.5 rounded-xl border border-dashed p-3.5">
+            <UIcon name="i-lucide-lock" class="text-dimmed size-3.5 shrink-0" />
+            <span class="text-dimmed text-[0.72rem] leading-relaxed">Cancela gratis hasta 4 h antes. Te recordaremos la cita el día anterior.</span>
+          </div>
+          <button type="button" class="text-dimmed hover:text-default mt-3 w-full text-center text-xs" @click="step = 1">← Volver atrás</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- RESERVAR (servicio + barbero + fecha + slots) -->
+    <template v-else>
+      <div class="mb-7 flex items-center justify-between">
+        <h1 class="font-display text-4xl">Reservar cita</h1>
+        <div class="flex items-center gap-3.5">
+          <template v-for="(lab, i) in dLabels" :key="lab">
+            <div class="flex items-center gap-2.5">
+              <div
+                class="flex size-7 items-center justify-center rounded-full border text-[0.8rem] font-bold"
+                :class="i === dStep ? 'bg-primary border-primary text-inverted' : 'border-default text-dimmed'"
+              >
+                {{ i + 1 }}
+              </div>
+              <span class="text-sm" :class="i === dStep ? 'text-default font-bold' : 'text-dimmed font-medium'">{{ lab }}</span>
+            </div>
+            <span v-if="i < 2" class="bg-border h-px w-10" />
+          </template>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-[1.5fr_1fr] items-start gap-6">
+        <!-- izquierda: servicio + barbero + calendario -->
+        <div class="space-y-7">
+          <div>
+            <h2 class="font-display mb-3.5 text-xl">1 · Elige servicio</h2>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                v-for="s in publicServices"
+                :key="s.id"
+                type="button"
+                class="flex items-center gap-3 rounded-xl border p-4 text-left"
+                :class="selectedService?.id === s.id ? 'bg-primary/10 border-primary/30' : 'bg-muted border-default'"
+                @click="pickService(s)"
+              >
+                <span
+                  class="flex size-[22px] shrink-0 items-center justify-center rounded-full border"
+                  :class="selectedService?.id === s.id ? 'bg-primary border-primary' : 'border-border'"
+                >
+                  <UIcon v-if="selectedService?.id === s.id" name="i-lucide-check" class="text-inverted size-3" />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold">{{ s.name }}</p>
+                  <p class="text-dimmed truncate text-xs">{{ formatDuration(s.durationMinutes) }}</p>
+                </div>
+                <span class="font-display text-xl">{{ formatPrice(s.basePrice) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h2 class="font-display mb-3.5 text-xl">2 · Elige barbero</h2>
+            <div class="flex flex-wrap gap-4">
+              <button type="button" class="flex flex-col items-center gap-2" @click="anyBarber = true">
+                <span
+                  class="flex size-15 items-center justify-center rounded-full border"
+                  :class="anyBarber ? 'border-primary bg-primary/15' : 'border-default bg-muted'"
+                >
+                  <UIcon name="i-lucide-sparkles" class="text-primary size-6" />
+                </span>
+                <span class="text-xs" :class="anyBarber ? 'text-default font-bold' : 'text-dimmed font-medium'">Cualquiera</span>
+              </button>
+              <button
+                v-for="b in eligibleBarbers"
+                :key="b.id"
+                type="button"
+                class="flex flex-col items-center gap-2"
+                @click="anyBarber = false; selectedBarber = b"
+              >
+                <span
+                  class="flex size-15 items-center justify-center rounded-full border text-sm font-semibold"
+                  :class="!anyBarber && selectedBarber?.id === b.id ? 'border-primary bg-primary/15 text-primary' : 'border-default bg-muted text-muted'"
+                >{{ initials(b.name) }}</span>
+                <span class="text-xs" :class="!anyBarber && selectedBarber?.id === b.id ? 'text-default font-bold' : 'text-dimmed font-medium'">{{ b.name.split(' ')[0] }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-3.5 flex items-center justify-between">
+              <h2 class="font-display text-xl">3 · Elige fecha</h2>
+              <div class="flex items-center gap-3">
+                <button type="button" :disabled="!canPrevMonth" class="text-toned disabled:opacity-30" @click="shiftMonth(-1)"><UIcon name="i-lucide-chevron-left" class="size-[18px]" /></button>
+                <span class="font-display text-base capitalize">{{ fmtDate(viewMonth, 'MMMM yyyy') }}</span>
+                <button type="button" class="text-toned" @click="shiftMonth(1)"><UIcon name="i-lucide-chevron-right" class="size-[18px]" /></button>
+              </div>
+            </div>
+            <div class="border-default bg-muted rounded-2xl border p-5">
+              <div class="mb-2 grid grid-cols-7 gap-2">
+                <div v-for="w in weekdayLabels" :key="w" class="text-dimmed pb-1 text-center font-mono text-[0.65rem]">{{ w }}</div>
+              </div>
+              <div class="grid grid-cols-7 gap-2">
+                <template v-for="(d, i) in monthGrid" :key="i">
+                  <div v-if="!d" />
+                  <button
+                    v-else
+                    type="button"
+                    :disabled="dayDisabled(d)"
+                    class="relative flex aspect-square items-center justify-center rounded-[10px] text-sm transition-colors disabled:opacity-30"
+                    :class="sameDay(d, selectedDate) ? 'bg-primary text-inverted font-bold' : 'text-default hover:bg-elevated font-medium'"
+                    @click="pickDay(d)"
+                  >
+                    {{ d.getDate() }}
+                    <span
+                      v-if="!dayDisabled(d) && !sameDay(d, selectedDate)"
+                      class="bg-primary/70 absolute bottom-1.5 size-1 rounded-full"
+                    />
+                  </button>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- derecha: slots + resumen -->
+        <div class="space-y-5">
+          <div class="border-default bg-muted rounded-2xl border p-5">
+            <div class="mb-4 flex items-center gap-2">
+              <span class="font-display text-lg capitalize">{{ fmtDate(selectedDate, 'EEEE d') }}</span>
+              <span class="flex-1" />
+              <span class="text-dimmed font-mono text-[0.7rem]">{{ slots.length }} huecos</span>
+            </div>
+            <div v-if="!selectedService" class="text-dimmed py-6 text-center text-sm">Elige un servicio para ver los huecos.</div>
+            <div v-else-if="slots.length" class="grid grid-cols-2 gap-2.5">
+              <button
+                v-for="s in slots"
+                :key="s.toISOString()"
+                type="button"
+                class="rounded-xl border py-3 text-center"
+                :class="selectedSlot?.getTime() === s.getTime() ? 'bg-primary border-primary' : 'bg-elevated border-default'"
+                @click="selectedSlot = s"
+              >
+                <span class="font-mono text-[0.95rem] font-semibold" :class="selectedSlot?.getTime() === s.getTime() ? 'text-inverted' : 'text-default'">{{ fmtDate(s, 'HH:mm') }}</span>
+              </button>
+            </div>
+            <p v-else class="text-dimmed py-6 text-center text-sm">No hay huecos ese día.</p>
+          </div>
+
+          <div class="border-primary/30 bg-muted rounded-2xl border p-5">
+            <p class="text-primary mb-4 font-mono text-[0.6rem] tracking-widest uppercase">Tu reserva</p>
+            <div class="border-default flex justify-between border-b py-2.5 text-sm">
+              <span class="text-muted">Servicio</span><span class="font-semibold">{{ selectedService?.name ?? '—' }}</span>
+            </div>
+            <div class="border-default flex justify-between border-b py-2.5 text-sm">
+              <span class="text-muted">Barbero</span><span class="font-semibold">{{ barberLabel }}</span>
+            </div>
+            <div class="border-default flex justify-between border-b py-2.5 text-sm">
+              <span class="text-muted">Fecha</span><span class="font-semibold capitalize">{{ fmtDate(selectedDate, 'EEE d MMM') }}</span>
+            </div>
+            <div class="flex justify-between py-2.5 text-sm">
+              <span class="text-muted">Hora</span><span class="font-semibold">{{ selectedSlot ? fmtDate(selectedSlot, 'HH:mm') : '—' }}</span>
+            </div>
+            <div class="border-default mt-1 flex items-baseline justify-between border-t pt-3.5">
+              <span class="text-sm font-semibold">Total</span>
+              <span class="font-display text-3xl">{{ formatPrice(price) }}</span>
+            </div>
+            <UButton class="mt-4 justify-center" color="primary" size="lg" block :disabled="!selectedService || !selectedSlot" trailing-icon="i-lucide-arrow-right" @click="goConfirmDesktop">Continuar</UButton>
+          </div>
+
+          <NuxtLink to="/lista-espera" class="border-default flex items-center gap-2.5 rounded-xl border border-dashed p-3.5">
+            <UIcon name="i-lucide-bell" class="text-muted size-4" />
+            <span class="text-muted text-xs">¿Sin tu hora ideal? <span class="text-primary font-semibold">Únete a la lista de espera</span></span>
+          </NuxtLink>
+        </div>
+      </div>
+    </template>
+  </div>
   </div>
 </template>

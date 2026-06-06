@@ -54,7 +54,9 @@ export default defineNuxtConfig({
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {
           rel: 'stylesheet',
-          href: 'https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
+          // Serifs de todas las direcciones de marca (la paleta activa elige una
+          // vía --font-display). Ver lib/themes.ts.
+          href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Spectral:wght@400;500;600&family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
         },
       ],
     },
@@ -65,11 +67,15 @@ export default defineNuxtConfig({
   // - Área autenticada y admin: SPA (ssr:false), datos en cliente vía VueFire.
   // Se irá afinando conforme aterricen las páginas reales en fases 3 y 4.
   routeRules: {
-    '/': { prerender: true },
+    // Landing pública con SSR en vivo (NO prerender): debe reflejar la marca y los
+    // datos configurados en admin (nombre, contacto, carta, equipo…). Prerenderizar
+    // la congelaría con los valores por defecto del build.
+    '/': { ssr: true },
     // Área autenticada del cliente = SPA (datos en cliente vía VueFire; el
     // middleware de auth corre en cliente, sin flash de redirección en SSR).
     '/app/**': { ssr: false },
     '/admin/**': { ssr: false },
+    '/staff/**': { ssr: false },
     '/perfil': { ssr: false },
     '/reservar': { ssr: false },
     '/estudio': { ssr: false },

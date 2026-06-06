@@ -4,24 +4,25 @@ import { signInSchema, type SignInInput } from '~~/schemas'
 import { authErrorMessage } from '~~/lib/authErrors'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Entrar · JDVM' })
+useHead({ title: 'Entrar' })
 
 const route = useRoute()
 const toast = useToast()
-const { signIn, signInWithGoogle } = useAuth()
+const { signIn, signInWithGoogle, destinationFor } = useAuth()
+const { studio, name: studioName } = useStudio()
 
 const state = reactive<SignInInput>({ email: '', password: '' })
 const loading = ref(false)
 
-function destination() {
-  return (route.query.redirect as string) || '/app'
+async function destination(uid: string) {
+  return (route.query.redirect as string) || (await destinationFor(uid))
 }
 
 async function onSubmit(event: FormSubmitEvent<SignInInput>) {
   loading.value = true
   try {
-    await signIn(event.data)
-    await navigateTo(destination())
+    const u = await signIn(event.data)
+    await navigateTo(await destination(u.uid))
   } catch (e) {
     toast.add({ title: 'No se pudo entrar', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
   } finally {
@@ -32,8 +33,8 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
 async function google() {
   loading.value = true
   try {
-    await signInWithGoogle()
-    await navigateTo(destination())
+    const u = await signInWithGoogle()
+    await navigateTo(await destination(u.uid))
   } catch (e) {
     toast.add({ title: 'Google', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
   } finally {
@@ -47,8 +48,9 @@ async function google() {
     <div class="flex flex-col items-center gap-5 text-center">
       <AppLogo variant="mark" :size="44" />
       <div class="space-y-2">
+        <p class="font-display text-2xl leading-none">{{ studioName }}</p>
         <p class="text-primary font-mono text-[0.7rem] tracking-[0.3em] uppercase">
-          Barbería · desde 2018
+          Barbería · desde {{ studio.foundedYear }}
         </p>
         <h1 class="font-display text-4xl leading-none">Bienvenido de nuevo</h1>
       </div>

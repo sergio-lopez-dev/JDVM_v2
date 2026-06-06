@@ -2,7 +2,7 @@
 import { formatDuration, formatPrice } from '~~/lib/format'
 
 definePageMeta({ layout: 'inner', middleware: 'auth' })
-useHead({ title: 'Lista de espera · JDVM' })
+useHead({ title: 'Lista de espera' })
 
 const route = useRoute()
 const user = useCurrentUser()

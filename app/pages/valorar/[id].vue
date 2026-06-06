@@ -2,7 +2,7 @@
 import { fmtDate, initials } from '~~/lib/format'
 
 definePageMeta({ layout: 'inner', middleware: 'auth' })
-useHead({ title: 'Valorar · JDVM' })
+useHead({ title: 'Valorar' })
 
 const route = useRoute()
 const toast = useToast()

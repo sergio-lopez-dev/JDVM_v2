@@ -1,10 +1,13 @@
 <template>
-  <div
-    class="bg-default text-default relative mx-auto flex min-h-dvh w-full max-w-md flex-col font-sans antialiased"
-  >
-    <div class="flex flex-1 flex-col">
-      <slot />
-    </div>
-    <AppTabBar />
+  <div class="bg-default text-default flex min-h-dvh flex-col font-sans antialiased">
+    <!-- escritorio: barra superior · móvil: tab bar inferior -->
+    <AppTopNav class="hidden lg:flex" />
+    <main class="min-w-0 flex-1">
+      <!-- móvil: columna centrada · escritorio: cada página controla su ancho -->
+      <div class="mx-auto w-full max-w-md lg:max-w-none">
+        <slot />
+      </div>
+    </main>
+    <AppTabBar class="lg:hidden" />
   </div>
 </template>

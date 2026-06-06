@@ -2,7 +2,7 @@
 // Styleguide del sistema de diseño. Solo dev: en prod devuelve 404.
 if (!import.meta.dev) throw createError({ statusCode: 404, statusMessage: 'Not Found' })
 
-useHead({ title: 'Styleguide · JDVM' })
+useHead({ title: 'Styleguide' })
 
 // — Estados de ejemplo para los controles —
 const inputVal = ref('')
@@ -79,7 +79,7 @@ const badgeColors = ['primary', 'neutral', 'success', 'warning', 'error'] as con
       </p>
       <h1 class="font-display text-default text-5xl leading-none">Styleguide</h1>
       <p class="text-muted text-sm">
-        Tokens y componentes base de JDVM. Página solo visible en desarrollo.
+        Tokens y componentes base de la app. Página solo visible en desarrollo.
       </p>
     </header>
 

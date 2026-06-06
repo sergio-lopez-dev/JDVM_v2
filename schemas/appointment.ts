@@ -14,6 +14,8 @@ export const appointmentSchema = z.object({
   tip: z.number().nonnegative().optional(),
   paymentMethod: paymentMethodSchema.optional(),
   isRecurring: z.boolean().default(false),
+  // Si proviene de una cita fija, id de la plantilla (fixed_appointments).
+  fixedId: z.string().optional(),
   createdAt: z.date().optional(),
 })
 export type Appointment = z.infer<typeof appointmentSchema>

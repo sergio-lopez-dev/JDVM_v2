@@ -1,6 +1,6 @@
 import { toDate } from '~~/lib/datetime'
 import { initials } from '~~/lib/format'
-import type { Appointment } from '~~/schemas'
+import { effectiveDuration, type Appointment } from '~~/schemas'
 
 export interface EnrichedAppointment extends Omit<Appointment, 'startsAt' | 'endsAt'> {
   startsAt: Date
@@ -28,7 +28,7 @@ export function useMyAppointments() {
         startsAt: toDate(a.startsAt),
         endsAt: toDate(a.endsAt),
         serviceName: svc?.name ?? 'Servicio',
-        serviceDuration: svc?.durationMinutes ?? 0,
+        serviceDuration: svc ? effectiveDuration(svc, a.barberId) : 0,
         barberName: bb?.name ?? 'Barbero',
         barberInitials: initials(bb?.name),
         barberColor: bb?.color,

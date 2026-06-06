@@ -3,12 +3,14 @@ import { fmtDate, formatPrice, formatDuration } from '~~/lib/format'
 import { isCancellable, cancellationDeadline } from '~~/lib/cancellation'
 
 definePageMeta({ layout: 'inner', middleware: 'auth' })
-useHead({ title: 'Tu cita · JDVM' })
+useHead({ title: 'Tu cita' })
 
 const route = useRoute()
 const toast = useToast()
 const { byId } = useMyAppointments()
 const { cancel } = useAppointments()
+const { notifyCancellation } = useNotifications()
+const { client } = useCurrentClient()
 const appt = byId(route.params.id as string)
 
 const cancellable = computed(() => (appt.value ? isCancellable(appt.value.startsAt) : false))
@@ -26,6 +28,13 @@ async function doCancel() {
   cancelling.value = true
   try {
     await cancel(appt.value.id, appt.value.startsAt)
+    await notifyCancellation({
+      barberId: appt.value.barberId,
+      clientName: client.value?.name || 'Un cliente',
+      serviceName: appt.value.serviceName,
+      when: fmtDate(appt.value.startsAt, "EEE d MMM 'a las' HH:mm"),
+      appointmentId: appt.value.id,
+    })
     toast.add({ title: 'Cita cancelada', icon: 'i-lucide-check', color: 'primary' })
     await navigateTo('/app')
   } catch (e) {

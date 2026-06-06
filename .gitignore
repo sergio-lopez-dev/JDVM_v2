@@ -30,3 +30,10 @@ firestore-debug.log
 ui-debug.log
 *-debug.log
 firebase-export-*
+
+# Secretos y volcados de migración (NUNCA subir a git)
+secrets/
+*serviceAccount*.json
+*-sa.json
+gcs-key.json
+scripts/migrate/*.json

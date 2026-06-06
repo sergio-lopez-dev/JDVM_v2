@@ -2,29 +2,30 @@
 import { formatPrice, formatDuration } from '~~/lib/format'
 
 definePageMeta({ layout: 'inner', middleware: 'auth' })
-useHead({ title: 'La carta · JDVM' })
+useHead({ title: 'La carta' })
 
 const { publicServices } = useServices()
-
-const CATEGORIES: [string, string][] = [
-  ['cortes', 'Cortes'],
-  ['barba', 'Barba'],
-  ['color', 'Color'],
-  ['premium', 'Premium'],
-  ['extras', 'Extras'],
-]
-
-const groups = computed(() =>
-  CATEGORIES.map(([key, label]) => ({
-    label,
-    items: publicServices.value.filter((s) => s.category === key),
-  })).filter((g) => g.items.length),
+const { categories } = useServiceCategories()
+const { studio } = useStudio()
+const cartaSub = computed(() =>
+  studio.value.city ? `${studio.value.name} · ${studio.value.city.split(',')[0]}` : studio.value.name,
 )
+
+const groups = computed(() => {
+  const known = new Set(categories.value.map((c) => c.id))
+  const list = categories.value.map((c) => ({
+    label: c.name,
+    items: publicServices.value.filter((s) => s.category === c.id),
+  }))
+  const orphans = publicServices.value.filter((s) => !s.category || !known.has(s.category))
+  if (orphans.length) list.push({ label: 'Otros', items: orphans })
+  return list.filter((g) => g.items.length)
+})
 </script>
 
 <template>
   <div class="flex flex-1 flex-col">
-    <AppBar title="La carta" sub="JDVM · Maracena">
+    <AppBar title="La carta" :sub="cartaSub">
       <template #right><UiStarRating :model-value="5" readonly :size="12" /></template>
     </AppBar>
 

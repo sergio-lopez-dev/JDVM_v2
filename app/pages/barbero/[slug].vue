@@ -8,6 +8,10 @@ const { bySlug } = useBarbers()
 const barber = bySlug(route.params.slug as string)
 
 const { reviews } = useReviews()
+const { publicServices } = useServices()
+const { images } = useImages()
+const { name: studioName } = useStudio()
+
 const barberReviews = computed(() =>
   barber.value ? reviews.value.filter((r) => r.barberId === barber.value!.id) : [],
 )
@@ -17,9 +21,26 @@ const avg = computed(() => {
 })
 const firstName = computed(() => barber.value?.name.split(' ')[0] ?? '')
 
-useHead(() => ({ title: barber.value ? `${barber.value.name} · JDVM` : 'Barbero · JDVM' }))
+// Etiquetas = servicios que ofrece el barbero (nombres reales del catálogo).
+const chips = computed(() =>
+  barber.value
+    ? (barber.value.servicesOffered ?? [])
+        .map((id) => publicServices.value.find((s) => s.id === id)?.name)
+        .filter(Boolean)
+        .slice(0, 4)
+    : [],
+)
+// Trabajos = imágenes de la galería atribuidas a este barbero.
+const works = computed(() =>
+  barber.value ? images.value.filter((img) => img.barberId === barber.value!.id) : [],
+)
+const stats = computed(() => [
+  { n: avg.value ? avg.value.toFixed(1).replace('.', ',') : '—', l: 'Valoración' },
+  { n: String(barberReviews.value.length), l: 'Reseñas' },
+  { n: String(barber.value?.servicesOffered?.length ?? 0), l: 'Servicios' },
+])
 
-const chips = ['Degradados', 'Barba', 'Navaja', 'Clásico']
+useHead(() => ({ title: barber.value ? `${barber.value.name}` : 'Barbero' }))
 </script>
 
 <template>
@@ -27,7 +48,8 @@ const chips = ['Degradados', 'Barba', 'Navaja', 'Clásico']
     <div class="flex-1">
       <!-- hero -->
       <div class="relative h-60">
-        <UiPhoto :label="`${firstName.toLowerCase()} · retrato`" :height="240" :radius="0" />
+        <img v-if="barber.photoUrl" :src="barber.photoUrl" :alt="barber.name" class="size-full object-cover" />
+        <UiPhoto v-else :label="`${firstName.toLowerCase()} · retrato`" :height="240" :radius="0" />
         <div class="absolute inset-0" style="background: linear-gradient(to top, var(--jdvm-bg-0) 4%, transparent 55%)" />
         <button
           type="button"
@@ -43,7 +65,7 @@ const chips = ['Degradados', 'Barba', 'Navaja', 'Clásico']
         <div class="flex items-end justify-between">
           <div>
             <h1 class="font-display text-3xl leading-none">{{ barber.name }}</h1>
-            <p class="text-muted mt-1.5 text-xs">Barbero senior · 8 años</p>
+            <p class="text-muted mt-1.5 text-xs">Barbero · {{ studioName }}</p>
           </div>
           <div class="text-right">
             <UiStarRating :model-value="Math.round(avg) || 5" readonly :size="14" />
@@ -55,7 +77,7 @@ const chips = ['Degradados', 'Barba', 'Navaja', 'Clásico']
 
         <p class="text-muted mt-3.5 text-sm leading-relaxed">{{ barber.bio }}</p>
 
-        <div class="mt-3.5 flex flex-wrap gap-2">
+        <div v-if="chips.length" class="mt-3.5 flex flex-wrap gap-2">
           <span
             v-for="c in chips"
             :key="c"
@@ -67,22 +89,24 @@ const chips = ['Degradados', 'Barba', 'Navaja', 'Clásico']
 
       <!-- stats -->
       <div class="border-default bg-muted mx-5 mt-4 flex overflow-hidden rounded-2xl border">
-        <div v-for="(s, i) in [['212', 'Cortes/mes'], [(avg || 5).toFixed(1), 'Valoración'], ['98%', 'Puntualidad']]" :key="s[1]" class="flex-1 px-2 py-3.5 text-center" :class="i ? 'border-default border-l' : ''">
-          <p class="text-primary font-display text-2xl">{{ s[0] }}</p>
-          <p class="text-dimmed mt-0.5 text-[0.65rem]">{{ s[1] }}</p>
+        <div v-for="(s, i) in stats" :key="s.l" class="flex-1 px-2 py-3.5 text-center" :class="i ? 'border-default border-l' : ''">
+          <p class="text-primary font-display text-2xl">{{ s.n }}</p>
+          <p class="text-dimmed mt-0.5 text-[0.65rem]">{{ s.l }}</p>
         </div>
       </div>
 
       <!-- trabajos -->
-      <div class="mt-6 mb-3 flex items-baseline justify-between px-5">
-        <h2 class="font-display text-lg">Sus trabajos</h2>
-        <span class="text-primary text-xs font-semibold">Ver galería</span>
-      </div>
-      <div class="flex gap-2.5 overflow-x-auto px-5">
-        <div v-for="l in ['fade', 'barba', 'navaja']" :key="l" class="w-28 shrink-0">
-          <UiPhoto :label="l" :height="112" :radius="12" />
+      <template v-if="works.length">
+        <div class="mt-6 mb-3 flex items-baseline justify-between px-5">
+          <h2 class="font-display text-lg">Sus trabajos</h2>
+          <NuxtLink to="/estudio" class="text-primary text-xs font-semibold">Ver galería</NuxtLink>
         </div>
-      </div>
+        <div class="flex gap-2.5 overflow-x-auto px-5">
+          <div v-for="w in works" :key="w.id" class="w-28 shrink-0">
+            <UiPhoto :src="w.url" :label="w.caption || 'trabajo'" :height="112" :radius="12" />
+          </div>
+        </div>
+      </template>
 
       <!-- reseñas -->
       <h2 class="font-display mt-6 mb-3 px-5 text-lg">Reseñas</h2>

@@ -100,9 +100,54 @@ async function run() {
       acceptingAppointments: true,
       acceptingCancellations: true,
       special: [],
+      studio: {
+        name: 'JDVM Barbería',
+        city: 'Maracena, Granada',
+        phone: '958 00 00 00',
+        email: 'hola@jdvm.test',
+        whatsapp: '+34 600 00 00 00',
+        address: 'C/ Ancha 12, 18200 Maracena, Granada',
+        instagram: '@jdvm',
+        facebook: '',
+        tiktok: '',
+        mapsUrl: 'https://maps.google.com/?q=Maracena+Granada',
+        foundedYear: 2018,
+        logoUrl: '',
+        logoPath: '',
+        logoMarkUrl: '',
+        logoMarkPath: '',
+      },
+      loyalty: {
+        enabled: true,
+        pointsPerEuro: 1,
+        expiryMonths: 12,
+        tiers: [
+          { key: 'bronze', name: 'Bronce', minPoints: 0 },
+          { key: 'silver', name: 'Plata', minPoints: 200 },
+          { key: 'gold', name: 'Oro', minPoints: 500 },
+        ],
+      },
+      serviceCategories: [
+        { id: 'cortes', name: 'Cortes' },
+        { id: 'barba', name: 'Barba' },
+        { id: 'color', name: 'Color' },
+        { id: 'premium', name: 'Premium' },
+        { id: 'extras', name: 'Extras' },
+      ],
     },
     { merge: true },
   )
+
+  // Catálogo de recompensas de ejemplo (programa Socio).
+  const rewards = [
+    ['reward-cerveza', { name: 'Cerveza de la casa', description: 'Una cerveza fría mientras te cortamos.', pointsCost: 50, icon: 'i-lucide-beer', active: true }],
+    ['reward-barba', { name: 'Arreglo de barba', description: 'Perfilado de barba de regalo.', pointsCost: 150, icon: 'i-lucide-sparkles', active: true }],
+    ['reward-corte', { name: 'Corte gratis', description: 'Un servicio de corte de pelo, gratis.', pointsCost: 300, icon: 'i-lucide-scissors', active: true }],
+    ['reward-camiseta', { name: 'Camiseta JDVM', description: 'Camiseta de algodón de la marca.', pointsCost: 600, icon: 'i-lucide-shirt', active: true }],
+  ]
+  for (const [id, data] of rewards) {
+    await db.collection('rewards').doc(id).set({ ...data, createdAt: FieldValue.serverTimestamp() }, { merge: true })
+  }
 
   const adminUid = await ensureUser('admin@jdvm.test', 'Admin JDVM')
   await db.collection('users').doc(adminUid).set(
@@ -135,10 +180,27 @@ async function run() {
     { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: past, endsAt: new Date(past.getTime() + 45 * 60000), status: 'completed', priceSnapshot: 18, paymentMethod: 'cash', isRecurring: false, createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
-  await db.collection('reviews').doc('seed-rev1').set(
-    { clientId: clientUid, clientName: 'Carlos M.', barberId: dani, score: 5, tags: ['Puntual', 'Profesional'], text: 'El mejor fade que me han hecho. Atento al detalle y buena charla.', createdAt: FieldValue.serverTimestamp() },
-    { merge: true },
-  )
+  // Historial extra del cliente (para ver puntos/nivel del programa Socio).
+  for (let i = 1; i <= 11; i++) {
+    const d = at(-(i * 21), 18, 0)
+    await db.collection('appointments').doc('seed-hist-' + i).set(
+      { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: d, endsAt: new Date(d.getTime() + 45 * 60000), status: 'completed', priceSnapshot: 18, paymentMethod: 'cash', isRecurring: false, createdAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    )
+  }
+  const marco = barberUids['marco-s']
+  const jon = barberUids['jon-t']
+  const seedReviews = [
+    ['seed-rev1', { clientName: 'Carlos M.', barberId: dani, score: 5, tags: ['Puntual', 'Profesional'], text: 'El mejor fade que me han hecho. Atento al detalle y buena charla.' }],
+    ['seed-rev2', { clientName: 'Iván P.', barberId: marco, score: 5, tags: ['Profesional', 'Buen ambiente'], text: 'Reservo desde la app en 30 segundos y nunca espero. Muy profesionales.' }],
+    ['seed-rev3', { clientName: 'Rubén G.', barberId: jon, score: 4, tags: ['Buen precio', 'Limpio'], text: 'Llevo a mi hijo y a mí cada mes. Trato de diez y salimos como nuevos.' }],
+  ]
+  for (const [id, data] of seedReviews) {
+    await db.collection('reviews').doc(id).set(
+      { clientId: clientUid, ...data, createdAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    )
+  }
 
   console.log('✔ Seed completado en el emulador (' + PROJECT_ID + ').')
   console.log('  Admin:   admin@jdvm.test / ' + PASSWORD)

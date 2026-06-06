@@ -5,10 +5,11 @@ import { authErrorMessage } from '~~/lib/authErrors'
 import { normalizePhone } from '~~/lib/phone'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Crear cuenta · JDVM' })
+useHead({ title: 'Crear cuenta' })
 
 const toast = useToast()
 const { signUp, signInWithGoogle } = useAuth()
+const { name: studioName } = useStudio()
 
 const state = reactive<SignUpInput>({ name: '', email: '', phone: '', password: '' })
 const loading = ref(false)
@@ -51,6 +52,7 @@ async function google() {
   <div class="flex flex-col gap-8">
     <div class="flex flex-col items-center gap-5 text-center">
       <AppLogo variant="mark" :size="44" />
+      <p class="font-display text-xl leading-none">{{ studioName }}</p>
       <h1 class="font-display text-4xl leading-none">Crea tu cuenta</h1>
       <p class="text-muted text-sm">Reserva con tu barbero de siempre, sin llamadas.</p>
     </div>

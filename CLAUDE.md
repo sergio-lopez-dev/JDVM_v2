@@ -47,7 +47,7 @@ pantallas y el stack cambian. El cambio de modelo más importante: **multi-barbe
 | Estado           | **Pinia**                                               | Solo cuando un composable no llegue.                                                                                                     |
 | Formularios      | **VeeValidate + Zod**                                   | Esquemas Zod en `schemas/`, compartidos con Cloud Functions. **Zod 3** (vee-validate aún no soporta Zod 4).                              |
 | Animación        | **motion-v** (complejas) + **@vueuse/motion** (simples) | Solo se registra el módulo `motion-v/nuxt` (ver §8).                                                                                     |
-| Calendario admin | **Schedule-X** (`@schedule-x/vue`)                      | Agenda.                                                                                                                                  |
+| Calendario admin | **Schedule-X** (`@schedule-x/vue`)                      | Agenda. v4 usa **Temporal** → `temporal-polyfill` como dep directa + helper `lib/schedulex.ts`.                                          |
 | Date picker      | **v-calendar** (`v-calendar@3`, Vue 3)                  | Flujo de reserva. La v3 vive en el tag `next` de npm.                                                                                    |
 | Confeti          | **canvas-confetti**                                     | Momento "cita confirmada".                                                                                                               |
 | Gráficos         | **@unovis/vue** (+ `@unovis/ts`)                        | Pantalla Reports. (El paquete `unovis-vue` del brief no existe; es `@unovis/vue`.)                                                       |
@@ -233,8 +233,21 @@ vector, sustituir.)
 
 **Decisiones tomadas en Fase 1:**
 
-- Tema **forest** confirmado; tokens exactos cableados (ver §9).
-- App **dark-only** (sin toggle de tema): forzamos `colorMode` dark.
+- Tema **forest** confirmado; tokens exactos cableados (ver §9). Es la paleta
+  **por defecto**; ahora es **configurable** (ver abajo).
+- App **dark-only** (sin toggle de tema): forzamos `colorMode` dark. (La paleta
+  `bone` es clara; se maneja vía `color-scheme: light` sin tocar la clase `.dark`,
+  cuyos mapeos semánticos son agnósticos a la dirección bg/fg.)
+- **Paleta configurable por el admin** (las 6 direcciones de `themes.js`: forest,
+  brass, copper, burgundy, steel, bone). Fuente de verdad: `lib/themes.ts`
+  (`BRAND_THEMES` + `themeCssVars`, que genera rampas gold/ink ancladas en los
+  tokens de diseño). Se elige en **`/admin/ajustes`** (campo `settings/main.theme`,
+  enum en `schemas/settings.ts`) y se aplica a **TODA la app** en runtime vía
+  `app/composables/useBrandTheme.ts` (`useBrandThemeSync` en `app.vue` sobreescribe
+  los `--jdvm-*` + rampas `--color-gold/ink-*` + `--font-display` en `<html>`; el
+  bloque `.dark` de `main.css` deriva en cascada los tokens de Nuxt UI). Cookie
+  `jdvm-theme` (1 año) para aplicar sin flash antes de que llegue Firestore. Cada
+  dirección trae su propia serif (todas cargadas en `nuxt.config`).
 - Primitivos = `U*` de Nuxt UI tematizados vía tokens semánticos; solo se crean
   componentes propios donde Nuxt UI no llega (StarRating, EmptyState, Grain, Logo).
 - `@iconify-json/lucide` añadido (data de iconos local, offline para la PWA).
@@ -260,13 +273,18 @@ vector, sustituir.)
 - **C) Pagos: SIN pasarela online.** Pago **en el local** o vía **QR a Revolut**
   (link/QR estático que el dueño pasará; no integración, no Stripe). `paymentMethod`
   refleja esto (p. ej. `cash | revolut`); no se cobra dentro de la app.
-- **D) Fidelización "SOCIO ORO": aplazada.** Es un subsistema completo (puntos,
-  tiers, referidos, canje). NO entra en el modelo de Fase 2; se diseña en una fase
-  posterior. La tarjeta de socio del diseño quedará visual/placeholder por ahora.
+- **D) Fidelización "Socio": IMPLEMENTADA y configurable** (antes aplazada). Niveles
+  Bronce/Plata/Oro, recompensas canjeables (corte gratis, camiseta, cerveza…),
+  caducidad de puntos y activar/desactivar — todo desde admin. Ver §13. (Referidos
+  siguen fuera de alcance.)
 - **E) Duración de servicio = configurable por el admin.** Cada servicio tiene
   `durationMinutes` editable desde el catálogo admin; el generador de slots respeta
   esa duración (y los solapamientos por barbero). Las citas recurrentes/fijas
-  también las programa el admin.
+  también las programa el admin. **Override por barbero:** además del precio, la
+  **duración** admite override por barbero (`service.durationOverrides`, mismo patrón
+  que `priceOverrides`). Helper `effectiveDuration(service, barberId)` en
+  `schemas/service.ts`; lo usan slots, reserva, citas fijas y los enriquecidos. Se
+  edita en `/admin/catalogo` (bloque "Duración por barbero").
 
 ---
 
@@ -324,10 +342,186 @@ Colecciones Firestore actuales (app vieja): `users`, `appointments`,
     (standard-schema; zod ≥3.24). VeeValidate queda instalado por si hace falta.
   - Diseño adaptado: el mockup mostraba Apple/teléfono; usamos Email + Google
     manteniendo el lenguaje visual (hero serif, dorado, grano). Layout `auth`.
-- **Fase 4 — Admin:** Hoy → Agenda → Clientes → Equipo → Catálogo → Estudio admin
-  → Reports → Notificaciones.
+- **Fase 4 — Admin** ✅: panel bajo `/admin/**` (SPA, middleware `admin`). Layout
+  `admin` (sidebar desktop + menú overlay móvil, nav en `useAdminNav`). Pantallas:
+  **Hoy** (`/admin`, KPIs + citas del día), **Agenda** (`/admin/agenda`, Schedule-X),
+  **Clientes** (`/admin/clientes`, listado+ficha+historial), **Equipo** (`/admin/equipo`,
+  CRUD barberos + horario/vacaciones), **Catálogo** (`/admin/catalogo`, CRUD servicios
+  - duración + overrides), **Estudio** (`/admin/estudio`, galería Storage + reseñas),
+    **Reports** (`/admin/reports`, @unovis/vue), **Notificaciones** (`/admin/notificaciones`).
+    Acceso desde Perfil si `role==='admin'`. Verificado: lint + typecheck + build.
+  * **Nuevas colecciones:** `images` (galería; doc + binario en Storage `gallery/`) y
+    `alerts` (avisos/banner). Schemas `schemas/image.ts`, `schemas/alert.ts`. Reglas
+    `images`/`alerts` en `firestore.rules` (lectura pública, escritura admin).
+  * **Composables nuevos/ampliados:** `useAppointments` +`onDay`/`inRange`/`forClient`/
+    `setStatus`/`update`; `useAdminAppointments` (enriquecido cliente+barbero+servicio),
+    `useAdminStats` (agregados Reports), `useImages`, `useAlerts`, `useAdminNav`.
+    Componentes: `AdminHeader`, `AdminBookingModal`, `WeekTimetableEditor`.
+  * **Schedule-X v4** usa **Temporal**: añadido `temporal-polyfill` (dep directa,
+    requisito de la versión 4) y helper `lib/schedulex.ts` (JS Date ↔ ZonedDateTime,
+    zona `Europe/Madrid`). Eventos sincronizados vía `calendarApp.events.set()`.
+  * Pendiente menor: vincular `barbers/{uid}` al uid de Auth al crear barbero (hoy
+    id automático); citas recurrentes (UI + generación) aplazadas.
+  * **Extra (pedido):** hero video en la home cliente (`public/video/hero.mp4`, vertical)
+    con velo oscuro forest + grano y saludo superpuesto.
+  * **Rediseño escritorio (PC)** según mockups Claude Design: layout `admin` con
+    sidebar (sección "Gestión", estado del local en vivo, ficha de usuario) y topbar
+    (`AdminHeader` con búsqueda + campana). Átomos `AdminCard`/`AdminPill`/`AdminKpi`.
+    **Resumen** (`/admin`) = dashboard (KPIs con delta, timeline "próximas citas",
+    barras ingresos/semana, equipo hoy). Nueva **Citas** (`/admin/citas`): tabla con
+    filtros + búsqueda + paginación + acciones. **Servicios** (`/admin/catalogo`):
+    catálogo + panel de edición lateral (incl. barberos que ofrecen cada servicio).
+    **Equipo** (`/admin/equipo`): tarjetas con stats (valoración/reseñas/servicios) +
+    chips de horario semanal. Nav reordenada (`useAdminNav`). Landing web pública (`/`)
+    rehecha como sitio de marketing responsive (nav, hero con vídeo, carta, estudio,
+    equipo, testimonios, visítanos, CTA, footer); acceso Google+vídeo movido a `/login`.
+- **Rol BARBERO (app móvil propia)** ✅: rutas bajo **`/staff/**`** (SPA, middleware
+`barber`; prefijo distinto de `/barbero/[slug]`público para evitar colisión). Layout`barber`(centrado móvil +`BarberTabBar`: Hoy/Agenda/Clientes/Ingresos/Perfil).
+Pantallas: **Hoy** (`/staff`, stats + "en curso" + mi día), **Agenda** (`/staff/agenda`,
+timeline propio), **Detalle** (`/staff/cita/[id]`, datos+historial+marcar hecha),
+**Clientes** (`/staff/clientes`, derivados de sus citas), **Ingresos** (`/staff/ingresos`,
+"tu parte" semana/mes + desglose), **Perfil** (`/staff/perfil`, disponibilidad editable,
+  servicios solo lectura). Acceso reducido: solo lo suyo, sin carta/equipo/negocio.
+  - Composable `useBarber` (una consulta amplia `forBarberInRange` enriquecida → hoy/
+    semana/clientes/ingresos). Login redirige por rol (`useAuth.destinationFor`): barbero
+    → `/staff`, resto → `/app`.
+  - **Reglas ampliadas:** `users` legibles por `isStaff` (el barbero ve nombre/teléfono de
+    sus clientes); el barbero puede actualizar SOLO `timetable`/`vacations` de su propio
+    doc `barbers/{uid}` (precios/servicios/color siguen siendo admin).
+- **Peticiones de la barbería (lote)** ✅:
+  - **Foto de barberos:** subida a Storage (`barbers/`) desde admin Equipo; se muestra
+    vía componente `UiAvatar` (foto o iniciales) en Equipo, perfil de barbero y
+    detalle público `/barbero/[slug]`.
+  - **% comisión por barbero:** `barber.commissionPercent` (lo fija el admin en Equipo);
+    el barbero ve en `/staff/ingresos` solo su parte (servicios·% + propinas), no la caja.
+  - **Notificaciones in-app** (como legacy, sin FCM; PWA = acceso directo): colección
+    `notifications` + `useNotifications`. Aviso automático al **cancelar** (a admin y
+    barbero); buzón del cliente en `/avisos`; campaña **"anima a reservar"** (clientes con
+    1–3 citas/mes) desde admin Avisos. Reglas: crea cualquier autenticado, lee su `targetUid`
+    o admin/staff su rol.
+  - **Vacaciones bloquean reserva:** `reservar.vue` aplica `isOnVacation` (día deshabilitado
+    - sin huecos) para el barbero concreto.
+  - **Granularidad configurable + ajustes:** nueva pantalla **`/admin/ajustes`** (paso de
+    franjas `slotStepMinutes`, días cerrados, aceptar reservas/cancelaciones, horario del
+    local con `WeekTimetableEditor`).
+  - **Noticias destacadas:** los `alerts` activos se muestran al cliente (banner en `/app`
+    - sección en `/avisos`).
+  - **Citas fijas (semanales):** schema `fixed` + colección `fixed_appointments` +
+    `useFixedAppointments`. El admin las crea (modal en Agenda); se **materializan** como
+    `appointments` reales (`isRecurring`+`fixedId`) 12 semanas → bloquean reserva y aparecen
+    en agenda/barbero automáticamente. Borrar serie elimina sus citas futuras.
+  - **Reglas ampliadas:** `notifications`, `fixed_appointments` (lectura staff, escritura
+    admin). (Índices compuestos para prod pendientes: notifications where+orderBy,
+    fixed_appointments fixedId+startsAt.)
+- **Responsive web (PC) cliente y barbero** ✅: el layout `barber` adopta en `lg+` un
+  shell tipo app: barra lateral fija (`BarberSideNav`) + columna centrada, ocultando el
+  tab bar inferior (`lg:hidden`). En móvil sigue igual.
+- **Cliente PC — rediseño top-nav** ✅ (según mockups `client-web.jsx` /
+  `client-web-booking.jsx`): el shell del cliente en `lg+` pasa de barra lateral a
+  **barra superior** (`AppTopNav`: logo + Inicio/Reservar/El estudio/Mi cuenta + campana
+  → `/avisos` + ficha con menú desplegable que incluye Carta/Lista de espera/Cerrar
+  sesión). Los layouts `app` e `inner` usan `AppTopNav` en `lg+` y `AppTabBar` en móvil
+  (`AppSideNav` queda en desuso). Pantallas con vista de escritorio dedicada (móvil
+  intacto, `lg:hidden` / `hidden lg:flex`):
+  - **Inicio** (`/app`): saludo, hero "próxima cita" horizontal, 3 acciones rápidas,
+    historial en tabla + lateral (socio + galería). Sin vídeo en PC (sí en móvil).
+  - **El estudio** (`/estudio`): galería 4-col + botón Instagram (responsive sobre el
+    mismo árbol).
+  - **Mi cuenta** (`/perfil`): 2 columnas — ficha+socio / ajustes de cuenta + acciones.
+  - **Reservar** (`/reservar`, layout nuevo **`booking`** a ancho completo): vista
+    unificada servicio+barbero+**calendario mensual**+slots+resumen → Confirmar (2 col,
+    pago en local/Revolut) → Confirmada (con enlace "Añadir a Google Calendar"). En móvil
+    sigue el flujo por pasos. La máquina de estados (`step`) se comparte; solo cambia el
+    render por breakpoint.
+- **Conexión total a datos (sin hardcode)** ✅: se eliminaron los últimos placeholders.
+  - **Landing pública** (`/`) ahora 100% data-driven: carta (`useServices`+`useServiceCategories`),
+    equipo (`useBarbers` + valoración real), galería (`useImages`), testimonios y media de
+    estrellas (`useReviews`), horario + estado "abierto/cerrado ahora" (`useSettings`),
+    contacto/marca (`settings.studio`). Sin datos inventados.
+  - **`/estudio`**: galería real desde `useImages` (sin "likes" placeholder ni filtros muertos),
+    botón Instagram a `settings.studio.instagram`.
+  - **`/barbero/[slug]`**: chips = servicios que ofrece, stats = valoración/reseñas/servicios
+    reales (no "212 cortes/mes"/"98% puntualidad", inaccesibles por reglas), trabajos = imágenes
+    con `barberId`.
+  - **Nuevo bloque `settings.studio`** (`schemas/settings.ts`) editable en `/admin/ajustes`
+    ("Información del estudio"). Helpers `formatDayHours`/`openStatus` en `lib/slots.ts`.
+    `UiPhoto` ahora acepta `src` (imagen real con fallback al placeholder a rayas).
+- **White-label (app genérica)** ✅: toda la marca es configurable desde admin; no quedan
+  textos "JDVM"/"Maracena" incrustados.
+  - **`settings.studio`** ampliado: `name, city, phone, email, whatsapp, address, instagram,
+facebook, tiktok, mapsUrl, foundedYear, logoUrl/logoPath, logoMarkUrl/logoMarkPath`.
+  - **Composable `useStudio()`** = fuente única de verdad (reactiva, con defaults) + helpers
+    `igUrl/fbUrl/tiktokUrl/waUrl`, `codePrefix` (prefijo de código de reserva derivado del
+    nombre) y `uploadLogo/removeLogo` (a Storage `branding/`). **Todas** las pantallas leen de
+    aquí en vez de literales.
+  - **`AppLogo`** usa los logos subidos (`logoUrl`/`logoMarkUrl`) con fallback al logo legacy;
+    variante `wordmark` = nombre configurable. Admin sube 2 logos (completo + emblema) en
+    `/admin/ajustes` → "Logo".
+  - **Títulos de pestaña**: `app.vue` define `titleTemplate` que añade el nombre del estudio;
+    cada página pone solo su nombre (se barrió el sufijo `· JDVM`).
+  - Reglas de Storage ya permiten `branding/` (escritura autenticada). Seed siembra el `studio`
+    completo. Verificado: typecheck + lint + rutas SSR 200.
 - **Fase 5 — PWA, notificaciones, pulido:** service worker, push FCM,
   recordatorios, offline, animaciones, lighthouse, deploy a Vercel.
 
 Cloud Functions (waitlist matching, recordatorios, jobs) = proyecto separado,
 se trata aparte.
+
+---
+
+## 13. Programa de fidelización "Socio"
+
+Configurable 100% desde admin; **deshabilitado por defecto** (si está off, desaparece
+de la app del cliente).
+
+**Modelo (clave):** los puntos NO se almacenan como movimientos: se **derivan** de las
+citas `completed` del cliente (`pointsForPrice = floor(precio × pointsPerEuro)`). Así no
+hay que enganchar el devengo en cada punto de "completar cita", funciona retroactivamente
+con el histórico y **el cliente no puede inflarlos**. Lo único que se persiste son las
+recompensas (catálogo) y los canjes.
+
+- **Caducidad:** cada visita genera una "bolsa" de puntos que caduca a los `expiryMonths`.
+  El saldo gastable se consume **FIFO** (bolsas más antiguas no caducadas primero). Cómputo
+  lazy en lectura → sin cron ni Cloud Function. Lógica pura en [`lib/loyalty.ts`](lib/loyalty.ts)
+  (`computeLoyalty`, `buildEarnLots`, `tierFor`).
+- **Niveles:** Bronce/Plata/Oro por defecto (editables: nombre + `minPoints`). El nivel usa
+  los **puntos brutos activos** (ganados en la ventana), no el saldo → canjear no baja de nivel.
+- **Recompensas** (`rewards`, schema [`schemas/loyalty.ts`](schemas/loyalty.ts)): catálogo
+  CRUD admin (nombre, descripción, coste en pts, icono, visible). **Canjes** (`redemptions`):
+  el cliente los pide en `pending`; staff/admin los entrega (`fulfilled`) o anula (`cancelled`).
+- **Config** en `settings.loyalty` (`enabled`, `pointsPerEuro`, `expiryMonths`, `tiers[]`).
+- **Composable** [`useLoyalty`](app/composables/useLoyalty.ts): `mySummary` (nivel/saldo/
+  próxima caducidad del usuario), `activeRewards`, `redeem`, `forClient(uid)` (ficha admin),
+  `adminRedemptions()` (cola de canjes), CRUD de recompensas.
+- **UI:** admin [`/admin/fidelizacion`](app/pages/admin/fidelizacion.vue) (config + niveles +
+  recompensas + canjes pendientes) y nav "Fidelización"; cliente [`/socio`](app/pages/socio.vue)
+  (nivel, saldo, progreso, caducidad, catálogo, mis canjes). Las tarjetas "Socio" de
+  `/app` y `/perfil` muestran datos reales y se ocultan si está off. Ficha de cliente en admin
+  muestra nivel + saldo.
+- **Reglas/seguridad** ([`firestore.rules`](firestore.rules)): `rewards` lectura pública /
+  escritura admin; `redemptions` el cliente crea el suyo en `pending` con el **coste exacto**
+  de la recompensa (verificado con `get()`), staff resuelve. Además se **endurecieron** las
+  citas: el cliente solo puede reprogramar (sigue `booked`) o cancelar, sin tocar
+  precio/servicio/barbero ni marcarse `completed`, y no puede **crear** citas ya `completed`
+  (evita forjar puntos). Verificado contra el emulador (reprogramar/cancelar/canjear OK;
+  auto-completar/abaratar canje DENEGADO). Índices compuestos para prod pendientes
+  (`redemptions` userId, etc.).
+
+---
+
+## 14. Categorías de la carta (dinámicas) + fix agenda
+
+- **Categorías configurables:** antes `service.category` era un enum fijo; ahora es un
+  **id libre** y las categorías se gestionan desde admin. Viven en
+  `settings.serviceCategories` (`[{id,name}]`, con [`DEFAULT_SERVICE_CATEGORIES`](schemas/service.ts)
+  de fallback). Composable [`useServiceCategories`](app/composables/useServiceCategories.ts)
+  (categories/label/add/rename/remove/reorder). UI de gestión (crear/renombrar/borrar) en
+  [`/admin/catalogo`](app/pages/admin/catalogo.vue): al borrar una categoría, sus servicios
+  pasan a “Sin categoría” (se reasignan a `''`). El selector del servicio y el agrupado de
+  [`/carta`](app/pages/carta.vue) usan estas categorías + un grupo “Otros” para huérfanos.
+- **Fix agenda (Schedule-X v4):** el módulo `@schedule-x/calendar` usa `Temporal` como
+  **global**; `temporal-polyfill` no lo instala al importar el named export, así que la
+  página petaba con `500 · Temporal is not defined` (cliente y SSR). Solución: `import
+'temporal-polyfill/global'` como **primer import** de [`agenda.vue`](app/pages/admin/agenda.vue),
+  antes de `@schedule-x`. Verificado en navegador headless (login admin → render del
+  calendario con eventos reales migrados).

@@ -1,7 +1,8 @@
 # Plan — Fase 4: Panel de administración
 
-> Estado: Fases 0-1-2 ✅ y Fase 3 (cliente) ✅. Leer `CLAUDE.md` antes.
+> Estado: Fases 0-1-2 ✅, Fase 3 (cliente) ✅ y **Fase 4 (admin) ✅**. Leer `CLAUDE.md` antes.
 > Todo contra **emuladores** (no tocar prod `jdvm-d82b6`). `nvm use` + pnpm 9.
+> Verificado: `pnpm lint`, `pnpm typecheck` y `pnpm build` en verde.
 
 ## Objetivo
 
@@ -14,42 +15,55 @@ Commit final sugerido: `"Fase 4: panel de administración"` (o uno por pantalla)
 
 ## Shell admin
 
-- [ ] Layout `admin` con navegación propia (sidebar en desktop / tab-bar o menú en
-      móvil). Reutilizar tokens; la versión desktop aquí SÍ importa (uso interno).
-- [ ] Middleware `admin` ya existe; aplicar `definePageMeta({ layout: 'admin', middleware: 'admin' })`.
-- [ ] Acceso al panel desde el Perfil del cliente si `role === 'admin'`.
+- [x] Layout `admin` con navegación propia (sidebar en desktop / menú overlay en
+      móvil). Tokens forest reutilizados; desktop a ancho completo (uso interno).
+- [x] Middleware `admin` aplicado en cada página vía `definePageMeta({ layout: 'admin', middleware: 'admin' })`.
+- [x] Acceso al panel desde el Perfil del cliente si `role === 'admin'`.
 
 ## Pantallas (orden sugerido, una por commit)
 
-1. **Hoy** (`/admin`): resumen del día — próximas citas, huecos, ingresos
-   estimados, accesos rápidos. Datos: `useAppointments.forBarberOnDay` (ampliar a
-   "todas las del día") + servicios/barberos.
-2. **Agenda** (`/admin/agenda`): calendario con **Schedule-X** (`@schedule-x/vue`).
-   Eventos = citas (color por barbero). Crear/editar/cancelar; vista día/semana.
-   Cablear el tema oscuro de Schedule-X a los tokens forest.
-3. **Clientes** (`/admin/clientes`): listado (`useClients.clients`, solo admin por
-   reglas) + buscador + ficha (historial de citas del cliente). Crear cita a un cliente.
-4. **Equipo** (`/admin/equipo`): CRUD de barberos (`useBarbers`): alta/edición,
-   horario semanal (mañana/tarde por día), vacaciones, servicios que ofrece,
-   color, activo. Vincular cuenta de barbero (rol).
-5. **Catálogo** (`/admin/catalogo`): CRUD de servicios (`useServices`):
-   nombre, **duración (editable)**, precio base, overrides por barbero, categoría,
-   privado. (Decisión E: la duración la fija el admin y el generador de slots la respeta.)
-6. **Estudio admin** (`/admin/estudio`): gestión de galería (subir/borrar imágenes,
-   Firebase Storage) + reseñas (moderar). Modelar colección `images` si hace falta.
-7. **Reports** (`/admin/reports`): gráficos con **@unovis/vue** — citas por
-   día/semana, ingresos, ranking de servicios, ocupación por barbero.
-8. **Notificaciones** (`/admin/notificaciones`): alertas/banner (colección `alerts`),
-   y disparo manual de avisos (se integra con FCM en Fase 5).
+1. [x] **Hoy** (`/admin`): resumen del día — KPIs (citas, ingresos est., clientes,
+       canceladas), citas del día con estado, próxima, reparto por barbero, accesos
+       rápidos, navegación por día. `useAppointments.onDay` + `useAdminAppointments`.
+2. [x] **Agenda** (`/admin/agenda`): **Schedule-X** v4 (`@schedule-x/vue`), vistas
+       semana/día. Eventos = citas (color por barbero), filtro por barbero, drawer de
+       detalle con completar/no-show/cancelar/eliminar, alta vía `AdminBookingModal`.
+       Tema oscuro cableado a tokens forest. Rango ↔ Firestore vía `onRangeUpdate`.
+3. [x] **Clientes** (`/admin/clientes`): listado (`useClients.clients`) + buscador +
+       filtro por rol + ficha lateral (datos, stats, historial). Crear cita al cliente.
+4. [x] **Equipo** (`/admin/equipo`): CRUD de barberos (`useBarbers`): alta/edición,
+       horario semanal (`WeekTimetableEditor`), vacaciones, servicios, color, activo.
+5. [x] **Catálogo** (`/admin/catalogo`): CRUD de servicios (`useServices`):
+       nombre, **duración editable** (decisión E), precio base, overrides por barbero,
+       categoría, color, privado.
+6. [x] **Estudio admin** (`/admin/estudio`): galería (subir/borrar, Firebase Storage
+   - colección `images`) y reseñas (moderar/borrar). Pestañas Galería/Reseñas.
+7. [x] **Reports** (`/admin/reports`): **@unovis/vue** — barras citas/día, donut de
+       servicios top, ocupación e ingresos por barbero, KPIs. Rango 7/30/90 días.
+8. [x] **Notificaciones** (`/admin/notificaciones`): avisos (colección `alerts`),
+       composer con nivel (info/buenas/aviso) + flag push (FCM en Fase 5), activar/borrar.
+
+> Pendiente menor (no bloqueante): **vincular cuenta de barbero (uid Auth)** al crear
+> un barbero desde el panel — hoy `useBarbers.create` usa id automático; para que
+> `appointment.barberId == request.auth.uid` cuadre, el doc `barbers/{uid}` debe usar
+> el uid del barbero (como hace el seed). Editar barberos existentes funciona pleno.
+
+## Extra (fuera de plan, pedido por el usuario)
+
+- [x] **Hero video** en la pantalla inicial del cliente (`/app`): `public/video/hero.mp4`
+      (vídeo vertical 1080×1920) con velo oscuro forest por encima + grano, saludo encima.
 
 ## Modelo / reglas a tocar
 
-- [ ] `firestore.rules`: las colecciones ya permiten escritura admin; revisar
-      `images`/`alerts` si se añaden. Probar SOLO en emulador.
-- [ ] Posible nueva colección `images` (galería) y `alerts` (avisos/banner) → schemas Zod.
-- [ ] Citas fijas/recurrentes (las **programa el admin**, decisión E): colección
-      `fixed_appointments` + excepciones, o `isRecurring` + generación. Diseñar en esta fase.
-- [ ] Ampliar `useAppointments` con consultas de día/rango para todos los barberos.
+- [x] `firestore.rules`: añadidas reglas `images` y `alerts` (lectura pública,
+      escritura admin). Probadas SOLO en emulador. NO desplegar a prod.
+- [x] Nuevas colecciones `images` (galería) y `alerts` (avisos/banner) → schemas Zod
+      (`schemas/image.ts`, `schemas/alert.ts`).
+- [x] Ampliado `useAppointments` con `onDay`, `inRange`, `forClient`, `setStatus`,
+      `update`. Nuevos composables: `useAdminAppointments`, `useAdminStats`,
+      `useImages`, `useAlerts`, `useAdminNav`.
+- [ ] Citas fijas/recurrentes (las **programa el admin**, decisión E): aplazado a un
+      sub-paso posterior (el modelo ya tiene `isRecurring`; falta UI + generación).
 
 ## Stack específico de esta fase
 
