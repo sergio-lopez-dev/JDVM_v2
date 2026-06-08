@@ -104,6 +104,11 @@ export default defineNuxtConfig({
 
   // PWA mínima funcional. Iconos y estrategia offline se completan en Fase 5.
   pwa: {
+    // Service worker DESACTIVADO temporalmente: en modo SPA el SW de Workbox hacía
+    // un navigateFallback a '/' no precacheado y reventaba (non-precached-url),
+    // rompiendo el redirect del login con Google. `selfDestroying` además limpia el
+    // SW ya instalado en los navegadores. La PWA se rehará bien en la Fase 5.
+    selfDestroying: true,
     registerType: 'autoUpdate',
     manifest: {
       name: 'JDVM Hair Studio',
