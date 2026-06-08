@@ -13,6 +13,7 @@ const { services } = useServices()
 const { reviews } = useReviews()
 const { clients } = useClients()
 const { name: studioName } = useStudio()
+const { settings } = useSettings()
 
 // Enlace de invitación que comparte el admin (lleva a la pantalla /invitacion).
 const inviteLink = (email: string) =>
@@ -156,7 +157,8 @@ function blank(): FormState {
     active: true,
     commissionPercent: 50,
     servicesOffered: services.value.map((s) => s.id),
-    timetable: {},
+    // Por defecto hereda el horario del local; el admin lo ajusta si hace falta.
+    timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
     vacations: [],
   }
 }
