@@ -1,33 +1,28 @@
 /**
- * Cloud Functions — JDVM v2 (2ª gen, región europe-west1)
+ * Cloud Functions — JDVM v2 (1ª gen, región europe-west1)
  *
- * 1) inviteBarber  (callable) — envía el email de invitación de barbero (Resend).
- * 2) onAppointmentCreated     — push + aviso in-app al barbero y al admin (cita nueva).
- * 3) onAppointmentUpdated     — al pasar a 'cancelled': avisa a cliente + barbero + admin.
- * 4) sendReminders (cron 5m)  — recordatorio al cliente 24 h y 1 h antes.
+ * Se usa 1ª gen (como las funciones de la v1 ya desplegadas) para NO requerir los
+ * bindings de IAM de Eventarc/Run que pide la 2ª gen (que necesitan rol Owner).
  *
- * Tokens FCM en subcolección users_v2/{uid}/fcmTokens/{token}. Avisos in-app en
- * notifications_v2 (mismo shape que la app). Secretos: RESEND_API_KEY. Params: FROM_EMAIL.
+ * 1) inviteBarber  (callable)  — email de invitación de barbero (Resend).
+ * 2) onAppointmentCreated      — push + aviso in-app al barbero y al admin (cita nueva).
+ * 3) onAppointmentUpdated      — al pasar a 'cancelled': push a barbero + admin.
+ * 4) sendReminders (cron 5m)   — recordatorio al cliente 24 h y 1 h antes.
+ *
+ * Tokens FCM en users_v2/{uid}/fcmTokens/{token}. Avisos in-app en notifications_v2.
+ * Secreto: RESEND_API_KEY (Secret Manager). Var: FROM_EMAIL (functions/.env).
  */
+const functions = require('firebase-functions/v1')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
-const { setGlobalOptions } = require('firebase-functions/v2')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore')
-const { onSchedule } = require('firebase-functions/v2/scheduler')
-const { defineSecret, defineString } = require('firebase-functions/params')
 const { DateTime } = require('luxon')
 const { Resend } = require('resend')
 
 initializeApp()
 const db = getFirestore()
 
-setGlobalOptions({ region: 'europe-west1', maxInstances: 10 })
-
-const RESEND_API_KEY = defineSecret('RESEND_API_KEY')
-const FROM_EMAIL = defineString('FROM_EMAIL', { default: 'JDVM Hair Studio <onboarding@resend.dev>' })
-
+const REGION = 'europe-west1'
 const TZ = 'Europe/Madrid'
 const REMINDER_MINUTES = [1440, 60] // 24 h y 1 h antes
 const TOLERANCE_MS = 3 * 60 * 1000 // el cron corre cada 5 min → ventana ±3 min
@@ -86,7 +81,6 @@ async function pushToTokens(tokens, uid, { title, body, data }) {
     data: Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)])),
     webpush: { fcmOptions: { link: (data && data.link) || '/' } },
   })
-  // Borra tokens caducados/invalidados.
   const dead = []
   res.responses.forEach((r, i) => {
     const code = r.error?.code || ''
@@ -116,20 +110,14 @@ function createNotification(data) {
 // Avisa a un usuario concreto: in-app + push.
 async function notifyUser(uid, { type, title, body, appointmentId, audience = 'user', link }) {
   await createNotification({ type, title, body, audience, targetUid: uid, ...(appointmentId ? { appointmentId } : {}) })
-  const tokens = await getUserTokens(uid)
-  await pushToTokens(tokens, uid, { title, body, data: { appointmentId, link } })
+  await pushUser(uid, { title, body, data: { appointmentId, link } })
 }
 
-// Avisa a TODOS los admin: una notificación de rol 'admin' (feed del panel) + push a cada uno.
+// Avisa a TODOS los admin: notificación de rol 'admin' (feed del panel) + push a cada uno.
 async function notifyAdmins({ type, title, body, appointmentId, link }) {
   await createNotification({ type, title, body, audience: 'admin', ...(appointmentId ? { appointmentId } : {}) })
   const admins = await getAdminUids()
-  await Promise.all(
-    admins.map(async (uid) => {
-      const tokens = await getUserTokens(uid)
-      await pushToTokens(tokens, uid, { title, body, data: { appointmentId, link } })
-    }),
-  )
+  await Promise.all(admins.map((uid) => pushUser(uid, { title, body, data: { appointmentId, link } })))
 }
 
 function fmtWhen(startsAt) {
@@ -139,33 +127,37 @@ function fmtWhen(startsAt) {
 
 // ───────────────────── 1) inviteBarber (Resend) ─────────────────────
 
-exports.inviteBarber = onCall({ secrets: [RESEND_API_KEY] }, async (req) => {
-  if (!req.auth) throw new HttpsError('unauthenticated', 'Inicia sesión.')
-  const caller = await db.doc(`${C.users}/${req.auth.uid}`).get()
-  if (!caller.exists || caller.data()?.role !== 'admin') {
-    throw new HttpsError('permission-denied', 'Solo el admin puede invitar.')
-  }
+exports.inviteBarber = functions
+  .region(REGION)
+  .runWith({ secrets: ['RESEND_API_KEY'] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.')
+    const caller = await db.doc(`${C.users}/${context.auth.uid}`).get()
+    if (!caller.exists || caller.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Solo el admin puede invitar.')
+    }
 
-  const email = normalizeEmail(req.data?.email)
-  const origin = String(req.data?.origin || '').replace(/\/$/, '')
-  if (!email || !origin) throw new HttpsError('invalid-argument', 'Faltan email u origin.')
+    const email = normalizeEmail(data?.email)
+    const origin = String(data?.origin || '').replace(/\/$/, '')
+    if (!email || !origin) throw new functions.https.HttpsError('invalid-argument', 'Faltan email u origin.')
 
-  const inviteSnap = await db.doc(`${C.invites}/${email}`).get()
-  if (!inviteSnap.exists) throw new HttpsError('not-found', 'No hay invitación para ese email.')
-  const name = inviteSnap.data()?.barber?.name || ''
-  const studio = await studioName()
-  const link = `${origin}/invitacion?email=${encodeURIComponent(email)}`
+    const inviteSnap = await db.doc(`${C.invites}/${email}`).get()
+    if (!inviteSnap.exists) throw new functions.https.HttpsError('not-found', 'No hay invitación para ese email.')
+    const name = inviteSnap.data()?.barber?.name || ''
+    const studio = await studioName()
+    const link = `${origin}/invitacion?email=${encodeURIComponent(email)}`
+    const from = process.env.FROM_EMAIL || 'JDVM Hair Studio <onboarding@resend.dev>'
 
-  const resend = new Resend(RESEND_API_KEY.value())
-  const { error } = await resend.emails.send({
-    from: FROM_EMAIL.value(),
-    to: email,
-    subject: `Únete al equipo de ${studio}`,
-    html: inviteEmailHtml({ name, studio, link }),
+    const resend = new Resend(process.env.RESEND_API_KEY)
+    const { error } = await resend.emails.send({
+      from,
+      to: email,
+      subject: `Únete al equipo de ${studio}`,
+      html: inviteEmailHtml({ name, studio, link }),
+    })
+    if (error) throw new functions.https.HttpsError('internal', `No se pudo enviar el email: ${error.message || error}`)
+    return { ok: true }
   })
-  if (error) throw new HttpsError('internal', `No se pudo enviar el email: ${error.message || error}`)
-  return { ok: true }
-})
 
 function inviteEmailHtml({ name, studio, link }) {
   const greet = name ? `Hola, ${name}` : 'Hola'
@@ -187,7 +179,7 @@ function inviteEmailHtml({ name, studio, link }) {
           Podrás entrar con <strong style="color:#C9C5B8">Google</strong> o con <strong style="color:#C9C5B8">contraseña</strong> usando este mismo email. Si el botón no funciona, copia este enlace:
           <br><a href="${link}" style="color:#C2A24E;word-break:break-all">${link}</a>
         </td></tr>
-        <tr><td style="padding:28px 36px 32px;border-top:1px solid #2A352D;margin-top:20px;font-size:12px;color:#6E726A">
+        <tr><td style="padding:28px 36px 32px;border-top:1px solid #2A352D;font-size:12px;color:#6E726A">
           Si no esperabas este correo, puedes ignorarlo.<br>— El equipo de ${studio}
         </td></tr>
       </table>
@@ -197,105 +189,98 @@ function inviteEmailHtml({ name, studio, link }) {
 
 // ───────────────── 2) cita nueva → barbero + admin ─────────────────
 
-exports.onAppointmentCreated = onDocumentCreated(`${C.appointments}/{id}`, async (event) => {
-  const appt = event.data?.data()
-  if (!appt) return
-  if (appt.status && !['booked', 'completed'].includes(appt.status)) return
+exports.onAppointmentCreated = functions
+  .region(REGION)
+  .firestore.document(`${C.appointments}/{id}`)
+  .onCreate(async (snap, context) => {
+    const appt = snap.data()
+    if (!appt) return
+    if (appt.status && !['booked', 'completed'].includes(appt.status)) return
 
-  const [clientName, serviceName] = await Promise.all([
-    getUserName(appt.clientId),
-    getServiceName(appt.serviceId),
-  ])
-  const when = fmtWhen(appt.startsAt)
-  const appointmentId = event.params.id
-  const body = `${clientName || 'Un cliente'} · ${serviceName} · ${when}.`
+    const [clientName, serviceName] = await Promise.all([
+      getUserName(appt.clientId),
+      getServiceName(appt.serviceId),
+    ])
+    const when = fmtWhen(appt.startsAt)
+    const appointmentId = context.params.id
+    const body = `${clientName || 'Un cliente'} · ${serviceName} · ${when}.`
 
-  // Al barbero asignado.
-  if (appt.barberId) {
-    await notifyUser(appt.barberId, {
-      type: 'cita_nueva',
-      title: '💈 Nueva cita',
-      body,
-      appointmentId,
-      audience: 'barber',
-      link: '/staff/agenda',
-    })
-  }
-  // Al panel admin.
-  await notifyAdmins({ type: 'cita_nueva', title: '💈 Nueva cita', body, appointmentId, link: '/admin/agenda' })
-})
+    if (appt.barberId) {
+      await notifyUser(appt.barberId, { type: 'cita_nueva', title: '💈 Nueva cita', body, appointmentId, audience: 'barber', link: '/staff/agenda' })
+    }
+    await notifyAdmins({ type: 'cita_nueva', title: '💈 Nueva cita', body, appointmentId, link: '/admin/agenda' })
+  })
 
-// ───────────── 3) cita cancelada → cliente + barbero + admin ─────────────
+// ───────────── 3) cita cancelada → push a barbero + admin ─────────────
 
-exports.onAppointmentUpdated = onDocumentUpdated(`${C.appointments}/{id}`, async (event) => {
-  const before = event.data?.before?.data()
-  const after = event.data?.after?.data()
-  if (!before || !after) return
-  const cancelled = before.status !== 'cancelled' && after.status === 'cancelled'
-  if (!cancelled) return
+exports.onAppointmentUpdated = functions
+  .region(REGION)
+  .firestore.document(`${C.appointments}/{id}`)
+  .onUpdate(async (change, context) => {
+    const before = change.before.data()
+    const after = change.after.data()
+    if (!before || !after) return
+    if (!(before.status !== 'cancelled' && after.status === 'cancelled')) return
 
-  const [clientName, serviceName] = await Promise.all([
-    getUserName(after.clientId),
-    getServiceName(after.serviceId),
-  ])
-  const when = fmtWhen(after.startsAt)
-  const appointmentId = event.params.id
-  const title = 'Cita cancelada'
-  const body = `${clientName || 'Un cliente'} canceló ${serviceName} · ${when}.`
+    const [clientName, serviceName] = await Promise.all([
+      getUserName(after.clientId),
+      getServiceName(after.serviceId),
+    ])
+    const when = fmtWhen(after.startsAt)
+    const appointmentId = context.params.id
+    const title = 'Cita cancelada'
+    const body = `${clientName || 'Un cliente'} canceló ${serviceName} · ${when}.`
 
-  // SOLO PUSH: el aviso in-app (a admin y barbero) ya lo crea la app al cancelar.
-  // Aquí únicamente añadimos la entrega por notificación push.
-  if (after.barberId) {
-    await pushUser(after.barberId, { title, body, data: { appointmentId, link: '/staff/agenda' } })
-  }
-  await pushAdmins({ title, body, data: { appointmentId, link: '/admin/agenda' } })
-})
+    // SOLO PUSH: el aviso in-app (a admin y barbero) ya lo crea la app al cancelar.
+    if (after.barberId) {
+      await pushUser(after.barberId, { title, body, data: { appointmentId, link: '/staff/agenda' } })
+    }
+    await pushAdmins({ title, body, data: { appointmentId, link: '/admin/agenda' } })
+  })
 
 // ───────────── 4) recordatorios programados (24 h y 1 h) ─────────────
 
-exports.sendReminders = onSchedule({ schedule: 'every 5 minutes', timeZone: TZ }, async () => {
-  const nowMs = Date.now()
-  for (const minutesBefore of REMINDER_MINUTES) {
-    const target = nowMs + minutesBefore * 60 * 1000
-    const startTs = Timestamp.fromMillis(target - TOLERANCE_MS)
-    const endTs = Timestamp.fromMillis(target + TOLERANCE_MS)
+exports.sendReminders = functions
+  .region(REGION)
+  .pubsub.schedule('every 5 minutes')
+  .timeZone(TZ)
+  .onRun(async () => {
+    const nowMs = Date.now()
+    for (const minutesBefore of REMINDER_MINUTES) {
+      const target = nowMs + minutesBefore * 60 * 1000
+      const startTs = Timestamp.fromMillis(target - TOLERANCE_MS)
+      const endTs = Timestamp.fromMillis(target + TOLERANCE_MS)
 
-    const snap = await db
-      .collection(C.appointments)
-      .where('startsAt', '>=', startTs)
-      .where('startsAt', '<=', endTs)
-      .get()
+      const snap = await db
+        .collection(C.appointments)
+        .where('startsAt', '>=', startTs)
+        .where('startsAt', '<=', endTs)
+        .get()
 
-    for (const docSnap of snap.docs) {
-      const appt = docSnap.data()
-      if (appt.status !== 'booked') continue
-      const sent = Array.isArray(appt.remindersSent) ? appt.remindersSent : []
-      if (sent.includes(minutesBefore)) continue
-      if (!appt.clientId) continue
+      for (const docSnap of snap.docs) {
+        const appt = docSnap.data()
+        if (appt.status !== 'booked') continue
+        const sent = Array.isArray(appt.remindersSent) ? appt.remindersSent : []
+        if (sent.includes(minutesBefore)) continue
+        if (!appt.clientId) continue
 
-      const when = DateTime.fromMillis(appt.startsAt.toMillis()).setZone(TZ).toFormat('HH:mm')
-      const title = '💈 Recordatorio de cita'
-      const body =
-        minutesBefore === 1440
-          ? `Mañana a las ${when} tienes tu cita.`
-          : `En 1 hora (a las ${when}) tienes tu cita.`
+        const when = DateTime.fromMillis(appt.startsAt.toMillis()).setZone(TZ).toFormat('HH:mm')
+        const title = '💈 Recordatorio de cita'
+        const body =
+          minutesBefore === 1440
+            ? `Mañana a las ${when} tienes tu cita.`
+            : `En 1 hora (a las ${when}) tienes tu cita.`
 
-      try {
-        await notifyUser(appt.clientId, {
-          type: 'recordatorio',
-          title,
-          body,
-          appointmentId: docSnap.id,
-          audience: 'client',
-          link: `/citas/${docSnap.id}`,
-        })
-        await docSnap.ref.update({
-          remindersSent: Array.from(new Set([...sent, minutesBefore])),
-          lastReminderAt: FieldValue.serverTimestamp(),
-        })
-      } catch (e) {
-        console.error('Error recordatorio', docSnap.id, e)
+        try {
+          await notifyUser(appt.clientId, { type: 'recordatorio', title, body, appointmentId: docSnap.id, audience: 'client', link: `/citas/${docSnap.id}` })
+          await docSnap.ref.update({
+            remindersSent: Array.from(new Set([...sent, minutesBefore])),
+            lastReminderAt: FieldValue.serverTimestamp(),
+          })
+        } catch (e) {
+          console.error('Error recordatorio', docSnap.id, e)
+        }
       }
     }
-  }
-})
+    return null
+  })
