@@ -7,9 +7,30 @@ import type { Barber, BarberInput, WeekTimetable, DateRange } from '~~/schemas'
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Equipo · Admin' })
 
-const { barbers, createWithAccount, update, remove } = useBarbers()
+const { barbers, createWithAccount, sendInvite, update, remove } = useBarbers()
 const { services } = useServices()
 const { reviews } = useReviews()
+const { clients } = useClients()
+
+// Email de acceso del barbero (vive en users_v2/{uid}, no en el doc del barbero).
+// Solo existe si se creó con cuenta (id del barbero == uid). Sirve para reinvitar.
+const emailOf = (id: string | null) =>
+  (id && clients.value.find((c) => c.id === id)?.email) || ''
+
+const inviting = ref(false)
+async function resendInvite() {
+  const email = emailOf(form.value.id)
+  if (!email) return
+  inviting.value = true
+  try {
+    await sendInvite(email)
+    toast.add({ title: 'Invitación reenviada', description: email, icon: 'i-lucide-mail-check', color: 'success' })
+  } catch (e) {
+    toast.add({ title: 'No se pudo reenviar', description: (e as Error).message, color: 'error' })
+  } finally {
+    inviting.value = false
+  }
+}
 const storage = useFirebaseStorage()
 const toast = useToast()
 
@@ -62,7 +83,6 @@ interface FormState {
   id: string | null
   name: string
   email: string
-  password: string
   slug: string
   color: string
   instagram: string
@@ -89,7 +109,6 @@ function blank(): FormState {
     id: null,
     name: '',
     email: '',
-    password: '',
     slug: '',
     color: '#C2A24E',
     instagram: '',
@@ -116,7 +135,6 @@ function startEdit(b: Barber) {
     id: b.id,
     name: b.name,
     email: '',
-    password: '',
     slug: b.slug,
     color: b.color,
     instagram: b.instagram ?? '',
@@ -166,17 +184,10 @@ async function save() {
     toast.add({ title: 'El nombre es obligatorio', color: 'error', icon: 'i-lucide-triangle-alert' })
     return
   }
-  // En alta se crea la cuenta de acceso del barbero → email + contraseña obligatorios.
-  if (!form.value.id) {
-    const email = form.value.email.trim()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.add({ title: 'Email no válido', color: 'error', icon: 'i-lucide-triangle-alert' })
-      return
-    }
-    if (form.value.password.length < 6) {
-      toast.add({ title: 'La contraseña debe tener al menos 6 caracteres', color: 'error', icon: 'i-lucide-triangle-alert' })
-      return
-    }
+  // En alta se crea la cuenta de acceso del barbero y se le invita por email.
+  if (!form.value.id && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
+    toast.add({ title: 'Email no válido', color: 'error', icon: 'i-lucide-triangle-alert' })
+    return
   }
   saving.value = true
   try {
@@ -184,7 +195,8 @@ async function save() {
       name: form.value.name.trim(),
       slug: form.value.slug || slugify(form.value.name),
       color: form.value.color,
-      instagram: form.value.instagram || undefined,
+      // Firestore no admite `undefined`: guardamos '' cuando no hay instagram.
+      instagram: form.value.instagram.trim(),
       bio: form.value.bio,
       photoUrl: form.value.photoUrl,
       active: form.value.active,
@@ -195,13 +207,15 @@ async function save() {
     }
     if (form.value.id) {
       await update(form.value.id, payload)
+      toast.add({ title: 'Barbero actualizado', icon: 'i-lucide-check', color: 'success' })
     } else {
-      await createWithAccount(payload, {
-        email: form.value.email.trim(),
-        password: form.value.password,
-      })
+      const { invited } = await createWithAccount(payload, form.value.email.trim())
+      toast.add(
+        invited
+          ? { title: 'Barbero creado', description: 'Le hemos enviado un email para crear su contraseña.', icon: 'i-lucide-mail-check', color: 'success' }
+          : { title: 'Barbero creado', description: 'No se pudo enviar el email; reenvía la invitación desde su ficha.', icon: 'i-lucide-triangle-alert', color: 'warning' },
+      )
     }
-    toast.add({ title: form.value.id ? 'Barbero actualizado' : 'Barbero creado', icon: 'i-lucide-check', color: 'success' })
     open.value = false
   } catch (e) {
     toast.add({ title: 'No se pudo guardar', description: (e as Error).message, color: 'error' })
@@ -309,14 +323,23 @@ async function confirmRemove() {
               <UFormField label="Slug"><UInput v-model="form.slug" placeholder="dani-ruiz" class="w-full" /></UFormField>
             </div>
 
-            <!-- Cuenta de acceso: solo en alta. Se crea su usuario (rol barbero). -->
-            <div v-if="!form.id" class="border-default bg-muted/50 space-y-3 rounded-xl border p-3">
+            <!-- Cuenta de acceso por invitación: solo en alta. Se crea su usuario
+                 (rol barbero) y se le envía un email para que ponga su contraseña. -->
+            <div v-if="!form.id" class="border-default bg-muted/50 space-y-2 rounded-xl border p-3">
               <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Cuenta de acceso</p>
-              <div class="grid grid-cols-2 gap-3">
-                <UFormField label="Email"><UInput v-model="form.email" type="email" autocomplete="off" placeholder="dani@jdvm.es" class="w-full" /></UFormField>
-                <UFormField label="Contraseña" hint="mín. 6"><UInput v-model="form.password" type="password" autocomplete="new-password" placeholder="••••••" class="w-full" /></UFormField>
+              <UFormField label="Email">
+                <UInput v-model="form.email" type="email" autocomplete="off" placeholder="dani@jdvm.es" class="w-full" />
+              </UFormField>
+              <p class="text-dimmed text-xs">Le enviaremos un email para crear su contraseña y entrar en su app (<span class="font-mono">/staff</span>).</p>
+            </div>
+
+            <!-- En edición: reenviar la invitación si el barbero tiene cuenta. -->
+            <div v-else-if="emailOf(form.id)" class="border-default bg-muted/50 flex items-center justify-between gap-3 rounded-xl border p-3">
+              <div class="min-w-0">
+                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Cuenta de acceso</p>
+                <p class="mt-1 truncate text-sm">{{ emailOf(form.id) }}</p>
               </div>
-              <p class="text-dimmed text-xs">Con estas credenciales el barbero entra en su app (<span class="font-mono">/staff</span>). Podrá cambiar la contraseña desde «Recuperar».</p>
+              <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-mail" :loading="inviting" @click="resendInvite">Reenviar invitación</UButton>
             </div>
             <div class="grid grid-cols-[auto_1fr] items-end gap-3">
               <UFormField label="Color">

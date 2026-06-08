@@ -53,6 +53,15 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'es' },
+      meta: [
+        // Nombre y modo del acceso directo en iOS (Añadir a pantalla de inicio).
+        // Sin esto, iOS usaría el <title> completo de la página como etiqueta.
+        { name: 'apple-mobile-web-app-title', content: 'JDVM' },
+        { name: 'application-name', content: 'JDVM' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+        { name: 'theme-color', content: '#0B0F0C' },
+      ],
       link: [
         { rel: 'icon', href: '/favicon.ico', sizes: 'any' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32x32.png' },
