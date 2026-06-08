@@ -3,6 +3,13 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // App de Firebase 100% cliente (SPA). nuxt-vuefire en SSR necesitaría el Admin
+  // SDK en el servidor (service account), que no está en Vercel → daba 500
+  // "default Firebase app does not exist". Renderizando en cliente, Firebase solo
+  // se usa en el navegador y los datos (incluida la config del estudio) siguen
+  // llegando en vivo. SEO de la landing se puede recuperar luego con SSR + admin.
+  ssr: false,
+
   modules: [
     '@nuxt/ui',
     '@nuxt/eslint',
@@ -63,30 +70,9 @@ export default defineNuxtConfig({
   },
 
   // Reglas de render por ruta.
-  // - Público (landing, estudio, carta): estático/ISR para SEO y velocidad.
-  // - Área autenticada y admin: SPA (ssr:false), datos en cliente vía VueFire.
-  // Se irá afinando conforme aterricen las páginas reales en fases 3 y 4.
-  routeRules: {
-    // Landing pública con SSR en vivo (NO prerender): debe reflejar la marca y los
-    // datos configurados en admin (nombre, contacto, carta, equipo…). Prerenderizar
-    // la congelaría con los valores por defecto del build.
-    '/': { ssr: true },
-    // Área autenticada del cliente = SPA (datos en cliente vía VueFire; el
-    // middleware de auth corre en cliente, sin flash de redirección en SSR).
-    '/app/**': { ssr: false },
-    '/admin/**': { ssr: false },
-    '/staff/**': { ssr: false },
-    '/perfil': { ssr: false },
-    '/reservar': { ssr: false },
-    '/estudio': { ssr: false },
-    '/estudio/**': { ssr: false },
-    '/barbero/**': { ssr: false },
-    '/carta': { ssr: false },
-    '/citas/**': { ssr: false },
-    '/valorar/**': { ssr: false },
-    '/lista-espera': { ssr: false },
-    '/avisos': { ssr: false },
-  },
+  // Toda la app es SPA (ssr:false global). Firebase se usa solo en el cliente, así
+  // que no hace falta el Admin SDK en el servidor de Vercel. Si en el futuro se
+  // quiere SSR/SEO en la landing, habría que cablear el service account en el host.
 
   // Configuración Firebase (config web pública — segura de exponer en cliente).
   // Los valores reales viven en .env (ver .env.example).
