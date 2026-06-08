@@ -208,10 +208,9 @@ const igUrl = computed(() => {
       <UiParticles class="absolute inset-0 z-0" :count="48" />
       <div class="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-20">
         <div>
-          <h1 class="font-display text-6xl leading-[0.95] sm:text-7xl lg:text-8xl">{{ studio.name }}</h1>
-          <p class="font-display text-primary mt-4 text-2xl italic sm:text-3xl">
-            Tu mejor versión empieza en la silla.
-          </p>
+          <h1 class="font-display text-5xl leading-[0.98] sm:text-6xl lg:text-7xl">
+            Tu mejor versión empieza en la <em class="text-primary italic">silla</em>.
+          </h1>
           <p class="text-muted mt-5 max-w-md text-base leading-relaxed">
             Cortes de precisión, barba a navaja y un buen rato. Reserva online con tu barbero de siempre, sin llamadas ni esperas.
           </p>
