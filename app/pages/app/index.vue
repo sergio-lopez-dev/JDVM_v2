@@ -11,7 +11,7 @@ const { active: alerts } = useAlerts()
 const { unreadMine } = useNotifications()
 const { enabled: loyaltyEnabled, mySummary } = useLoyalty()
 const { images } = useImages()
-const { studio } = useStudio()
+const { studio, heroVideo } = useStudio()
 const cityShort = computed(() => (studio.value.city || '').split(',')[0]!.trim())
 
 // Primeras imágenes de la galería del estudio (las sube el admin en /admin/estudio).
@@ -20,8 +20,6 @@ const gallery = computed(() => images.value.slice(0, 4))
 watch(needsProfile, (v) => {
   if (v) navigateTo('/completar-perfil')
 })
-
-const heroVideo = '/video/hero.mp4'
 
 const firstName = computed(() => (client.value?.name || user.value?.displayName || 'cliente').split(' ')[0])
 const today = computed(() => fmtDate(new Date(), 'EEEE · d MMM'))

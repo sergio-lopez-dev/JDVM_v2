@@ -10,7 +10,7 @@ const { categories } = useServiceCategories()
 const { active: barbers } = useBarbers()
 const { reviews } = useReviews()
 const { images } = useImages()
-const { studio, fbUrl, tiktokUrl } = useStudio()
+const { studio, heroVideo, fbUrl, tiktokUrl } = useStudio()
 
 const cityLabel = computed(() => studio.value.city || studio.value.address || '')
 const cityShort = computed(() => (studio.value.city || '').split(',')[0]!.trim())
@@ -143,15 +143,6 @@ const openNow = computed(() => {
   return openStatus(resolveDayTimetable(settings.value.timetable ?? {}, now.value), now.value)
 })
 
-// Tira marquee a partir de los servicios reales.
-const STRIP = computed(() => {
-  const names = publicServices.value.map((s) => s.name)
-  const base = names.length
-    ? names
-    : ['Corte clásico', 'Degradados a navaja', 'Barba & toalla caliente', 'Afeitado tradicional', 'Ritual completo', 'Color']
-  return base.join(' · ') + ' · '
-})
-
 const igUrl = computed(() => {
   const h = studio.value.instagram
   if (!h) return ''
@@ -210,8 +201,9 @@ const igUrl = computed(() => {
     </Transition>
 
     <!-- HERO -->
-    <section id="top" class="relative">
-      <div class="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-20">
+    <section id="top" class="relative overflow-hidden">
+      <UiParticles class="absolute inset-0 z-0" :count="48" />
+      <div class="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-20">
         <div>
           <span class="text-primary font-mono text-[0.7rem] tracking-[0.25em] uppercase">Barbería<template v-if="cityShort"> · {{ cityShort }}</template> · desde {{ studio.foundedYear }}</span>
           <h1 class="font-display mt-4 text-6xl leading-[0.95] sm:text-7xl lg:text-8xl">{{ studio.name }}</h1>
@@ -240,7 +232,7 @@ const igUrl = computed(() => {
         <!-- visual: vídeo hero -->
         <div class="relative">
           <div class="border-default relative aspect-[4/5] overflow-hidden rounded-3xl border">
-            <video class="absolute inset-0 size-full object-cover" src="/video/hero.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true" />
+            <video class="absolute inset-0 size-full object-cover" :src="heroVideo" autoplay muted loop playsinline preload="auto" aria-hidden="true" />
             <div class="absolute inset-0" style="background: linear-gradient(180deg, transparent 40%, color-mix(in oklab, var(--jdvm-bg-0) 70%, transparent) 100%)" />
             <div v-if="openNow" class="border-default bg-default/80 absolute bottom-4 left-4 flex items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 backdrop-blur">
               <span class="size-2.5 rounded-full" :class="openNow.open ? 'bg-success animate-pulse' : 'bg-error'" />
@@ -254,14 +246,6 @@ const igUrl = computed(() => {
         </div>
       </div>
     </section>
-
-    <!-- STRIP marquee -->
-    <div class="border-default text-primary/80 overflow-hidden border-y py-3" aria-hidden="true">
-      <div class="jdvm-marquee flex w-max font-mono text-xs tracking-widest whitespace-nowrap uppercase">
-        <span class="px-2">{{ STRIP.repeat(4) }}</span>
-        <span class="px-2">{{ STRIP.repeat(4) }}</span>
-      </div>
-    </div>
 
     <!-- SERVICIOS -->
     <section id="servicios" class="mx-auto w-full max-w-6xl scroll-mt-20 px-5 py-20 sm:px-8 lg:py-28">
@@ -466,21 +450,5 @@ const igUrl = computed(() => {
 <style>
 html {
   scroll-behavior: smooth;
-}
-@keyframes jdvm-marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-.jdvm-marquee {
-  animation: jdvm-marquee 32s linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .jdvm-marquee {
-    animation: none;
-  }
 }
 </style>

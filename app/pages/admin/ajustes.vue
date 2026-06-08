@@ -41,22 +41,25 @@ const form = reactive({
   },
 })
 
-// Logos (subida inmediata a Storage, fuera del formulario de texto).
-const { studio: studioInfo, uploadLogo, removeLogo } = useStudio()
+// Marca (logos + vídeo del hero): subida inmediata a Storage, fuera del formulario.
+type AssetKind = 'logo' | 'logoMark' | 'heroVideo'
+const { studio: studioInfo, uploadAsset, removeAsset } = useStudio()
 const logoInput = useTemplateRef<HTMLInputElement>('logoInput')
 const markInput = useTemplateRef<HTMLInputElement>('markInput')
-const logoBusy = ref<'logo' | 'logoMark' | null>(null)
-async function onLogoFile(e: Event, kind: 'logo' | 'logoMark') {
+const videoInput = useTemplateRef<HTMLInputElement>('videoInput')
+const assetBusy = ref<AssetKind | null>(null)
+const ASSET_LABEL: Record<AssetKind, string> = { logo: 'Logo', logoMark: 'Emblema', heroVideo: 'Vídeo del hero' }
+async function onAssetFile(e: Event, kind: AssetKind) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  logoBusy.value = kind
+  assetBusy.value = kind
   try {
-    await uploadLogo(file, kind)
-    toast.add({ title: 'Logo actualizado', icon: 'i-lucide-check', color: 'success' })
+    await uploadAsset(file, kind)
+    toast.add({ title: `${ASSET_LABEL[kind]} actualizado`, icon: 'i-lucide-check', color: 'success' })
   } catch (err) {
     toast.add({ title: 'No se pudo subir', description: (err as Error).message, color: 'error' })
   } finally {
-    logoBusy.value = null
+    assetBusy.value = null
   }
 }
 
@@ -164,10 +167,10 @@ async function submit() {
         </div>
       </AdminCard>
 
-      <!-- logos (subida inmediata) -->
+      <!-- logos + vídeo (subida inmediata) -->
       <AdminCard>
-        <h2 class="font-display text-lg">Logo</h2>
-        <p class="text-muted mt-1 text-sm">Sube el logo de tu marca. Si no subes ninguno, se usa el logo por defecto.</p>
+        <h2 class="font-display text-lg">Logo y vídeo</h2>
+        <p class="text-muted mt-1 text-sm">Sube tu marca. Si no subes nada, se usan los recursos por defecto.</p>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
           <div class="border-default rounded-xl border p-4">
             <p class="text-sm font-semibold">Logo completo</p>
@@ -176,10 +179,10 @@ async function submit() {
               <img v-if="studioInfo.logoUrl" :src="studioInfo.logoUrl" alt="Logo" class="max-h-12 w-auto" />
               <span v-else class="text-dimmed text-xs">Sin logo (por defecto)</span>
             </div>
-            <input ref="logoInput" type="file" accept="image/*" class="hidden" @change="onLogoFile($event, 'logo')" />
+            <input ref="logoInput" type="file" accept="image/*" class="hidden" @change="onAssetFile($event, 'logo')" />
             <div class="flex gap-2">
-              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-upload" :loading="logoBusy === 'logo'" @click="logoInput?.click()">Subir</UButton>
-              <UButton v-if="studioInfo.logoUrl" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" @click="removeLogo('logo')">Quitar</UButton>
+              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-upload" :loading="assetBusy === 'logo'" @click="logoInput?.click()">Subir</UButton>
+              <UButton v-if="studioInfo.logoUrl" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" @click="removeAsset('logo')">Quitar</UButton>
             </div>
           </div>
           <div class="border-default rounded-xl border p-4">
@@ -189,10 +192,23 @@ async function submit() {
               <img v-if="studioInfo.logoMarkUrl" :src="studioInfo.logoMarkUrl" alt="Emblema" class="max-h-12 w-auto" />
               <span v-else class="text-dimmed text-xs">Sin emblema (por defecto)</span>
             </div>
-            <input ref="markInput" type="file" accept="image/*" class="hidden" @change="onLogoFile($event, 'logoMark')" />
+            <input ref="markInput" type="file" accept="image/*" class="hidden" @change="onAssetFile($event, 'logoMark')" />
             <div class="flex gap-2">
-              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-upload" :loading="logoBusy === 'logoMark'" @click="markInput?.click()">Subir</UButton>
-              <UButton v-if="studioInfo.logoMarkUrl" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" @click="removeLogo('logoMark')">Quitar</UButton>
+              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-upload" :loading="assetBusy === 'logoMark'" @click="markInput?.click()">Subir</UButton>
+              <UButton v-if="studioInfo.logoMarkUrl" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" @click="removeAsset('logoMark')">Quitar</UButton>
+            </div>
+          </div>
+          <div class="border-default rounded-xl border p-4 sm:col-span-2">
+            <p class="text-sm font-semibold">Vídeo del hero</p>
+            <p class="text-dimmed mb-3 text-xs">Se muestra en la portada de la web y en la home de la app (móvil). Vertical, mudo, en bucle. Si no subes, se usa el vídeo por defecto.</p>
+            <div class="bg-default border-default mb-3 overflow-hidden rounded-lg border">
+              <video v-if="studioInfo.heroVideoUrl" :src="studioInfo.heroVideoUrl" class="mx-auto max-h-40" muted loop autoplay playsinline />
+              <div v-else class="text-dimmed flex h-20 items-center justify-center text-xs">Sin vídeo (por defecto)</div>
+            </div>
+            <input ref="videoInput" type="file" accept="video/*" class="hidden" @change="onAssetFile($event, 'heroVideo')" />
+            <div class="flex gap-2">
+              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-upload" :loading="assetBusy === 'heroVideo'" @click="videoInput?.click()">Subir vídeo</UButton>
+              <UButton v-if="studioInfo.heroVideoUrl" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" @click="removeAsset('heroVideo')">Quitar</UButton>
             </div>
           </div>
         </div>

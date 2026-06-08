@@ -38,6 +38,9 @@ export const studioInfoSchema = z.object({
   logoPath: z.string().default(''),
   logoMarkUrl: z.string().default(''),
   logoMarkPath: z.string().default(''),
+  // Vídeo del hero (landing y home de la app). Vacío = se usa /video/hero.mp4.
+  heroVideoUrl: z.string().default(''),
+  heroVideoPath: z.string().default(''),
 })
 export type StudioInfo = z.infer<typeof studioInfoSchema>
 

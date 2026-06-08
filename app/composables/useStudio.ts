@@ -20,6 +20,8 @@ const DEFAULTS: StudioInfo = {
   logoPath: '',
   logoMarkUrl: '',
   logoMarkPath: '',
+  heroVideoUrl: '',
+  heroVideoPath: '',
 }
 
 function toUrl(handle: string, base: string) {
@@ -50,17 +52,22 @@ export function useStudio() {
     return `https://wa.me/${w.replace(/[^\d]/g, '')}`
   })
 
-  // Sube un logo (lockup o mark) a Storage y persiste su URL+path en settings.
-  async function uploadLogo(file: File, kind: 'logo' | 'logoMark') {
-    const ext = file.name.split('.').pop() || 'png'
-    const path = `branding/${kind}.${ext}`
+  // Vídeo del hero (configurable). Fallback al vídeo incluido en el bundle.
+  const heroVideo = computed(() => studio.value.heroVideoUrl || '/video/hero.mp4')
+
+  // Sube un asset de marca (logo, emblema o vídeo del hero) a Storage y persiste su
+  // URL+path en settings.studio. `kind` mapea a los campos `${kind}Url`/`${kind}Path`.
+  type AssetKind = 'logo' | 'logoMark' | 'heroVideo'
+  async function uploadAsset(file: File, kind: AssetKind) {
+    const ext = file.name.split('.').pop() || 'bin'
+    const path = `${STORAGE_PREFIX}branding/${kind}.${ext}`
     const sref = storageRef(storage, path)
     await uploadBytes(sref, file)
     const url = await getDownloadURL(sref)
     await save({ studio: { ...studio.value, [`${kind}Url`]: url, [`${kind}Path`]: path } })
   }
 
-  async function removeLogo(kind: 'logo' | 'logoMark') {
+  async function removeAsset(kind: AssetKind) {
     const path = studio.value[`${kind}Path` as const]
     if (path) {
       try {
@@ -72,5 +79,19 @@ export function useStudio() {
     await save({ studio: { ...studio.value, [`${kind}Url`]: '', [`${kind}Path`]: '' } })
   }
 
-  return { studio, name, codePrefix, igUrl, fbUrl, tiktokUrl, waUrl, uploadLogo, removeLogo }
+  return {
+    studio,
+    name,
+    codePrefix,
+    heroVideo,
+    igUrl,
+    fbUrl,
+    tiktokUrl,
+    waUrl,
+    uploadAsset,
+    removeAsset,
+    // Alias retrocompatibles (logo).
+    uploadLogo: uploadAsset,
+    removeLogo: removeAsset,
+  }
 }
