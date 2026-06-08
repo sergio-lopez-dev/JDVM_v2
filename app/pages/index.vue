@@ -168,8 +168,8 @@ const igUrl = computed(() => {
     <header class="border-default bg-default/80 sticky top-0 z-40 border-b backdrop-blur">
       <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
         <a href="#top" :aria-label="`${studio.name} inicio`" class="flex items-center gap-2.5">
-          <AppLogo variant="mark" :size="26" />
-          <span class="font-display text-lg leading-none tracking-wide">{{ studio.name }}</span>
+          <AppLogo variant="mark" :size="28" />
+          <span class="font-display text-xl leading-none tracking-wide">{{ studio.name }}</span>
         </a>
         <nav class="hidden items-center gap-7 lg:flex">
           <a v-for="n in NAV" :key="n.to" :href="n.to" class="text-muted hover:text-default text-sm font-medium transition-colors">{{ n.label }}</a>
@@ -214,9 +214,10 @@ const igUrl = computed(() => {
       <div class="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-20">
         <div>
           <span class="text-primary font-mono text-[0.7rem] tracking-[0.25em] uppercase">Barbería<template v-if="cityShort"> · {{ cityShort }}</template> · desde {{ studio.foundedYear }}</span>
-          <h1 class="font-display mt-5 text-5xl leading-[0.98] sm:text-6xl lg:text-7xl">
-            Tu mejor versión empieza en la <em class="text-primary italic">silla</em>.
-          </h1>
+          <h1 class="font-display mt-4 text-6xl leading-[0.95] sm:text-7xl lg:text-8xl">{{ studio.name }}</h1>
+          <p class="font-display text-primary mt-4 text-2xl italic sm:text-3xl">
+            Tu mejor versión empieza en la silla.
+          </p>
           <p class="text-muted mt-5 max-w-md text-base leading-relaxed">
             Cortes de precisión, barba a navaja y un buen rato. Reserva online con tu barbero de siempre, sin llamadas ni esperas.
           </p>
