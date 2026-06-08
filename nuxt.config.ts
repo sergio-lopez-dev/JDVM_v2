@@ -3,6 +3,14 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
+  // Clave pública Web Push (VAPID) para FCM. Generar en Firebase Console → Cloud
+  // Messaging → "Web Push certificates" y ponerla en .env como NUXT_PUBLIC_FCM_VAPID_KEY.
+  runtimeConfig: {
+    public: {
+      fcmVapidKey: process.env.NUXT_PUBLIC_FCM_VAPID_KEY ?? '',
+    },
+  },
+
   // App de Firebase 100% cliente (SPA). nuxt-vuefire en SSR necesitaría el Admin
   // SDK en el servidor (service account), que no está en Vercel → daba 500
   // "default Firebase app does not exist". Renderizando en cliente, Firebase solo

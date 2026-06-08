@@ -1,6 +1,6 @@
 {
   "projects": {
     "default": "demo-jdvm",
-    "prod": "jdvm-v2"
+    "prod": "jdvm-d82b6"
   }
 }

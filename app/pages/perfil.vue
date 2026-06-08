@@ -123,6 +123,8 @@ const menu = computed(() => [
         </component>
       </div>
 
+      <NotificationToggle />
+
       <UButton color="error" variant="outline" size="lg" block icon="i-lucide-log-out" @click="signOut">
         Cerrar sesión
       </UButton>
@@ -227,6 +229,8 @@ const menu = computed(() => [
             <UButton color="neutral" variant="outline" size="sm">Editar</UButton>
           </component>
         </div>
+
+        <NotificationToggle />
 
         <div class="flex items-center gap-3">
           <UButton color="neutral" variant="outline" icon="i-lucide-gift">Invita y gana 5€</UButton>

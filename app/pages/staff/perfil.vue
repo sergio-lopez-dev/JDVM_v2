@@ -114,6 +114,8 @@ function requestDayOff() {
           <span class="text-dimmed text-xs leading-relaxed">La carta, los precios y el equipo los gestiona el administrador del local.</span>
         </div>
       </section>
+
+      <NotificationToggle />
     </div>
     </div>
 
@@ -185,6 +187,8 @@ function requestDayOff() {
               <div class="flex-1"><div class="text-error text-sm font-semibold">Cerrar sesión</div><div class="text-dimmed text-xs">Salir de tu cuenta</div></div>
             </button>
           </AdminCard>
+
+          <NotificationToggle />
         </div>
       </div>
     </div>

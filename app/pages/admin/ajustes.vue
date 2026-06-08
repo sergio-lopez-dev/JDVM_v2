@@ -148,6 +148,9 @@ async function submit() {
     </AdminHeader>
 
     <div class="grid max-w-4xl gap-4 px-5 py-6 pb-24 lg:px-7 lg:pb-6">
+      <!-- notificaciones push de este dispositivo (avisos de citas y cancelaciones) -->
+      <NotificationToggle />
+
       <!-- información del estudio (toda la app) -->
       <AdminCard>
         <h2 class="font-display text-lg">Información del estudio</h2>

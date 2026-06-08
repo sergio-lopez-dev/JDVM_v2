@@ -5,8 +5,10 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 import prettier from 'eslint-config-prettier'
 
 export default withNuxt(
-  // inputs/ = referencias de diseño (React/JSX); scripts/ = utilidades Node.
-  { ignores: ['inputs/**', 'scripts/**'] },
+  // inputs/ = referencias de diseño (React/JSX); scripts/ = utilidades Node;
+  // functions/ = Cloud Functions (proyecto CommonJS aparte); el SW de FCM usa
+  // importScripts/self con globals de service worker.
+  { ignores: ['inputs/**', 'scripts/**', 'functions/**', 'public/firebase-messaging-sw.js'] },
   {
     rules: {
       // Permitimos nombres de página de una palabra (index.vue, login.vue…).
