@@ -9,6 +9,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { normalizeEmail } from '~~/schemas'
 import type { SignInInput, SignUpInput } from '~~/schemas'
 
 // Capa de autenticación. Email/Contraseña + Google (decisión de producto).
@@ -35,12 +36,54 @@ export function useAuth() {
     } else {
       await setDoc(ref, { lastLogin: serverTimestamp() }, { merge: true })
     }
+    // Si hay una invitación de barbero pendiente para este email, la reclama:
+    // crea barbers/{uid} y eleva el rol. Así el barbero se da de alta con Google
+    // o contraseña usando el email invitado y aterriza en su app (/staff).
+    await claimBarberInvite(fbUser)
+  }
+
+  // Convierte al usuario en barbero si su email tiene una invitación pendiente.
+  // Idempotente: si ya es barbero o no hay invitación, no hace nada.
+  async function claimBarberInvite(fbUser: User): Promise<boolean> {
+    if (!fbUser.email) return false
+    const id = normalizeEmail(fbUser.email)
+    const inviteRef = doc(db, COL.barberInvites, id)
+    const inviteSnap = await getDoc(inviteRef)
+    if (!inviteSnap.exists()) return false
+    const invite = inviteSnap.data() as { status?: string; barber?: Record<string, unknown> }
+    if (invite.status !== 'pending' || !invite.barber) return false
+
+    const uid = fbUser.uid
+    // users/{uid}: eleva a barbero (conserva nombre/teléfono si ya los tenía).
+    await setDoc(
+      doc(db, COL.users, uid),
+      { role: 'barber', name: (invite.barber.name as string) || fbUser.displayName || '' },
+      { merge: true },
+    )
+    // barbers/{uid}: materializa el barbero con los datos de la invitación.
+    await setDoc(doc(db, COL.barbers, uid), invite.barber)
+    // Marca la invitación como aceptada.
+    await setDoc(
+      inviteRef,
+      { status: 'accepted', acceptedUid: uid, acceptedAt: serverTimestamp() },
+      { merge: true },
+    )
+    return true
   }
 
   async function signUp(input: SignUpInput) {
     const cred = await createUserWithEmailAndPassword(auth, input.email, input.password)
     await updateProfile(cred.user, { displayName: input.name })
     await ensureUserDoc(cred.user, { name: input.name, phone: input.phone })
+    return cred.user
+  }
+
+  // Registro con email/contraseña SIN exigir teléfono (para el alta de barbero por
+  // invitación). ensureUserDoc reclama la invitación y eleva el rol si procede.
+  async function registerWithPassword(input: { email: string; password: string; name?: string }) {
+    const cred = await createUserWithEmailAndPassword(auth, input.email, input.password)
+    if (input.name) await updateProfile(cred.user, { displayName: input.name })
+    await ensureUserDoc(cred.user, { name: input.name })
     return cred.user
   }
 
@@ -76,5 +119,16 @@ export function useAuth() {
     return (await roleOf(uid)) === 'barber' ? '/staff' : '/app'
   }
 
-  return { user, signUp, signIn, signInWithGoogle, signOut, sendReset, ensureUserDoc, roleOf, destinationFor }
+  return {
+    user,
+    signUp,
+    registerWithPassword,
+    signIn,
+    signInWithGoogle,
+    signOut,
+    sendReset,
+    ensureUserDoc,
+    roleOf,
+    destinationFor,
+  }
 }

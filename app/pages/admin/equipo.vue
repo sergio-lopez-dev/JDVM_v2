@@ -7,10 +7,49 @@ import type { Barber, BarberInput, WeekTimetable, DateRange } from '~~/schemas'
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Equipo · Admin' })
 
-const { barbers, createWithAccount, sendInvite, update, remove } = useBarbers()
+const { barbers, sendInvite, update, remove } = useBarbers()
+const { pending: pendingInvites, create: createInvite, sendEmail: sendInviteEmail, remove: removeInvite } = useBarberInvites()
 const { services } = useServices()
 const { reviews } = useReviews()
 const { clients } = useClients()
+
+// Enlace de invitación que comparte el admin (lleva a la pantalla /invitacion).
+const inviteLink = (email: string) =>
+  import.meta.client ? `${window.location.origin}/invitacion?email=${encodeURIComponent(email)}` : ''
+
+async function copyInvite(email: string) {
+  try {
+    await navigator.clipboard.writeText(inviteLink(email))
+    toast.add({ title: 'Enlace copiado', description: email, icon: 'i-lucide-clipboard-check', color: 'success' })
+  } catch {
+    toast.add({ title: 'No se pudo copiar', color: 'error' })
+  }
+}
+
+async function cancelInvite(email: string) {
+  if (!confirm(`¿Cancelar la invitación de ${email}?`)) return
+  await removeInvite(email)
+  toast.add({ title: 'Invitación cancelada', icon: 'i-lucide-trash-2' })
+}
+
+const sendingEmail = ref('')
+async function emailInvite(email: string) {
+  sendingEmail.value = email
+  try {
+    await sendInviteEmail(email)
+    toast.add({ title: 'Email enviado', description: email, icon: 'i-lucide-mail-check', color: 'success' })
+  } catch (e) {
+    toast.add({
+      title: 'No se pudo enviar el email',
+      description: 'Comparte el enlace mientras tanto. (¿Cloud Function desplegada?)',
+      color: 'warning',
+      icon: 'i-lucide-triangle-alert',
+    })
+    console.error(e)
+  } finally {
+    sendingEmail.value = ''
+  }
+}
 
 // Email de acceso del barbero (vive en users_v2/{uid}, no en el doc del barbero).
 // Solo existe si se creó con cuenta (id del barbero == uid). Sirve para reinvitar.
@@ -209,12 +248,18 @@ async function save() {
       await update(form.value.id, payload)
       toast.add({ title: 'Barbero actualizado', icon: 'i-lucide-check', color: 'success' })
     } else {
-      const { invited } = await createWithAccount(payload, form.value.email.trim())
-      toast.add(
-        invited
-          ? { title: 'Barbero creado', description: 'Le hemos enviado un email para crear su contraseña.', icon: 'i-lucide-mail-check', color: 'success' }
-          : { title: 'Barbero creado', description: 'No se pudo enviar el email; reenvía la invitación desde su ficha.', icon: 'i-lucide-triangle-alert', color: 'warning' },
-      )
+      // Alta por invitación: el barbero se da de alta él mismo (Google o contraseña)
+      // con este email y se convierte en barbero al entrar. Sin crear cuenta aquí.
+      const inviteEmail = form.value.email.trim()
+      await createInvite(inviteEmail, payload)
+      // Envío del email de marca (Cloud Function). Best-effort: si no está desplegada,
+      // la invitación sigue válida y el admin comparte el enlace.
+      try {
+        await sendInviteEmail(inviteEmail)
+        toast.add({ title: 'Invitación enviada', description: `Email de invitación a ${inviteEmail}.`, icon: 'i-lucide-mail-check', color: 'success' })
+      } catch {
+        toast.add({ title: 'Invitación creada', description: 'No se pudo enviar el email; comparte el enlace (abajo).', icon: 'i-lucide-mail-plus', color: 'warning' })
+      }
     }
     open.value = false
   } catch (e) {
@@ -305,6 +350,32 @@ async function confirmRemove() {
           <UIcon name="i-lucide-plus" class="text-primary size-5" />
         </button>
       </div>
+
+      <!-- invitaciones pendientes (aún no han entrado en la app) -->
+      <section v-if="pendingInvites.length" class="mt-8">
+        <h2 class="font-display mb-3 flex items-center gap-2 text-lg">
+          <UIcon name="i-lucide-mail-plus" class="text-primary size-5" />Invitaciones pendientes
+        </h2>
+        <div class="grid gap-3 lg:grid-cols-2">
+          <div
+            v-for="inv in pendingInvites"
+            :key="inv.id"
+            class="border-default bg-muted/50 flex items-center gap-3 rounded-2xl border border-dashed p-4"
+          >
+            <UiAvatar :name="inv.barber.name" :size="44" :ring="inv.barber.color" />
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm font-semibold">{{ inv.barber.name }}</div>
+              <div class="text-dimmed truncate text-xs">{{ inv.email }} · pendiente de aceptar</div>
+            </div>
+            <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-mail" aria-label="Reenviar email" :loading="sendingEmail === inv.email" @click="emailInvite(inv.email)" />
+            <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-link" aria-label="Copiar enlace" @click="copyInvite(inv.email)" />
+            <UButton size="sm" color="error" variant="ghost" icon="i-lucide-x" aria-label="Cancelar" @click="cancelInvite(inv.email)" />
+          </div>
+        </div>
+        <p class="text-dimmed mt-3 text-xs">
+          Comparte el enlace con el barbero. Al entrar con Google o contraseña usando ese email, se unirá al equipo automáticamente.
+        </p>
+      </section>
     </div>
 
     <!-- editor (drawer) -->
@@ -323,14 +394,15 @@ async function confirmRemove() {
               <UFormField label="Slug"><UInput v-model="form.slug" placeholder="dani-ruiz" class="w-full" /></UFormField>
             </div>
 
-            <!-- Cuenta de acceso por invitación: solo en alta. Se crea su usuario
-                 (rol barbero) y se le envía un email para que ponga su contraseña. -->
+            <!-- Invitación: solo en alta. No se crea cuenta aquí; el barbero se da de
+                 alta él mismo (Google o contraseña) con este email y se convierte en
+                 barbero al entrar. Ver pantalla /invitacion + reclamo en useAuth. -->
             <div v-if="!form.id" class="border-default bg-muted/50 space-y-2 rounded-xl border p-3">
-              <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Cuenta de acceso</p>
-              <UFormField label="Email">
+              <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Invitación</p>
+              <UFormField label="Email del barbero">
                 <UInput v-model="form.email" type="email" autocomplete="off" placeholder="dani@jdvm.es" class="w-full" />
               </UFormField>
-              <p class="text-dimmed text-xs">Le enviaremos un email para crear su contraseña y entrar en su app (<span class="font-mono">/staff</span>).</p>
+              <p class="text-dimmed text-xs">Se creará una invitación. El barbero entra con <strong class="text-default">Google o contraseña</strong> usando este email y aterriza en su app (<span class="font-mono">/staff</span>).</p>
             </div>
 
             <!-- En edición: reenviar la invitación si el barbero tiene cuenta. -->

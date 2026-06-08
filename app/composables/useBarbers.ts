@@ -71,18 +71,35 @@ export function useBarbers() {
   }
 
   // Continue URL del enlace de invitación: el barbero acaba en /login tras fijar
-  // su contraseña. Debe ser un dominio autorizado en Firebase Auth (lo es: el propio).
+  // su contraseña. OJO: ese dominio debe estar en "Dominios autorizados" de Firebase
+  // Auth; si no, el envío falla con auth/unauthorized-continue-uri.
   function inviteSettings() {
     return import.meta.client
       ? { url: `${window.location.origin}/login`, handleCodeInApp: false }
       : undefined
   }
 
-  // Envía (o reenvía) el email de invitación: enlace de Firebase para que el barbero
-  // ponga su contraseña. Es el flujo de "restablecer contraseña" reutilizado como alta.
-  async function sendInvite(email: string) {
-    await sendPasswordResetEmail(primaryAuth, email, inviteSettings())
+  // Envía el email de invitación (flujo "restablecer contraseña" reutilizado como
+  // alta). Robusto: si el continue URL no está autorizado (dominio no whitelisteado),
+  // reintenta SIN él para que el correo se mande igual. Acepta el Auth a usar
+  // (principal o el de la app secundaria recién creada).
+  async function sendInviteWith(auth: ReturnType<typeof getAuth>, email: string) {
+    auth.languageCode = 'es' // el correo de Firebase sale en español
+    const settings = inviteSettings()
+    try {
+      await sendPasswordResetEmail(auth, email, settings)
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? ''
+      if (settings && /continue-uri|unauthorized-continue/.test(code)) {
+        await sendPasswordResetEmail(auth, email) // sin redirección final
+      } else {
+        throw e
+      }
+    }
   }
+
+  // Reenviar la invitación a un barbero ya existente.
+  const sendInvite = (email: string) => sendInviteWith(primaryAuth, email)
 
   // Alta de barbero CON cuenta de acceso por INVITACIÓN. La cuenta de Auth se crea
   // en una app de Firebase SECUNDARIA para no alterar la sesión del admin (createUser
@@ -124,7 +141,7 @@ export function useBarbers() {
       // Email de invitación. Si falla (red, etc.) no abortamos: el barbero ya existe.
       let invited = true
       try {
-        await sendPasswordResetEmail(secAuth, email, inviteSettings())
+        await sendInviteWith(secAuth, email)
       } catch {
         invited = false
       }
