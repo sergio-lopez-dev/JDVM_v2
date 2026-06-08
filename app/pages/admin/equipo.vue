@@ -365,16 +365,20 @@ async function confirmRemove() {
           <div
             v-for="inv in pendingInvites"
             :key="inv.id"
-            class="border-default bg-muted/50 flex items-center gap-3 rounded-2xl border border-dashed p-4"
+            class="border-default bg-muted/50 flex flex-col gap-3 rounded-2xl border border-dashed p-4 sm:flex-row sm:items-center"
           >
-            <UiAvatar :name="inv.barber.name" :size="44" :ring="inv.barber.color" />
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-semibold">{{ inv.barber.name }}</div>
-              <div class="text-dimmed truncate text-xs">{{ inv.email }} · pendiente de aceptar</div>
+            <div class="flex min-w-0 items-center gap-3">
+              <UiAvatar :name="inv.barber.name" :size="44" :ring="inv.barber.color" />
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold">{{ inv.barber.name }}</div>
+                <div class="text-dimmed truncate text-xs">{{ inv.email }} · pendiente de aceptar</div>
+              </div>
             </div>
-            <UButton size="sm" color="primary" variant="soft" icon="i-lucide-share-2" @click="shareInvite(inv.email)">Compartir</UButton>
-            <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-link" aria-label="Copiar enlace" @click="copyInvite(inv.email)" />
-            <UButton size="sm" color="error" variant="ghost" icon="i-lucide-x" aria-label="Cancelar" @click="cancelInvite(inv.email)" />
+            <div class="flex items-center gap-2 sm:ml-auto sm:shrink-0">
+              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-share-2" class="flex-1 justify-center sm:flex-none" @click="shareInvite(inv.email)">Compartir</UButton>
+              <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-link" aria-label="Copiar enlace" @click="copyInvite(inv.email)" />
+              <UButton size="sm" color="error" variant="ghost" icon="i-lucide-x" aria-label="Cancelar" @click="cancelInvite(inv.email)" />
+            </div>
           </div>
         </div>
         <p class="text-dimmed mt-3 text-xs">

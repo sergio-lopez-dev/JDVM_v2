@@ -112,19 +112,29 @@ const bookingOpen = ref(false)
     </AdminHeader>
 
     <div class="space-y-4 px-5 py-6 pb-24 lg:px-7 lg:pb-6">
-      <!-- filtros -->
+      <!-- buscador (en móvil: aquí; en ≥sm va en la cabecera) -->
+      <UInput
+        v-model="search"
+        placeholder="Buscar cliente, servicio…"
+        icon="i-lucide-search"
+        class="w-full sm:hidden"
+      />
+
+      <!-- filtros (scroll horizontal en móvil para no desbordar) -->
       <div class="flex flex-wrap items-center gap-3">
-        <div class="border-default bg-muted inline-flex rounded-[10px] border p-1">
-          <button
-            v-for="f in FILTERS"
-            :key="f"
-            type="button"
-            class="rounded-[7px] px-3.5 py-1.5 text-sm transition-colors"
-            :class="filter === f ? 'bg-primary text-inverted font-semibold' : 'text-toned hover:text-default font-medium'"
-            @click="filter = f"
-          >
-            {{ f }}
-          </button>
+        <div class="-mx-1 max-w-full overflow-x-auto px-1">
+          <div class="border-default bg-muted inline-flex rounded-[10px] border p-1">
+            <button
+              v-for="f in FILTERS"
+              :key="f"
+              type="button"
+              class="shrink-0 rounded-[7px] px-3.5 py-1.5 text-sm whitespace-nowrap transition-colors"
+              :class="filter === f ? 'bg-primary text-inverted font-semibold' : 'text-toned hover:text-default font-medium'"
+              @click="filter = f"
+            >
+              {{ f }}
+            </button>
+          </div>
         </div>
         <span class="text-dimmed ml-auto text-xs">{{ filtered.length }} citas</span>
       </div>
