@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { WEEKDAYS, type Weekday, type WeekTimetable, type ThemeKey } from '~~/schemas'
-import { BRAND_THEMES } from '~~/lib/themes'
+import { BRAND_THEMES, EXTRA_THEME_KEYS } from '~~/lib/themes'
+
+// Las 6 paletas principales y las extra (ocultas tras "Más paletas").
+const PRIMARY_THEMES = BRAND_THEMES.filter((t) => !EXTRA_THEME_KEYS.includes(t.key))
+const EXTRA_THEMES = BRAND_THEMES.filter((t) => EXTRA_THEME_KEYS.includes(t.key))
+const showExtraThemes = ref(false)
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Ajustes · Admin' })
@@ -75,6 +80,7 @@ watch(
     form.timetable = structuredClone(toRaw(s.timetable ?? {}))
     form.theme = s.theme ?? 'forest'
     savedTheme.value = s.theme ?? 'forest'
+    if (EXTRA_THEME_KEYS.includes(form.theme)) showExtraThemes.value = true
     form.studio = {
       name: s.studio?.name ?? 'JDVM Hair Studio',
       city: s.studio?.city ?? '',
@@ -226,7 +232,7 @@ async function submit() {
         </p>
         <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <button
-            v-for="t in BRAND_THEMES"
+            v-for="t in PRIMARY_THEMES"
             :key="t.key"
             type="button"
             class="group relative overflow-hidden rounded-xl border text-left transition"
@@ -234,6 +240,43 @@ async function submit() {
             @click="previewTheme(t.key as ThemeKey)"
           >
             <!-- muestra de la paleta -->
+            <div class="flex h-16 w-full items-end gap-1.5 p-2.5" :style="{ background: t.bg1 }">
+              <span class="h-7 flex-1 rounded-md" :style="{ background: t.bg2, border: `1px solid ${t.border}` }" />
+              <span class="h-9 w-9 rounded-md" :style="{ background: t.accent }" />
+              <span class="h-5 w-5 rounded-full" :style="{ background: t.fg0 }" />
+            </div>
+            <div class="border-default flex items-center justify-between gap-2 border-t px-3 py-2">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold">{{ t.name }}</p>
+                <p class="text-dimmed truncate text-[11px]">{{ t.tagline }}</p>
+              </div>
+              <UIcon
+                v-if="form.theme === t.key"
+                name="i-lucide-check-circle-2"
+                class="text-primary size-5 shrink-0"
+              />
+            </div>
+          </button>
+        </div>
+
+        <!-- paletas extra, ocultas tras un desplegable -->
+        <button
+          type="button"
+          class="text-muted hover:text-toned mt-4 inline-flex items-center gap-1.5 text-sm font-semibold transition"
+          @click="showExtraThemes = !showExtraThemes"
+        >
+          <UIcon :name="showExtraThemes ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" class="size-4" />
+          {{ showExtraThemes ? 'Menos paletas' : 'Más paletas' }}
+        </button>
+        <div v-if="showExtraThemes" class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <button
+            v-for="t in EXTRA_THEMES"
+            :key="t.key"
+            type="button"
+            class="group relative overflow-hidden rounded-xl border text-left transition"
+            :class="form.theme === t.key ? 'border-primary ring-primary/40 ring-2' : 'border-default hover:border-primary/50'"
+            @click="previewTheme(t.key as ThemeKey)"
+          >
             <div class="flex h-16 w-full items-end gap-1.5 p-2.5" :style="{ background: t.bg1 }">
               <span class="h-7 flex-1 rounded-md" :style="{ background: t.bg2, border: `1px solid ${t.border}` }" />
               <span class="h-9 w-9 rounded-md" :style="{ background: t.accent }" />

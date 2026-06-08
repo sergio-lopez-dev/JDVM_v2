@@ -80,7 +80,7 @@ export default defineNuxtConfig({
           rel: 'stylesheet',
           // Serifs de todas las direcciones de marca (la paleta activa elige una
           // vía --font-display). Ver lib/themes.ts.
-          href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Spectral:wght@400;500;600&family=Libre+Caslon+Display&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
+          href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Spectral:wght@400;500;600&family=Libre+Caslon+Display&family=Playfair+Display:wght@400;500;600;700&family=DM+Serif+Display&family=Fraunces:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&family=Cardo:wght@400;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
         },
       ],
     },
@@ -133,7 +133,9 @@ export default defineNuxtConfig({
       description: 'Reserva tu cita en JDVM Hair Studio.',
       lang: 'es',
       theme_color: '#0b0f0c',
-      background_color: '#0b0f0c',
+      // Fondo del icono/splash en negro puro: el icono de marca es el logo blanco
+      // sobre negro (como el original), así que el área enmascarable también es negra.
+      background_color: '#000000',
       display: 'standalone',
       icons: [
         { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
