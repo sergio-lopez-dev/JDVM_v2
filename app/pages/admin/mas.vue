@@ -16,9 +16,11 @@ function ratingOf(id: string) {
 }
 
 const config = computed(() => [
+  { icon: 'i-lucide-user', label: 'Equipo', to: '/admin/equipo', badge: String(barbers.value.length || '') },
   { icon: 'i-lucide-users', label: 'Clientes', to: '/admin/clientes', badge: String(clients.value.length || '') },
   { icon: 'i-lucide-chart-column', label: 'Informes', to: '/admin/reports', badge: '' },
   { icon: 'i-lucide-image', label: 'Estudio', to: '/admin/estudio', badge: '' },
+  { icon: 'i-lucide-award', label: 'Fidelización', to: '/admin/fidelizacion', badge: '' },
   { icon: 'i-lucide-bell', label: 'Avisos', to: '/admin/notificaciones', badge: '' },
   { icon: 'i-lucide-settings', label: 'Ajustes', to: '/admin/ajustes', badge: '' },
   { icon: 'i-lucide-smartphone', label: 'Ver la app', to: '/app', badge: '' },

@@ -7,7 +7,7 @@ import type { Barber, BarberInput, WeekTimetable, DateRange } from '~~/schemas'
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Equipo · Admin' })
 
-const { barbers, create, update, remove } = useBarbers()
+const { barbers, createWithAccount, update, remove } = useBarbers()
 const { services } = useServices()
 const { reviews } = useReviews()
 const storage = useFirebaseStorage()
@@ -61,6 +61,8 @@ function isOpenDay(b: Barber, key: string) {
 interface FormState {
   id: string | null
   name: string
+  email: string
+  password: string
   slug: string
   color: string
   instagram: string
@@ -86,6 +88,8 @@ function blank(): FormState {
   return {
     id: null,
     name: '',
+    email: '',
+    password: '',
     slug: '',
     color: '#C2A24E',
     instagram: '',
@@ -111,6 +115,8 @@ function startEdit(b: Barber) {
   form.value = {
     id: b.id,
     name: b.name,
+    email: '',
+    password: '',
     slug: b.slug,
     color: b.color,
     instagram: b.instagram ?? '',
@@ -160,6 +166,18 @@ async function save() {
     toast.add({ title: 'El nombre es obligatorio', color: 'error', icon: 'i-lucide-triangle-alert' })
     return
   }
+  // En alta se crea la cuenta de acceso del barbero → email + contraseña obligatorios.
+  if (!form.value.id) {
+    const email = form.value.email.trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.add({ title: 'Email no válido', color: 'error', icon: 'i-lucide-triangle-alert' })
+      return
+    }
+    if (form.value.password.length < 6) {
+      toast.add({ title: 'La contraseña debe tener al menos 6 caracteres', color: 'error', icon: 'i-lucide-triangle-alert' })
+      return
+    }
+  }
   saving.value = true
   try {
     const payload: BarberInput = {
@@ -175,8 +193,14 @@ async function save() {
       timetable: form.value.timetable,
       vacations: form.value.vacations,
     }
-    if (form.value.id) await update(form.value.id, payload)
-    else await create(payload)
+    if (form.value.id) {
+      await update(form.value.id, payload)
+    } else {
+      await createWithAccount(payload, {
+        email: form.value.email.trim(),
+        password: form.value.password,
+      })
+    }
     toast.add({ title: form.value.id ? 'Barbero actualizado' : 'Barbero creado', icon: 'i-lucide-check', color: 'success' })
     open.value = false
   } catch (e) {
@@ -283,6 +307,16 @@ async function confirmRemove() {
             <div class="grid grid-cols-2 gap-3">
               <UFormField label="Nombre"><UInput v-model="form.name" placeholder="Dani Ruiz" class="w-full" /></UFormField>
               <UFormField label="Slug"><UInput v-model="form.slug" placeholder="dani-ruiz" class="w-full" /></UFormField>
+            </div>
+
+            <!-- Cuenta de acceso: solo en alta. Se crea su usuario (rol barbero). -->
+            <div v-if="!form.id" class="border-default bg-muted/50 space-y-3 rounded-xl border p-3">
+              <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Cuenta de acceso</p>
+              <div class="grid grid-cols-2 gap-3">
+                <UFormField label="Email"><UInput v-model="form.email" type="email" autocomplete="off" placeholder="dani@jdvm.es" class="w-full" /></UFormField>
+                <UFormField label="Contraseña" hint="mín. 6"><UInput v-model="form.password" type="password" autocomplete="new-password" placeholder="••••••" class="w-full" /></UFormField>
+              </div>
+              <p class="text-dimmed text-xs">Con estas credenciales el barbero entra en su app (<span class="font-mono">/staff</span>). Podrá cambiar la contraseña desde «Recuperar».</p>
             </div>
             <div class="grid grid-cols-[auto_1fr] items-end gap-3">
               <UFormField label="Color">
