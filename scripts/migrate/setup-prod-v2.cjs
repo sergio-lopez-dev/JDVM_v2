@@ -1,9 +1,9 @@
 // Setup mínimo de la app v2 en el proyecto REAL jdvm-d82b6 (compartido con la v1).
 // SOLO escribe en colecciones v2_* → NO afecta a la app legacy v1.
 //
-//  - v2_users/{uid}.role = 'admin' para los admins conocidos (buscados por email
+//  - users_v2/{uid}.role = 'admin' para los admins conocidos (buscados por email
 //    en el Auth, que es el mismo que la v1).
-//  - v2_settings/main con una configuración por defecto (horario, marca, etc.) para
+//  - settings_v2/main con una configuración por defecto (horario, marca, etc.) para
 //    que el panel y la reserva funcionen desde el primer momento.
 //
 // NO migra citas ni servicios (eso lo hará el superadmin desde el panel).
@@ -36,11 +36,11 @@ const week = { mon: day, tue: day, wed: day, thu: day, fri: day, sat: { morning:
 async function run() {
   console.log(`Destino: ${TARGET} (PRODUCCIÓN · solo colecciones v2_*)\n`)
 
-  // --- admins → v2_users.role = 'admin' ---
+  // --- admins → users_v2.role = 'admin' ---
   for (const email of ADMIN_EMAILS) {
     try {
       const u = await auth.getUserByEmail(email)
-      await db.collection('v2_users').doc(u.uid).set(
+      await db.collection('users_v2').doc(u.uid).set(
         {
           name: u.displayName || '',
           email,
@@ -56,8 +56,8 @@ async function run() {
     }
   }
 
-  // --- v2_settings/main (config por defecto, editable en /admin/ajustes) ---
-  await db.collection('v2_settings').doc('main').set(
+  // --- settings_v2/main (config por defecto, editable en /admin/ajustes) ---
+  await db.collection('settings_v2').doc('main').set(
     {
       timetable: week,
       daysClosed: ['sun'],
@@ -100,7 +100,7 @@ async function run() {
     },
     { merge: true },
   )
-  console.log('\n✔ v2_settings/main creado. Setup mínimo completado (v1 intacta).')
+  console.log('\n✔ settings_v2/main creado. Setup mínimo completado (v1 intacta).')
   console.log('  Entra con el superadmin → /admin para configurar servicios y dar de alta al barbero.')
 }
 
