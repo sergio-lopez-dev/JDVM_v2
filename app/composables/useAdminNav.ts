@@ -13,6 +13,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { label: 'Servicios', icon: 'i-lucide-store', to: '/admin/catalogo' },
   { label: 'Equipo', icon: 'i-lucide-user', to: '/admin/equipo' },
   { label: 'Estudio', icon: 'i-lucide-image', to: '/admin/estudio' },
+  { label: 'Facturación', icon: 'i-lucide-wallet', to: '/admin/facturacion' },
   { label: 'Informes', icon: 'i-lucide-chart-column', to: '/admin/reports' },
   { label: 'Fidelización', icon: 'i-lucide-award', to: '/admin/fidelizacion' },
   { label: 'Avisos', icon: 'i-lucide-bell', to: '/admin/notificaciones' },

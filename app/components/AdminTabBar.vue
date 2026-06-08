@@ -10,7 +10,7 @@ const items = [
 ]
 
 // Rutas que cuelgan de "Más" (no tienen pestaña propia).
-const MORE = ['/admin/mas', '/admin/equipo', '/admin/clientes', '/admin/estudio', '/admin/reports', '/admin/notificaciones', '/admin/ajustes']
+const MORE = ['/admin/mas', '/admin/equipo', '/admin/clientes', '/admin/facturacion', '/admin/estudio', '/admin/reports', '/admin/notificaciones', '/admin/ajustes']
 
 function active(to: string) {
   if (to === '/admin') return route.path === '/admin'

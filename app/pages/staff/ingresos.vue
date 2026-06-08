@@ -6,7 +6,11 @@ definePageMeta({ layout: 'barber', middleware: 'barber' })
 useHead({ title: 'Mis ingresos · Barbero' })
 
 const { today, enriched, rating, myReviews, me } = useBarber()
+const user = useCurrentUser()
 const pct = computed(() => me.value?.commissionPercent ?? 50)
+
+// Registro de venta de producto (el margen es del local; aquí solo se anota).
+const saleOpen = ref(false)
 
 const period = ref<'semana' | 'mes'>('semana')
 
@@ -128,6 +132,12 @@ const periodLabel = computed(() => (period.value === 'semana' ? 'esta semana' : 
         </div>
       </div>
 
+      <!-- registrar venta de producto (el importe es para la barbería) -->
+      <div class="space-y-1.5">
+        <UButton block size="lg" color="primary" variant="soft" icon="i-lucide-shopping-cart" @click="saleOpen = true">Registrar venta de producto</UButton>
+        <p class="text-dimmed text-center text-[0.7rem]">El importe de los productos es para la barbería, no cuenta en tu comisión.</p>
+      </div>
+
       <!-- rating + citas -->
       <div class="grid grid-cols-2 gap-3">
         <div class="border-default bg-muted rounded-2xl border p-4">
@@ -152,6 +162,7 @@ const periodLabel = computed(() => (period.value === 'semana' ? 'esta semana' : 
     <div class="hidden lg:block">
       <AdminHeader title="Mis ingresos" sub="Tus ganancias, esta vista es solo tuya">
         <template #actions>
+          <UButton color="primary" variant="soft" icon="i-lucide-shopping-cart" @click="saleOpen = true">Registrar venta</UButton>
           <div class="border-default bg-muted inline-flex rounded-[10px] border p-1">
             <button v-for="o in (['semana', 'mes'] as const)" :key="o" type="button" class="rounded-[7px] px-3.5 py-1.5 text-sm font-semibold capitalize" :class="period === o ? 'bg-primary text-inverted' : 'text-toned'" @click="period = o">{{ o }}</button>
           </div>
@@ -235,5 +246,7 @@ const periodLabel = computed(() => (period.value === 'semana' ? 'esta semana' : 
         </div>
       </div>
     </div>
+
+    <ProductSaleModal v-model:open="saleOpen" :default-seller="user?.uid ?? ''" />
   </div>
 </template>

@@ -18,6 +18,7 @@ function ratingOf(id: string) {
 const config = computed(() => [
   { icon: 'i-lucide-user', label: 'Equipo', to: '/admin/equipo', badge: String(barbers.value.length || '') },
   { icon: 'i-lucide-users', label: 'Clientes', to: '/admin/clientes', badge: String(clients.value.length || '') },
+  { icon: 'i-lucide-wallet', label: 'Facturación', to: '/admin/facturacion', badge: '' },
   { icon: 'i-lucide-chart-column', label: 'Informes', to: '/admin/reports', badge: '' },
   { icon: 'i-lucide-image', label: 'Estudio', to: '/admin/estudio', badge: '' },
   { icon: 'i-lucide-award', label: 'Fidelización', to: '/admin/fidelizacion', badge: '' },
