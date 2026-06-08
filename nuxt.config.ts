@@ -91,18 +91,21 @@ export default defineNuxtConfig({
   // Configuración Firebase (config web pública — segura de exponer en cliente).
   // Los valores reales viven en .env (ver .env.example).
   vuefire: {
+    // Config web de Firebase (PÚBLICA: va embebida en el bundle del cliente). Los
+    // valores por defecto son los del proyecto jdvm-v2 para que el deploy funcione
+    // sin variables de entorno; se pueden sobreescribir con NUXT_PUBLIC_FIREBASE_*.
     config: {
-      apiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      apiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyAl7pFF3il_cxGLNztRu5Sq5RbDX5SEcUI',
+      authDomain: process.env.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'jdvm-v2.firebaseapp.com',
       // Con emuladores usamos un projectId demo: imposible tocar prod por error.
       projectId:
         process.env.NUXT_PUBLIC_USE_EMULATORS === 'true'
           ? 'demo-jdvm'
-          : process.env.NUXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NUXT_PUBLIC_FIREBASE_APP_ID,
-      measurementId: process.env.NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+          : process.env.NUXT_PUBLIC_FIREBASE_PROJECT_ID || 'jdvm-v2',
+      storageBucket: process.env.NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'jdvm-v2.firebasestorage.app',
+      messagingSenderId: process.env.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '135452502895',
+      appId: process.env.NUXT_PUBLIC_FIREBASE_APP_ID || '1:135452502895:web:62d716839fc02fbd84569a',
+      measurementId: process.env.NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-7NMEQRYMQC',
     },
     auth: { enabled: true },
     // Emuladores en desarrollo (NUXT_PUBLIC_USE_EMULATORS=true). Puertos en
