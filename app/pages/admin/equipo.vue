@@ -252,14 +252,17 @@ async function save() {
       // con este email y se convierte en barbero al entrar. Sin crear cuenta aquí.
       const inviteEmail = form.value.email.trim()
       await createInvite(inviteEmail, payload)
-      // Envío del email de marca (Cloud Function). Best-effort: si no está desplegada,
-      // la invitación sigue válida y el admin comparte el enlace.
-      try {
-        await sendInviteEmail(inviteEmail)
-        toast.add({ title: 'Invitación enviada', description: `Email de invitación a ${inviteEmail}.`, icon: 'i-lucide-mail-check', color: 'success' })
-      } catch {
-        toast.add({ title: 'Invitación creada', description: 'No se pudo enviar el email; comparte el enlace (abajo).', icon: 'i-lucide-mail-plus', color: 'warning' })
-      }
+      toast.add({
+        title: 'Invitación creada',
+        description: 'Copia el enlace (abajo) y pásaselo al barbero.',
+        icon: 'i-lucide-link',
+        color: 'success',
+      })
+      // Email de marca opcional (si hay Cloud Function + Resend configurados). Si no,
+      // da igual: la invitación funciona por enlace. Intento silencioso en 2º plano.
+      sendInviteEmail(inviteEmail)
+        .then(() => toast.add({ title: 'Además, email enviado', icon: 'i-lucide-mail-check', color: 'success' }))
+        .catch(() => {})
     }
     open.value = false
   } catch (e) {
