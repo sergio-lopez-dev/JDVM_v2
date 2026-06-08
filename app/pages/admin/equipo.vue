@@ -12,14 +12,33 @@ const { pending: pendingInvites, create: createInvite, sendEmail: sendInviteEmai
 const { services } = useServices()
 const { reviews } = useReviews()
 const { clients } = useClients()
+const { name: studioName } = useStudio()
 
 // Enlace de invitación que comparte el admin (lleva a la pantalla /invitacion).
 const inviteLink = (email: string) =>
   import.meta.client ? `${window.location.origin}/invitacion?email=${encodeURIComponent(email)}` : ''
 
+const inviteText = (email: string) =>
+  `Te invito a unirte al equipo de ${studioName.value} como barbero. Crea tu acceso (Google o contraseña) usando este email (${email}) aquí:`
+
+// Menú de compartir nativo (WhatsApp, email, copiar…). En escritorio sin soporte,
+// cae a copiar el enlace.
+async function shareInvite(email: string) {
+  const url = inviteLink(email)
+  if (import.meta.client && navigator.share) {
+    try {
+      await navigator.share({ title: `Invitación · ${studioName.value}`, text: inviteText(email), url })
+    } catch {
+      /* el usuario cerró el diálogo de compartir */
+    }
+  } else {
+    await copyInvite(email)
+  }
+}
+
 async function copyInvite(email: string) {
   try {
-    await navigator.clipboard.writeText(inviteLink(email))
+    await navigator.clipboard.writeText(`${inviteText(email)} ${inviteLink(email)}`)
     toast.add({ title: 'Enlace copiado', description: email, icon: 'i-lucide-clipboard-check', color: 'success' })
   } catch {
     toast.add({ title: 'No se pudo copiar', color: 'error' })
@@ -30,25 +49,6 @@ async function cancelInvite(email: string) {
   if (!confirm(`¿Cancelar la invitación de ${email}?`)) return
   await removeInvite(email)
   toast.add({ title: 'Invitación cancelada', icon: 'i-lucide-trash-2' })
-}
-
-const sendingEmail = ref('')
-async function emailInvite(email: string) {
-  sendingEmail.value = email
-  try {
-    await sendInviteEmail(email)
-    toast.add({ title: 'Email enviado', description: email, icon: 'i-lucide-mail-check', color: 'success' })
-  } catch (e) {
-    toast.add({
-      title: 'No se pudo enviar el email',
-      description: 'Comparte el enlace mientras tanto. (¿Cloud Function desplegada?)',
-      color: 'warning',
-      icon: 'i-lucide-triangle-alert',
-    })
-    console.error(e)
-  } finally {
-    sendingEmail.value = ''
-  }
 }
 
 // Email de acceso del barbero (vive en users_v2/{uid}, no en el doc del barbero).
@@ -370,7 +370,7 @@ async function confirmRemove() {
               <div class="truncate text-sm font-semibold">{{ inv.barber.name }}</div>
               <div class="text-dimmed truncate text-xs">{{ inv.email }} · pendiente de aceptar</div>
             </div>
-            <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-mail" aria-label="Reenviar email" :loading="sendingEmail === inv.email" @click="emailInvite(inv.email)" />
+            <UButton size="sm" color="primary" variant="soft" icon="i-lucide-share-2" @click="shareInvite(inv.email)">Compartir</UButton>
             <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-link" aria-label="Copiar enlace" @click="copyInvite(inv.email)" />
             <UButton size="sm" color="error" variant="ghost" icon="i-lucide-x" aria-label="Cancelar" @click="cancelInvite(inv.email)" />
           </div>
