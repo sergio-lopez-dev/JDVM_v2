@@ -83,15 +83,16 @@ export default defineNuxtConfig({
     // del hosting (evita el 500 auth/invalid-api-key si Vercel no las tiene o las
     // tiene mal). Si algún día se multi-tenant, reintroducir process.env.*.
     config: {
-      apiKey: 'AIzaSyAl7pFF3il_cxGLNztRu5Sq5RbDX5SEcUI',
-      authDomain: 'jdvm-v2.firebaseapp.com',
+      apiKey: 'AIzaSyD7jvu1cpduFNh3kiM7_CS3nsX0lDxtKMQ',
+      authDomain: 'jdvm-d82b6.firebaseapp.com',
       // Con emuladores (solo dev local) usamos un projectId demo: imposible tocar
-      // prod por error. En cualquier otro caso, el proyecto real jdvm-v2.
-      projectId: process.env.NUXT_PUBLIC_USE_EMULATORS === 'true' ? 'demo-jdvm' : 'jdvm-v2',
-      storageBucket: 'jdvm-v2.firebasestorage.app',
-      messagingSenderId: '135452502895',
-      appId: '1:135452502895:web:62d716839fc02fbd84569a',
-      measurementId: 'G-7NMEQRYMQC',
+      // prod por error. En cualquier otro caso, el proyecto real jdvm-d82b6 (mismo
+      // proyecto que la app legacy v1; la v2 vive aislada en colecciones v2_*).
+      projectId: process.env.NUXT_PUBLIC_USE_EMULATORS === 'true' ? 'demo-jdvm' : 'jdvm-d82b6',
+      storageBucket: 'jdvm-d82b6.appspot.com',
+      messagingSenderId: '816309940847',
+      appId: '1:816309940847:web:c4672271d5d78d7542139a',
+      measurementId: 'G-SHX3BHSGWV',
     },
     auth: { enabled: true },
     // Emuladores en desarrollo (NUXT_PUBLIC_USE_EMULATORS=true). Puertos en

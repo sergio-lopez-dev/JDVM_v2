@@ -6,7 +6,7 @@ export function useCurrentClient() {
   const db = useFirestore()
   const user = useCurrentUser()
 
-  const docRef = computed(() => (user.value ? doc(db, 'users', user.value.uid) : null))
+  const docRef = computed(() => (user.value ? doc(db, COL.users, user.value.uid) : null))
   const client = useDocument<Client>(docRef)
 
   const role = computed(() => client.value?.role ?? null)

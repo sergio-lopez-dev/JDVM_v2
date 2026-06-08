@@ -19,14 +19,14 @@ import type { GalleryImage } from '~~/schemas'
 export function useImages() {
   const db = useFirestore()
   const storage = useFirebaseStorage()
-  const col = collection(db, 'images')
+  const col = collection(db, COL.images)
 
   const images = useCollection<GalleryImage>(query(col, orderBy('order', 'asc')))
 
   // Sube el fichero a Storage y crea el doc con su URL.
   async function upload(file: File, meta: { caption?: string; barberId?: string } = {}) {
     const safe = file.name.replace(/[^\w.-]+/g, '_')
-    const path = `gallery/${safe}`
+    const path = `${STORAGE_PREFIX}gallery/${safe}`
     const sref = storageRef(storage, path)
     await uploadBytes(sref, file)
     const url = await getDownloadURL(sref)
@@ -42,7 +42,7 @@ export function useImages() {
 
   // Borra el doc y, si se puede, el binario de Storage.
   async function remove(image: GalleryImage) {
-    await deleteDoc(doc(db, 'images', image.id))
+    await deleteDoc(doc(db, COL.images, image.id))
     if (image.storagePath) {
       try {
         await deleteObject(storageRef(storage, image.storagePath))

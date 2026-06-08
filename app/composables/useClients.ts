@@ -5,11 +5,11 @@ export function useClients() {
   const db = useFirestore()
 
   // Listado completo (solo admin lo podrá leer según firestore.rules).
-  const clients = useCollection<Client>(collection(db, 'users'))
+  const clients = useCollection<Client>(collection(db, COL.users))
 
   // Actualizar el perfil propio (o de cualquiera si admin).
   const updateProfile = (uid: string, patch: Partial<ProfileInput>) =>
-    setDoc(doc(db, 'users', uid), patch, { merge: true })
+    setDoc(doc(db, COL.users, uid), patch, { merge: true })
 
   return { clients, updateProfile }
 }

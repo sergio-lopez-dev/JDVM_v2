@@ -21,7 +21,7 @@ export type ThemeKey = z.infer<typeof themeKeySchema>
 // Datos de marca/contacto del estudio (white-label). Lo muestra toda la app y se
 // edita en /admin/ajustes. Antes estaban hardcodeados ("JDVM", "Maracena"…).
 export const studioInfoSchema = z.object({
-  name: z.string().default('JDVM Barbería'),
+  name: z.string().default('JDVM Hair Studio'),
   // Ciudad/zona para textos (p. ej. "Maracena, Granada").
   city: z.string().default(''),
   phone: z.string().default(''),

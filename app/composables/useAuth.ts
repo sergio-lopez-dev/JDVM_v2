@@ -20,7 +20,7 @@ export function useAuth() {
 
   // Crea el doc users/{uid} en el primer acceso (rol 'client' por defecto).
   async function ensureUserDoc(fbUser: User, extra: { name?: string; phone?: string } = {}) {
-    const ref = doc(db, 'users', fbUser.uid)
+    const ref = doc(db, COL.users, fbUser.uid)
     const snap = await getDoc(ref)
     if (!snap.exists()) {
       await setDoc(ref, {
@@ -67,7 +67,7 @@ export function useAuth() {
 
   // Lee el rol del usuario (para enrutar tras el login).
   async function roleOf(uid: string) {
-    const snap = await getDoc(doc(db, 'users', uid))
+    const snap = await getDoc(doc(db, COL.users, uid))
     return (snap.data()?.role as string | undefined) ?? 'client'
   }
 

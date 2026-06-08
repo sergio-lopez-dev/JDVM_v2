@@ -15,7 +15,7 @@ import { isCancellable } from '~~/lib/cancellation'
 export function useAppointments() {
   const db = useFirestore()
   const user = useCurrentUser()
-  const col = collection(db, 'appointments')
+  const col = collection(db, COL.appointments)
 
   // Citas del usuario logueado (más recientes primero).
   const mine = useCollection<Appointment>(
@@ -128,7 +128,7 @@ export function useAppointments() {
     if (!isCancellable(startsAt, opts)) {
       throw new Error('Solo puedes cancelar hasta 4 h antes de la cita.')
     }
-    await updateDoc(doc(db, 'appointments', id), { status: 'cancelled' })
+    await updateDoc(doc(db, COL.appointments, id), { status: 'cancelled' })
   }
 
   async function reschedule(
@@ -140,17 +140,17 @@ export function useAppointments() {
     if (!isCancellable(currentStartsAt, opts)) {
       throw new Error('Solo puedes reprogramar hasta 4 h antes de la cita.')
     }
-    await updateDoc(doc(db, 'appointments', id), { startsAt: next.startsAt, endsAt: next.endsAt })
+    await updateDoc(doc(db, COL.appointments, id), { startsAt: next.startsAt, endsAt: next.endsAt })
   }
 
   // Cambio de estado libre (admin/barbero): completar, no-show, reactivar…
   const setStatus = (id: string, status: AppointmentStatus, patch: Partial<Appointment> = {}) =>
-    updateDoc(doc(db, 'appointments', id), { status, ...patch })
+    updateDoc(doc(db, COL.appointments, id), { status, ...patch })
 
   const update = (id: string, patch: Partial<AppointmentInput>) =>
-    updateDoc(doc(db, 'appointments', id), patch)
+    updateDoc(doc(db, COL.appointments, id), patch)
 
-  const remove = (id: string) => deleteDoc(doc(db, 'appointments', id))
+  const remove = (id: string) => deleteDoc(doc(db, COL.appointments, id))
 
   return {
     mine,

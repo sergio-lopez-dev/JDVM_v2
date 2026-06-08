@@ -5,7 +5,7 @@ import type { StudioInfo } from '~~/schemas'
 // settings/main.studio, con valores por defecto. Lo usa toda la app en lugar de
 // los antiguos textos hardcodeados ("JDVM", "Maracena"…).
 const DEFAULTS: StudioInfo = {
-  name: 'JDVM Barbería',
+  name: 'JDVM Hair Studio',
   city: 'Maracena, Granada',
   phone: '',
   email: '',

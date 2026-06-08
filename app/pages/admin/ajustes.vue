@@ -27,7 +27,7 @@ const form = reactive({
   timetable: {} as WeekTimetable,
   theme: 'forest' as ThemeKey,
   studio: {
-    name: 'JDVM Barbería',
+    name: 'JDVM Hair Studio',
     city: '',
     phone: '',
     email: '',
@@ -76,7 +76,7 @@ watch(
     form.theme = s.theme ?? 'forest'
     savedTheme.value = s.theme ?? 'forest'
     form.studio = {
-      name: s.studio?.name ?? 'JDVM Barbería',
+      name: s.studio?.name ?? 'JDVM Hair Studio',
       city: s.studio?.city ?? '',
       phone: s.studio?.phone ?? '',
       email: s.studio?.email ?? '',

@@ -27,7 +27,7 @@ const WEEKS_AHEAD = 12
 export function useFixedAppointments() {
   const db = useFirestore()
   const { services } = useServices()
-  const col = collection(db, 'fixed_appointments')
+  const col = collection(db, COL.fixed_appointments)
 
   const fixed = useCollection<FixedAppointment>(query(col, orderBy('createdAt', 'desc')))
 
@@ -62,7 +62,7 @@ export function useFixedAppointments() {
     const svc = services.value.find((s) => s.id === input.serviceId)
     const dur = svc ? effectiveDuration(svc, input.barberId) : 30
     const price = svc ? effectivePrice(svc, input.barberId) : 0
-    const appts = collection(db, 'appointments')
+    const appts = collection(db, COL.appointments)
 
     const slots = occurrences(input.weekday, input.time).map(({ start }) => ({
       start,
@@ -110,7 +110,7 @@ export function useFixedAppointments() {
 
   // Intervalos ocupados (no cancelados) de un barbero en un rango.
   async function barberBusy(barberId: string, from: Date, to: Date) {
-    const appts = collection(db, 'appointments')
+    const appts = collection(db, COL.appointments)
     const snap = await getDocs(
       query(
         appts,
@@ -127,12 +127,12 @@ export function useFixedAppointments() {
 
   // Borra la plantilla y sus citas futuras (las pasadas quedan como histórico).
   async function removeSeries(id: string) {
-    const appts = collection(db, 'appointments')
+    const appts = collection(db, COL.appointments)
     const snap = await getDocs(
       query(appts, where('fixedId', '==', id), where('startsAt', '>=', new Date())),
     )
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
-    await deleteDoc(doc(db, 'fixed_appointments', id))
+    await deleteDoc(doc(db, COL.fixed_appointments, id))
   }
 
   // Editar = borrar la serie (plantilla + citas futuras) y volver a materializarla

@@ -3,7 +3,7 @@ import type { Review, ReviewInput } from '~~/schemas'
 
 export function useReviews() {
   const db = useFirestore()
-  const col = collection(db, 'reviews')
+  const col = collection(db, COL.reviews)
   const reviews = useCollection<Review>(col)
 
   const byBarber = (barberId: string) =>
@@ -17,7 +17,7 @@ export function useReviews() {
     })
 
   const create = (input: ReviewInput) => addDoc(col, { ...input, createdAt: serverTimestamp() })
-  const remove = (id: string) => deleteDoc(doc(db, 'reviews', id))
+  const remove = (id: string) => deleteDoc(doc(db, COL.reviews, id))
 
   return { reviews, byBarber, averageFor, create, remove }
 }

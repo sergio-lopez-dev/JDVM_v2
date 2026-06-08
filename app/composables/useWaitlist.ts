@@ -12,7 +12,7 @@ import type { WaitlistEntry, WaitlistEntryInput } from '~~/schemas'
 export function useWaitlist() {
   const db = useFirestore()
   const user = useCurrentUser()
-  const col = collection(db, 'waitlist')
+  const col = collection(db, COL.waitlist)
 
   const mine = useCollection<WaitlistEntry>(
     computed(() => (user.value ? query(col, where('clientId', '==', user.value.uid)) : null)),
@@ -22,7 +22,7 @@ export function useWaitlist() {
 
   const join = (input: WaitlistEntryInput) =>
     addDoc(col, { ...input, createdAt: serverTimestamp() })
-  const leave = (id: string) => deleteDoc(doc(db, 'waitlist', id))
+  const leave = (id: string) => deleteDoc(doc(db, COL.waitlist, id))
 
   return { mine, alreadyOnList, join, leave }
 }

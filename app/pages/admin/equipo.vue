@@ -22,7 +22,7 @@ async function onPhoto(e: Event) {
   uploadingPhoto.value = true
   try {
     const safe = file.name.replace(/[^\w.-]+/g, '_')
-    const path = `barbers/${form.value.slug || Date.now()}-${safe}`
+    const path = `${STORAGE_PREFIX}barbers/${form.value.slug || Date.now()}-${safe}`
     const r = storageRef(storage, path)
     await uploadBytes(r, file)
     form.value.photoUrl = await getDownloadURL(r)

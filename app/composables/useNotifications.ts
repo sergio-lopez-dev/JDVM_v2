@@ -14,7 +14,7 @@ import type { Notification, NotificationInput } from '~~/schemas'
 export function useNotifications() {
   const db = useFirestore()
   const user = useCurrentUser()
-  const col = collection(db, 'notifications')
+  const col = collection(db, COL.notifications)
 
   // Buzón personal (cliente o barbero): lo dirigido a mí.
   const mine = useCollection<Notification>(
@@ -63,8 +63,8 @@ export function useNotifications() {
     )
   }
 
-  const markRead = (id: string) => updateDoc(doc(db, 'notifications', id), { read: true })
-  const remove = (id: string) => deleteDoc(doc(db, 'notifications', id))
+  const markRead = (id: string) => updateDoc(doc(db, COL.notifications, id), { read: true })
+  const remove = (id: string) => deleteDoc(doc(db, COL.notifications, id))
 
   return { mine, adminFeed, unreadMine, create, notifyCancellation, campaign, markRead, remove }
 }

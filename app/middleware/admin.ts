@@ -6,6 +6,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!user) return navigateTo({ path: '/login', query: { redirect: to.fullPath } })
 
   const db = useFirestore()
-  const snap = await getDoc(doc(db, 'users', user.uid))
+  const snap = await getDoc(doc(db, COL.users, user.uid))
   if (snap.data()?.role !== 'admin') return navigateTo('/app')
 })

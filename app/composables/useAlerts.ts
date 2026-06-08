@@ -13,7 +13,7 @@ import type { Alert, AlertInput } from '~~/schemas'
 // Avisos / banners del estudio (colección `alerts`).
 export function useAlerts() {
   const db = useFirestore()
-  const col = collection(db, 'alerts')
+  const col = collection(db, COL.alerts)
 
   const alerts = useCollection<Alert>(query(col, orderBy('createdAt', 'desc')))
   const active = computed(() => alerts.value.filter((a) => a.active))
@@ -21,8 +21,8 @@ export function useAlerts() {
   const create = (input: AlertInput) =>
     addDoc(col, { ...input, createdAt: serverTimestamp() })
   const update = (id: string, patch: Partial<AlertInput>) =>
-    updateDoc(doc(db, 'alerts', id), patch)
-  const remove = (id: string) => deleteDoc(doc(db, 'alerts', id))
+    updateDoc(doc(db, COL.alerts, id), patch)
+  const remove = (id: string) => deleteDoc(doc(db, COL.alerts, id))
 
   return { alerts, active, create, update, remove }
 }

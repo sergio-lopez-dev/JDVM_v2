@@ -65,18 +65,18 @@ const barbers = [
 async function run() {
   for (const s of services) {
     const { id, ...data } = s
-    await db.collection('services').doc(id).set({ ...data, isPrivate: false }, { merge: true })
+    await db.collection('v2_services').doc(id).set({ ...data, isPrivate: false }, { merge: true })
   }
 
   const barberUids = {}
   for (const b of barbers) {
     const uid = await ensureUser(b.email, b.name)
     barberUids[b.slug] = uid
-    await db.collection('users').doc(uid).set(
+    await db.collection('v2_users').doc(uid).set(
       { name: b.name, email: b.email, phone: '', role: 'barber', allowPush: false, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
     )
-    await db.collection('barbers').doc(uid).set(
+    await db.collection('v2_barbers').doc(uid).set(
       {
         name: b.name,
         slug: b.slug,
@@ -92,7 +92,7 @@ async function run() {
     )
   }
 
-  await db.collection('settings').doc('main').set(
+  await db.collection('v2_settings').doc('main').set(
     {
       timetable: week(localDay),
       daysClosed: ['sun'],
@@ -101,7 +101,7 @@ async function run() {
       acceptingCancellations: true,
       special: [],
       studio: {
-        name: 'JDVM Barbería',
+        name: 'JDVM Hair Studio',
         city: 'Maracena, Granada',
         phone: '958 00 00 00',
         email: 'hola@jdvm.test',
@@ -146,17 +146,17 @@ async function run() {
     ['reward-camiseta', { name: 'Camiseta JDVM', description: 'Camiseta de algodón de la marca.', pointsCost: 600, icon: 'i-lucide-shirt', active: true }],
   ]
   for (const [id, data] of rewards) {
-    await db.collection('rewards').doc(id).set({ ...data, createdAt: FieldValue.serverTimestamp() }, { merge: true })
+    await db.collection('v2_rewards').doc(id).set({ ...data, createdAt: FieldValue.serverTimestamp() }, { merge: true })
   }
 
   const adminUid = await ensureUser('admin@jdvm.test', 'Admin JDVM')
-  await db.collection('users').doc(adminUid).set(
+  await db.collection('v2_users').doc(adminUid).set(
     { name: 'Admin JDVM', email: 'admin@jdvm.test', phone: '600000000', role: 'admin', allowPush: false, createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
 
   const clientUid = await ensureUser('alex@jdvm.test', 'Álex Morán')
-  await db.collection('users').doc(clientUid).set(
+  await db.collection('v2_users').doc(clientUid).set(
     { name: 'Álex Morán', email: 'alex@jdvm.test', phone: '600123456', role: 'client', allowPush: false, createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
@@ -172,18 +172,18 @@ async function run() {
   }
   const up = at(2, 17, 30)
   const past = at(-14, 18, 0)
-  await db.collection('appointments').doc('seed-up').set(
+  await db.collection('v2_appointments').doc('seed-up').set(
     { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: up, endsAt: new Date(up.getTime() + 45 * 60000), status: 'booked', priceSnapshot: 18, isRecurring: false, createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
-  await db.collection('appointments').doc('seed-past').set(
+  await db.collection('v2_appointments').doc('seed-past').set(
     { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: past, endsAt: new Date(past.getTime() + 45 * 60000), status: 'completed', priceSnapshot: 18, paymentMethod: 'cash', isRecurring: false, createdAt: FieldValue.serverTimestamp() },
     { merge: true },
   )
   // Historial extra del cliente (para ver puntos/nivel del programa Socio).
   for (let i = 1; i <= 11; i++) {
     const d = at(-(i * 21), 18, 0)
-    await db.collection('appointments').doc('seed-hist-' + i).set(
+    await db.collection('v2_appointments').doc('seed-hist-' + i).set(
       { clientId: clientUid, barberId: dani, serviceId: 'corte-barba', startsAt: d, endsAt: new Date(d.getTime() + 45 * 60000), status: 'completed', priceSnapshot: 18, paymentMethod: 'cash', isRecurring: false, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
     )
@@ -196,7 +196,7 @@ async function run() {
     ['seed-rev3', { clientName: 'Rubén G.', barberId: jon, score: 4, tags: ['Buen precio', 'Limpio'], text: 'Llevo a mi hijo y a mí cada mes. Trato de diez y salimos como nuevos.' }],
   ]
   for (const [id, data] of seedReviews) {
-    await db.collection('reviews').doc(id).set(
+    await db.collection('v2_reviews').doc(id).set(
       { clientId: clientUid, ...data, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
     )

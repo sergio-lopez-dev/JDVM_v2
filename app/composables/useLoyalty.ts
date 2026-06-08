@@ -32,7 +32,7 @@ export function useLoyalty() {
   const enabled = computed(() => config.value.enabled === true)
 
   // — Catálogo de recompensas (lectura pública, escritura admin) —
-  const rewardsCol = collection(db, 'rewards')
+  const rewardsCol = collection(db, COL.rewards)
   const rewards = useCollection<Reward>(rewardsCol)
   const activeRewards = computed(() =>
     rewards.value.filter((r) => r.active).sort((a, b) => a.pointsCost - b.pointsCost),
@@ -40,11 +40,11 @@ export function useLoyalty() {
   const createReward = (input: RewardInput) =>
     addDoc(rewardsCol, { ...input, createdAt: serverTimestamp() })
   const updateReward = (id: string, patch: Partial<RewardInput>) =>
-    updateDoc(doc(db, 'rewards', id), patch)
-  const removeReward = (id: string) => deleteDoc(doc(db, 'rewards', id))
+    updateDoc(doc(db, COL.rewards, id), patch)
+  const removeReward = (id: string) => deleteDoc(doc(db, COL.rewards, id))
 
   // — Canjes del usuario actual —
-  const redemptionsCol = collection(db, 'redemptions')
+  const redemptionsCol = collection(db, COL.redemptions)
   const mineRedemptions = useCollection<Redemption>(
     computed(() =>
       user.value ? query(redemptionsCol, where('userId', '==', user.value.uid)) : null,
@@ -64,7 +64,7 @@ export function useLoyalty() {
     })
   }
   const resolveRedemption = (id: string, status: 'fulfilled' | 'cancelled') =>
-    updateDoc(doc(db, 'redemptions', id), { status, resolvedAt: serverTimestamp() })
+    updateDoc(doc(db, COL.redemptions, id), { status, resolvedAt: serverTimestamp() })
 
   // — Resumen del usuario actual (nivel, saldo, caducidad) —
   const { enriched } = useMyAppointments()

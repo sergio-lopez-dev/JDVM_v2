@@ -1,161 +1,31 @@
 rules_version = '2';
 
-// Reglas de seguridad de JDVM v2. Roles vía doc users/{uid}.role.
-// NOTA: probadas SOLO contra el emulador. NO desplegar a prod (jdvm-d82b6) aún.
+// ⚠️ BASE DE DATOS COMPARTIDA con la app legacy v1 (proyecto jdvm-d82b6).
+// La app v2 vive AISLADA en colecciones con prefijo v2_*. Estas reglas:
+//   1) PRESERVAN el comportamiento de la v1 (catch-all: cualquier usuario
+//      autenticado puede leer/escribir cualquier documento) — NO tocar, rompería
+//      la app en producción.
+//   2) AÑADEN solo lectura pública a las colecciones v2_* que la web pública
+//      (anónima: landing, estudio, carta, ficha de barbero) necesita leer.
+//
+// Nota de seguridad: al compartir la base con la v1 (que es permisiva), la v2
+// hereda ese modelo (un usuario autenticado puede leer/escribir docs v2_*). No se
+// puede endurecer sin enumerar y migrar las reglas de la v1. Las reglas estrictas
+// originales de la v2 quedan en el historial de git por si se separa la base.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    function userExists() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    function isAdmin() {
-      return userExists() && userRole() == 'admin';
-    }
-    function isStaff() {
-      return userExists() && (userRole() == 'barber' || userRole() == 'admin');
-    }
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
-    }
+    // --- v2: lectura pública (la web pública es anónima) ---
+    match /v2_services/{id} { allow read: if true; }
+    match /v2_barbers/{id} { allow read: if true; }
+    match /v2_reviews/{id} { allow read: if true; }
+    match /v2_images/{id} { allow read: if true; }
+    match /v2_alerts/{id} { allow read: if true; }
+    match /v2_rewards/{id} { allow read: if true; }
+    match /v2_settings/{id} { allow read: if true; }
 
-    // Perfil de usuario. El propio usuario gestiona su doc; staff puede leer
-    // (el barbero necesita ver el nombre/teléfono de sus clientes); admin todo.
-    match /users/{uid} {
-      allow read: if isOwner(uid) || isStaff();
-      // Alta: solo uno mismo y SIEMPRE como 'client' (sin auto-elevación).
-      allow create: if isOwner(uid) && request.resource.data.role == 'client';
-      // Edición: el dueño no puede cambiarse el rol; admin sí puede todo.
-      allow update: if isAdmin()
-        || (isOwner(uid) && request.resource.data.role == resource.data.role);
-      allow delete: if isAdmin();
-    }
-
-    // Catálogo y configuración: lectura pública, escritura admin.
-    match /barbers/{id} {
-      allow read: if true;
-      allow create, delete: if isAdmin();
-      // Admin gestiona todo; el barbero puede editar SOLO su propio horario y
-      // vacaciones (no precios, servicios ni color: eso lo lleva el local).
-      allow update: if isAdmin()
-        || (isStaff() && request.auth.uid == id
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['timetable', 'vacations']));
-    }
-    match /services/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    match /settings/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Citas: cliente dueño, barbero asignado o admin.
-    match /appointments/{id} {
-      allow read: if isAdmin()
-        || (isSignedIn() && (resource.data.clientId == request.auth.uid
-          || resource.data.barberId == request.auth.uid));
-      // El cliente crea citas a su nombre y SIEMPRE como 'booked' (no puede
-      // auto-crear una cita 'completed' para inflar puntos de fidelización);
-      // staff/admin para cualquiera y en cualquier estado.
-      allow create: if isAdmin()
-        || (isSignedIn() && request.resource.data.clientId == request.auth.uid
-            && request.resource.data.status == 'booked');
-      // Cancelar/reprogramar: el barbero asignado y el admin pueden todo. El
-      // cliente dueño solo reprograma (sigue 'booked') o cancela, sin tocar
-      // precio/servicio/barbero ni marcarse la cita como completada.
-      allow update: if isAdmin()
-        || (isSignedIn() && resource.data.barberId == request.auth.uid)
-        || (isSignedIn() && resource.data.clientId == request.auth.uid
-            && request.resource.data.clientId == resource.data.clientId
-            && request.resource.data.barberId == resource.data.barberId
-            && request.resource.data.serviceId == resource.data.serviceId
-            && request.resource.data.priceSnapshot == resource.data.priceSnapshot
-            && (request.resource.data.status == 'booked'
-                || request.resource.data.status == 'cancelled'));
-      allow delete: if isAdmin();
-    }
-
-    // Lista de espera: el cliente dueño o admin.
-    match /waitlist/{id} {
-      allow read: if isAdmin()
-        || (isSignedIn() && resource.data.clientId == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.clientId == request.auth.uid;
-      allow update, delete: if isAdmin()
-        || (isSignedIn() && resource.data.clientId == request.auth.uid);
-    }
-
-    // Reseñas: lectura pública; el cliente crea/edita la suya; admin todo.
-    match /reviews/{id} {
-      allow read: if true;
-      allow create: if isSignedIn()
-        && request.resource.data.clientId == request.auth.uid;
-      allow update, delete: if isAdmin()
-        || (isSignedIn() && resource.data.clientId == request.auth.uid);
-    }
-
-    // Galería del estudio: lectura pública, escritura admin.
-    match /images/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Avisos / banners: lectura pública (los activos se muestran al cliente),
-    // escritura admin.
-    match /alerts/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Citas fijas (plantillas semanales): las gestiona el admin; staff puede leer.
-    match /fixed_appointments/{id} {
-      allow read: if isStaff();
-      allow write: if isAdmin();
-    }
-
-    // Notificaciones in-app: las crea cualquier usuario autenticado (p. ej. un
-    // cliente al cancelar genera aviso al admin/barbero); cada uno lee las suyas
-    // (targetUid) o, si es admin/staff, las de su rol.
-    match /notifications/{id} {
-      allow read: if isAdmin()
-        || (isSignedIn() && (resource.data.targetUid == request.auth.uid
-          || (resource.data.audience == 'admin' && isStaff())));
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin()
-        || (isSignedIn() && resource.data.targetUid == request.auth.uid);
-    }
-
-    // Fidelización · catálogo de recompensas: lectura pública (el cliente lo ve
-    // para canjear), escritura admin.
-    match /rewards/{id} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Fidelización · canjes: el cliente crea el suyo en 'pending' con el coste
-    // EXACTO de la recompensa (no puede abaratarlo); lee los suyos. Staff lee
-    // todos y los resuelve (entregar/anular); admin puede borrar.
-    match /redemptions/{id} {
-      allow read: if isStaff()
-        || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.pointsCost
-           == get(/databases/$(database)/documents/rewards/$(request.resource.data.rewardId)).data.pointsCost;
-      allow update: if isStaff();
-      allow delete: if isAdmin();
-    }
-
-    // Por defecto, denegar todo lo no contemplado.
+    // --- v1 legacy (sin cambios) + escrituras/lecturas autenticadas de la v2 ---
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if request.auth != null;
     }
   }
 }
