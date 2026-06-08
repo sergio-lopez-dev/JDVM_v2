@@ -16,13 +16,6 @@ const appt = byId(route.params.id as string)
 const cancellable = computed(() => (appt.value ? isCancellable(appt.value.startsAt) : false))
 const cancelling = ref(false)
 
-const payLabel = computed(() => {
-  const p = appt.value?.paymentMethod
-  if (p === 'cash') return 'Pagar en el local'
-  if (p === 'revolut') return 'Revolut (QR)'
-  return 'A elegir'
-})
-
 async function doCancel() {
   if (!appt.value) return
   cancelling.value = true
@@ -88,9 +81,9 @@ async function doCancel() {
           <span class="text-sm font-semibold">{{ appt.barberName }}</span>
         </div>
         <div class="flex items-center gap-3 py-3">
-          <UIcon name="i-lucide-credit-card" class="text-primary size-4" />
-          <span class="text-muted flex-1 text-xs">Pago</span>
-          <span class="text-sm font-semibold">{{ formatPrice(appt.price) }} · {{ payLabel }}</span>
+          <UIcon name="i-lucide-tag" class="text-primary size-4" />
+          <span class="text-muted flex-1 text-xs">Precio</span>
+          <span class="text-sm font-semibold">{{ formatPrice(appt.price) }}</span>
         </div>
       </div>
 

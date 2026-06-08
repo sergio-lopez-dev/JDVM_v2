@@ -1,16 +1,21 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
 import { initials, fmtDate } from '~~/lib/format'
+import { profileSchema, type ProfileInput } from '~~/schemas'
+import { normalizePhone } from '~~/lib/phone'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useHead({ title: 'Perfil' })
 
+const toast = useToast()
 const user = useCurrentUser()
 const { client, isAdmin } = useCurrentClient()
 const { signOut } = useAuth()
+const { updateProfile } = useClients()
 const { past } = useMyAppointments()
 const { enabled: loyaltyEnabled, mySummary } = useLoyalty()
 
-const { studio, name: studioName } = useStudio()
+const { studio, name: studioName, waUrl } = useStudio()
 const cityShort = computed(() => (studio.value.city || '').split(',')[0]!.trim())
 
 const name = computed(() => client.value?.name || user.value?.displayName || 'Cliente')
@@ -25,14 +30,60 @@ const memberSince = computed(() => {
 })
 const cortes = computed(() => past.value.filter((a) => a.status === 'completed').length || past.value.length)
 
+// Contacto del estudio: WhatsApp si lo hay, si no email, si no teléfono.
+const helpHref = computed(() => {
+  if (waUrl.value) return waUrl.value
+  if (studio.value.email) return `mailto:${studio.value.email}`
+  if (studio.value.phone) return `tel:${studio.value.phone.replace(/\s/g, '')}`
+  return ''
+})
+
+// Cada opción declara su destino: `action` (abre un modal), `to` (ruta interna) o
+// `href` (enlace externo). El render elige el elemento adecuado.
 const menu = computed(() => [
-  { icon: 'i-lucide-user', label: 'Mis datos', sub: phone.value ? `${name.value} · ${phone.value}` : email.value, badge: '', to: '' },
-  { icon: 'i-lucide-credit-card', label: 'Métodos de pago', sub: 'Pago en el local · Revolut', badge: '', to: '' },
-  { icon: 'i-lucide-bell', label: 'Notificaciones', sub: 'Recordatorios y avisos', badge: '', to: '/avisos' },
-  { icon: 'i-lucide-heart', label: 'Barberos favoritos', sub: 'Elige a tus barberos de confianza', badge: '', to: '' },
-  { icon: 'i-lucide-gift', label: 'Invita y gana', sub: `Comparte ${studioName.value} con un amigo`, badge: '5€', to: '' },
-  { icon: 'i-lucide-message-circle', label: 'Ayuda y contacto', sub: 'Resolvemos tus dudas', badge: '', to: '' },
+  { icon: 'i-lucide-user', label: 'Mis datos', sub: phone.value ? `${name.value} · ${phone.value}` : email.value, action: 'edit' as const, to: '', href: '' },
+  { icon: 'i-lucide-bell', label: 'Notificaciones', sub: 'Recordatorios y avisos', to: '/avisos', href: '' },
+  { icon: 'i-lucide-message-circle', label: 'Ayuda y contacto', sub: `Escríbenos${studio.value.whatsapp ? ' por WhatsApp' : ''}`, to: '', href: helpHref.value },
 ])
+
+// — Modal "Mis datos" —
+const editOpen = ref(false)
+const editLoading = ref(false)
+const editState = reactive<ProfileInput>({ name: '', phone: '', instagram: '', allowPush: false })
+
+function openEdit() {
+  editState.name = client.value?.name || user.value?.displayName || ''
+  editState.phone = client.value?.phone || ''
+  editState.instagram = client.value?.instagram || ''
+  editState.allowPush = client.value?.allowPush ?? false
+  editOpen.value = true
+}
+
+function onItemClick(item: { action?: 'edit' }) {
+  if (item.action === 'edit') openEdit()
+}
+
+watch(
+  () => editState.phone,
+  (v) => {
+    const clean = normalizePhone(v)
+    if (clean !== v) editState.phone = clean
+  },
+)
+
+async function onSaveProfile(event: FormSubmitEvent<ProfileInput>) {
+  if (!user.value) return
+  editLoading.value = true
+  try {
+    await updateProfile(user.value.uid, event.data)
+    toast.add({ title: 'Datos actualizados', color: 'success', icon: 'i-lucide-check' })
+    editOpen.value = false
+  } catch {
+    toast.add({ title: 'No se pudo guardar', color: 'error', icon: 'i-lucide-triangle-alert' })
+  } finally {
+    editLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -103,22 +154,22 @@ const menu = computed(() => [
       <!-- menú -->
       <div class="border-default overflow-hidden rounded-2xl border">
         <component
-          :is="item.to ? 'NuxtLink' : 'div'"
+          :is="item.to ? 'NuxtLink' : item.href ? 'a' : 'button'"
           v-for="(item, i) in menu"
           :key="item.label"
           :to="item.to || undefined"
-          class="flex items-center gap-3 px-4 py-3.5"
+          :href="item.href || undefined"
+          :target="item.href && item.href.startsWith('http') ? '_blank' : undefined"
+          :rel="item.href && item.href.startsWith('http') ? 'noopener' : undefined"
+          type="button"
+          class="flex w-full items-center gap-3 px-4 py-3.5 text-left"
           :class="i ? 'border-default border-t' : ''"
+          @click="onItemClick(item)"
         >
           <div class="bg-elevated flex size-8 items-center justify-center rounded-lg">
             <UIcon :name="item.icon" class="text-primary size-4" />
           </div>
           <span class="flex-1 text-sm font-medium">{{ item.label }}</span>
-          <span
-            v-if="item.badge"
-            class="text-primary bg-primary/15 border-primary/30 rounded border px-1.5 py-0.5 font-mono text-[0.6rem]"
-            >{{ item.badge }}</span
-          >
           <UIcon name="i-lucide-chevron-right" class="text-dimmed size-4" />
         </component>
       </div>
@@ -207,12 +258,17 @@ const menu = computed(() => [
         <div class="border-default bg-muted overflow-hidden rounded-2xl border">
           <div class="border-default font-display border-b px-6 py-4 text-xl">Ajustes de la cuenta</div>
           <component
-            :is="item.to ? 'NuxtLink' : 'div'"
+            :is="item.to ? 'NuxtLink' : item.href ? 'a' : 'button'"
             v-for="(item, i) in menu"
             :key="item.label"
             :to="item.to || undefined"
-            class="flex items-center gap-4 px-6 py-4"
+            :href="item.href || undefined"
+            :target="item.href && item.href.startsWith('http') ? '_blank' : undefined"
+            :rel="item.href && item.href.startsWith('http') ? 'noopener' : undefined"
+            type="button"
+            class="flex w-full items-center gap-4 px-6 py-4 text-left"
             :class="i ? 'border-default border-t' : ''"
+            @click="onItemClick(item)"
           >
             <div class="bg-elevated flex size-10 shrink-0 items-center justify-center rounded-xl">
               <UIcon :name="item.icon" class="text-primary size-[18px]" />
@@ -221,24 +277,53 @@ const menu = computed(() => [
               <p class="text-sm font-semibold">{{ item.label }}</p>
               <p class="text-dimmed truncate text-xs">{{ item.sub }}</p>
             </div>
-            <span
-              v-if="item.badge"
-              class="text-primary bg-primary/15 border-primary/30 rounded border px-1.5 py-0.5 font-mono text-[0.6rem]"
-              >{{ item.badge }}</span
-            >
-            <UButton color="neutral" variant="outline" size="sm">Editar</UButton>
+            <UIcon name="i-lucide-chevron-right" class="text-dimmed size-4" />
           </component>
         </div>
 
         <NotificationToggle />
 
-        <div class="flex items-center gap-3">
-          <UButton color="neutral" variant="outline" icon="i-lucide-gift">Invita y gana 5€</UButton>
-          <div class="flex-1" />
+        <div class="flex items-center justify-end">
           <UButton color="neutral" variant="outline" icon="i-lucide-log-out" @click="signOut">Cerrar sesión</UButton>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Modal: editar mis datos -->
+  <UModal v-model:open="editOpen" title="Mis datos">
+    <template #body>
+      <UForm :schema="profileSchema" :state="editState" class="flex flex-col gap-4" @submit="onSaveProfile">
+        <UFormField label="Nombre" name="name">
+          <UInput v-model="editState.name" placeholder="Tu nombre" icon="i-lucide-user" size="lg" class="w-full" />
+        </UFormField>
+
+        <UFormField label="Teléfono" name="phone" help="9 dígitos, sin prefijo.">
+          <UInput
+            v-model="editState.phone"
+            type="tel"
+            inputmode="numeric"
+            placeholder="600 000 000"
+            icon="i-lucide-phone"
+            size="lg"
+            class="w-full"
+          />
+        </UFormField>
+
+        <UFormField label="Instagram" name="instagram" help="Opcional.">
+          <UInput v-model="editState.instagram" placeholder="@usuario" icon="i-lucide-instagram" size="lg" class="w-full" />
+        </UFormField>
+
+        <div class="border-default text-muted mt-1 border-t pt-3 text-xs">
+          Email: <span class="text-toned">{{ email }}</span>
+        </div>
+
+        <div class="mt-1 flex justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="editOpen = false">Cancelar</UButton>
+          <UButton type="submit" color="primary" :loading="editLoading">Guardar</UButton>
+        </div>
+      </UForm>
+    </template>
+  </UModal>
   </div>
 </template>

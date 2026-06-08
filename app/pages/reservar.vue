@@ -453,26 +453,6 @@ const gcalUrl = computed(() => {
           </div>
         </div>
 
-        <div>
-          <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Método de pago</p>
-          <div class="space-y-2.5">
-            <button
-              v-for="p in [{ k: 'cash', label: 'Pagar en el local', icon: 'i-lucide-store' }, { k: 'revolut', label: 'Revolut (QR)', icon: 'i-lucide-qr-code' }]"
-              :key="p.k"
-              type="button"
-              class="flex w-full items-center gap-3 rounded-xl border p-3.5"
-              :class="paymentMethod === p.k ? 'bg-primary/10 border-primary/30' : 'bg-muted border-default'"
-              @click="paymentMethod = p.k as 'cash' | 'revolut'"
-            >
-              <UIcon :name="p.icon" class="size-4" :class="paymentMethod === p.k ? 'text-primary' : 'text-muted'" />
-              <span class="flex-1 text-left text-sm font-semibold">{{ p.label }}</span>
-              <span class="flex size-4 items-center justify-center rounded-full border" :class="paymentMethod === p.k ? 'border-primary bg-primary' : 'border-border'">
-                <span v-if="paymentMethod === p.k" class="bg-inverted size-1.5 rounded-full" />
-              </span>
-            </button>
-          </div>
-        </div>
-
         <div class="border-default flex items-center justify-between border-t pt-3">
           <span class="text-sm font-semibold">Total</span>
           <span class="font-display text-2xl">{{ formatPrice(price) }}</span>
@@ -595,25 +575,6 @@ const gcalUrl = computed(() => {
             </div>
           </div>
 
-          <div class="border-default bg-muted rounded-2xl border p-6">
-            <h2 class="font-display mb-4 text-xl">Método de pago</h2>
-            <div class="space-y-2.5">
-              <button
-                v-for="p in [{ k: 'cash', label: 'Pagar en el local', icon: 'i-lucide-store' }, { k: 'revolut', label: 'Revolut (QR)', icon: 'i-lucide-qr-code' }]"
-                :key="p.k"
-                type="button"
-                class="flex w-full items-center gap-3.5 rounded-xl border p-4"
-                :class="paymentMethod === p.k ? 'bg-primary/10 border-primary/30' : 'bg-elevated border-default'"
-                @click="paymentMethod = p.k as 'cash' | 'revolut'"
-              >
-                <UIcon :name="p.icon" class="size-[18px]" :class="paymentMethod === p.k ? 'text-primary' : 'text-muted'" />
-                <span class="flex-1 text-left text-sm font-semibold">{{ p.label }}</span>
-                <span class="flex size-[18px] items-center justify-center rounded-full border" :class="paymentMethod === p.k ? 'border-primary bg-primary' : 'border-border'">
-                  <span v-if="paymentMethod === p.k" class="bg-inverted size-[7px] rounded-full" />
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
 
         <div class="border-primary/30 bg-muted rounded-2xl border p-6">
