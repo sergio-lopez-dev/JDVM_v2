@@ -23,6 +23,10 @@ export const COL = {
   fixed_appointments: 'fixed_appointments_v2',
   rewards: 'rewards_v2',
   redemptions: 'redemptions_v2',
+  expenses: 'expenses_v2',
+  products: 'products_v2',
+  productSales: 'product_sales_v2',
+  barberInvites: 'barber_invites_v2',
 } as const
 
 // Prefijo para las rutas de Firebase Storage (mismo bucket que la v1).
