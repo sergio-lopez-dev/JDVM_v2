@@ -441,28 +441,30 @@ const gcalUrl = computed(() => {
           <button type="button" class="text-primary text-xs font-semibold" @click="step = 0">Cambiar</button>
         </div>
 
-        <!-- barbero -->
+        <!-- barbero (selección directa, como en la web) -->
         <div>
-          <div class="mb-3 flex items-center justify-between">
-            <div>
-              <p class="text-sm font-semibold">Barbero concreto</p>
-              <p class="text-dimmed text-xs">{{ anyBarber ? 'Ahora: cualquiera disponible' : selectedBarber?.name }}</p>
-            </div>
-            <USwitch :model-value="!anyBarber" @update:model-value="anyBarber = !$event" />
-          </div>
-          <div v-if="!anyBarber" class="flex gap-3 overflow-x-auto pb-1">
+          <p class="mb-3 text-sm font-semibold">Elige barbero</p>
+          <div class="flex gap-3 overflow-x-auto pb-1">
+            <button type="button" class="flex shrink-0 flex-col items-center gap-1.5" @click="anyBarber = true">
+              <span
+                class="flex size-12 items-center justify-center rounded-full border"
+                :class="anyBarber ? 'border-primary bg-primary/15 text-primary ring-primary ring-2' : 'border-default bg-elevated text-muted'"
+              >
+                <UIcon name="i-lucide-sparkles" class="size-5" />
+              </span>
+              <span class="text-[0.7rem]" :class="anyBarber ? 'text-default font-semibold' : 'text-dimmed'">Cualquiera</span>
+            </button>
             <button
               v-for="b in eligibleBarbers"
               :key="b.id"
               type="button"
               class="flex shrink-0 flex-col items-center gap-1.5"
-              @click="selectedBarber = b"
+              @click="anyBarber = false; selectedBarber = b"
             >
-              <span
-                class="flex size-12 items-center justify-center rounded-full border text-sm font-semibold"
-                :class="selectedBarber?.id === b.id ? 'border-primary bg-primary/15 text-primary' : 'border-default bg-elevated text-muted'"
-              >{{ initials(b.name) }}</span>
-              <span class="text-[0.7rem]" :class="selectedBarber?.id === b.id ? 'text-default font-semibold' : 'text-dimmed'">{{ b.name.split(' ')[0] }}</span>
+              <span class="rounded-full" :class="!anyBarber && selectedBarber?.id === b.id ? 'ring-primary ring-2 ring-offset-2 ring-offset-[var(--jdvm-bg-1)]' : ''">
+                <UiAvatar :name="b.name" :src="b.photoUrl || null" :size="48" :ring="b.color" />
+              </span>
+              <span class="text-[0.7rem]" :class="!anyBarber && selectedBarber?.id === b.id ? 'text-default font-semibold' : 'text-dimmed'">{{ b.name.split(' ')[0] }}</span>
             </button>
           </div>
         </div>
@@ -786,10 +788,9 @@ const gcalUrl = computed(() => {
                 class="flex flex-col items-center gap-2"
                 @click="anyBarber = false; selectedBarber = b"
               >
-                <span
-                  class="flex size-15 items-center justify-center rounded-full border text-sm font-semibold"
-                  :class="!anyBarber && selectedBarber?.id === b.id ? 'border-primary bg-primary/15 text-primary' : 'border-default bg-muted text-muted'"
-                >{{ initials(b.name) }}</span>
+                <span class="rounded-full" :class="!anyBarber && selectedBarber?.id === b.id ? 'ring-primary ring-2 ring-offset-2 ring-offset-[var(--jdvm-bg-1)]' : ''">
+                  <UiAvatar :name="b.name" :src="b.photoUrl || null" :size="60" :ring="b.color" />
+                </span>
                 <span class="text-xs" :class="!anyBarber && selectedBarber?.id === b.id ? 'text-default font-bold' : 'text-dimmed font-medium'">{{ b.name.split(' ')[0] }}</span>
               </button>
             </div>
