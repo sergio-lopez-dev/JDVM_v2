@@ -20,7 +20,7 @@ useHead(() => ({
   meta: [
     {
       name: 'description',
-      content: `${studio.value.name} — barbería${cityLabel.value ? ` en ${cityLabel.value}` : ''} desde ${studio.value.foundedYear}. Reserva tu corte, barba o ritual completo con tu barbero de siempre.`,
+      content: `${studio.value.name} — barbería${cityLabel.value ? ` en ${cityLabel.value}` : ''}. Reserva tu corte, barba o ritual completo con tu barbero de siempre.`,
     },
   ],
 }))
@@ -162,7 +162,7 @@ const igUrl = computed(() => {
           <AppLogo variant="mark" :size="30" />
           <span class="flex flex-col leading-none">
             <span class="font-display text-xl tracking-wide">{{ studio.name }}</span>
-            <span class="text-primary mt-1 font-mono text-[0.55rem] tracking-[0.22em] uppercase">Barbería<template v-if="cityShort"> · {{ cityShort }}</template></span>
+            <span v-if="cityShort" class="text-primary mt-1 font-mono text-[0.55rem] tracking-[0.22em] uppercase">{{ cityShort }}</span>
           </span>
         </a>
         <nav class="hidden items-center gap-7 lg:flex">
@@ -403,7 +403,7 @@ const igUrl = computed(() => {
             <AppLogo variant="mark" :size="28" />
             <span class="font-display text-xl leading-none">{{ studio.name }}</span>
           </div>
-          <p class="text-muted mt-4 max-w-xs text-sm leading-relaxed">Barbería de barrio{{ cityShort ? ` en ${cityShort}` : '' }} desde {{ studio.foundedYear }}. Cortes de precisión, barba a navaja y buen ambiente.</p>
+          <p class="text-muted mt-4 max-w-xs text-sm leading-relaxed">Barbería de barrio{{ cityShort ? ` en ${cityShort}` : '' }}. Cortes de precisión, barba a navaja y buen ambiente.</p>
           <div class="mt-5 flex gap-2.5">
             <a v-if="igUrl" :href="igUrl" target="_blank" rel="noopener" aria-label="Instagram" class="border-default bg-muted text-muted hover:text-default hover:border-primary/40 flex size-9 items-center justify-center rounded-xl border transition">
               <UIcon name="i-lucide-instagram" class="size-4" />

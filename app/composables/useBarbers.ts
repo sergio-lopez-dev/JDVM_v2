@@ -56,6 +56,13 @@ export function useBarbers() {
 
   const create = (input: BarberInput) => addDoc(col, input)
 
+  // Alta de barbero sobre una cuenta YA existente (id = uid de Auth). Lo usa el
+  // admin para añadirse a sí mismo como barbero sin crear otra cuenta: conserva su
+  // rol y, como barbers/{uid} == su uid, las reglas de citas cuadran. No toca
+  // users/{uid} (sigue siendo admin → es admin Y barbero a la vez).
+  const addForUid = (uid: string, input: BarberInput) =>
+    setDoc(doc(db, COL.barbers, uid), input)
+
   // Conecta una instancia de Auth al emulador si la app principal lo está (dev),
   // para no pegar a prod al crear cuentas / enviar emails.
   function mirrorEmulator(secAuth: ReturnType<typeof getAuth>) {
@@ -163,5 +170,5 @@ export function useBarbers() {
     await deleteDoc(doc(db, COL.users, id)).catch(() => {})
   }
 
-  return { barbers, active, bySlug, create, createWithAccount, sendInvite, update, remove }
+  return { barbers, active, bySlug, create, addForUid, createWithAccount, sendInvite, update, remove }
 }

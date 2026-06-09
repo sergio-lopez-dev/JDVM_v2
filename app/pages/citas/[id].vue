@@ -11,9 +11,13 @@ const { byId } = useMyAppointments()
 const { cancel } = useAppointments()
 const { notifyCancellation } = useNotifications()
 const { client } = useCurrentClient()
+const { settings } = useSettings()
 const appt = byId(route.params.id as string)
 
-const cancellable = computed(() => (appt.value ? isCancellable(appt.value.startsAt) : false))
+const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
+const cancellable = computed(() =>
+  appt.value ? isCancellable(appt.value.startsAt, { hours: cancelHours.value }) : false,
+)
 const cancelling = ref(false)
 
 async function doCancel() {
@@ -91,7 +95,7 @@ async function doCancel() {
         <UIcon name="i-lucide-clock" class="text-dimmed size-4 shrink-0" />
         <span class="text-dimmed text-xs leading-relaxed">
           Puedes reprogramar o cancelar gratis hasta las
-          {{ fmtDate(cancellationDeadline(appt.startsAt), "HH:mm 'del' EEEE") }}.
+          {{ fmtDate(cancellationDeadline(appt.startsAt, cancelHours), "HH:mm 'del' EEEE") }}.
         </span>
       </div>
     </div>

@@ -54,6 +54,15 @@ const eligibleBarbers = computed(() =>
     ? barbers.value.filter((b) => b.servicesOffered.includes(service.value!.id))
     : barbers.value,
 )
+
+// Al elegir servicio, preselecciona el barbero por defecto del estudio si ofrece ese
+// servicio (en vez de dejar al admin elegir siempre desde cero).
+function pickService(s: Service) {
+  service.value = s
+  slot.value = null
+  const defId = settings.value?.defaultBarberId
+  barber.value = (defId && eligibleBarbers.value.find((b) => b.id === defId)) || null
+}
 const filteredClients = computed(() => {
   const q = clientQuery.value.trim().toLowerCase()
   const list = [...clients.value].sort((a, b) => a.name.localeCompare(b.name))
@@ -186,7 +195,7 @@ async function confirm() {
                 type="button"
                 class="rounded-xl border p-2.5 text-left"
                 :class="service?.id === s.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'"
-                @click="service = s; barber = null; slot = null"
+                @click="pickService(s)"
               >
                 <p class="text-sm font-semibold">{{ s.name }}</p>
                 <p class="text-dimmed font-mono text-[0.65rem]">{{ formatDuration(s.durationMinutes) }} · {{ formatPrice(s.basePrice) }}</p>

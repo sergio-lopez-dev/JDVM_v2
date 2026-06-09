@@ -15,7 +15,11 @@ import { isCancellable } from '~~/lib/cancellation'
 export function useAppointments() {
   const db = useFirestore()
   const user = useCurrentUser()
+  const { settings } = useSettings()
   const col = collection(db, COL.appointments)
+
+  // Ventana de cancelación configurable (settings), 4 h por defecto.
+  const cancelHours = () => settings.value?.cancellationWindowHours ?? 4
 
   // Citas del usuario logueado (más recientes primero).
   const mine = useCollection<Appointment>(
@@ -123,10 +127,11 @@ export function useAppointments() {
   const create = (input: AppointmentInput) =>
     addDoc(col, { ...input, createdAt: serverTimestamp() })
 
-  // Cancelar respetando la ventana de 4 h (admin siempre puede).
+  // Cancelar respetando la ventana configurable (admin siempre puede).
   async function cancel(id: string, startsAt: Date, opts: { isAdmin?: boolean } = {}) {
-    if (!isCancellable(startsAt, opts)) {
-      throw new Error('Solo puedes cancelar hasta 4 h antes de la cita.')
+    const hours = cancelHours()
+    if (!isCancellable(startsAt, { ...opts, hours })) {
+      throw new Error(`Solo puedes cancelar hasta ${hours} h antes de la cita.`)
     }
     await updateDoc(doc(db, COL.appointments, id), { status: 'cancelled' })
   }
@@ -137,8 +142,9 @@ export function useAppointments() {
     currentStartsAt: Date,
     opts: { isAdmin?: boolean } = {},
   ) {
-    if (!isCancellable(currentStartsAt, opts)) {
-      throw new Error('Solo puedes reprogramar hasta 4 h antes de la cita.')
+    const hours = cancelHours()
+    if (!isCancellable(currentStartsAt, { ...opts, hours })) {
+      throw new Error(`Solo puedes reprogramar hasta ${hours} h antes de la cita.`)
     }
     await updateDoc(doc(db, COL.appointments, id), { startsAt: next.startsAt, endsAt: next.endsAt })
   }

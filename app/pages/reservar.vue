@@ -17,6 +17,7 @@ const { settings } = useSettings()
 const { create } = useAppointments()
 const { studio, name: studioName, codePrefix } = useStudio()
 const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
+const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
 
 type Step = 0 | 1 | 2 | 'done'
 const step = ref<Step>(0)
@@ -36,15 +37,30 @@ function startOfToday() {
   return d
 }
 
-// Preselección de barbero por query (?barber=slug) desde el detalle.
+// Preselección de barbero: por query (?barber=slug) desde el detalle, o el barbero
+// por defecto del estudio (settings.defaultBarberId) en vez de "cualquiera".
+const barberPreselected = ref(false)
 watchEffect(() => {
+  if (barberPreselected.value || !barbers.value.length) return
   const slug = route.query.barber as string | undefined
-  if (slug && barbers.value.length) {
+  if (slug) {
     const b = barbers.value.find((x) => x.slug === slug)
     if (b) {
       selectedBarber.value = b
       anyBarber.value = false
+      barberPreselected.value = true
     }
+    return
+  }
+  const defId = settings.value?.defaultBarberId
+  if (defId) {
+    const b = barbers.value.find((x) => x.id === defId)
+    if (b) {
+      selectedBarber.value = b
+      anyBarber.value = false
+    }
+    // settings ya llegó: fija la preselección (haya o no barbero por defecto válido).
+    barberPreselected.value = true
   }
 })
 
@@ -95,14 +111,20 @@ const slots = computed(() => {
   })
 })
 
-// Tira de 7 días desde hoy.
+// Tira de 7 días; navegable por semanas (el cliente puede ver más adelante de la
+// semana actual, no solo los 7 días de hoy).
+const weekOffset = ref(0)
 const weekDays = computed(() =>
   Array.from({ length: 7 }, (_, i) => {
     const d = startOfToday()
-    d.setDate(d.getDate() + i)
+    d.setDate(d.getDate() + weekOffset.value * 7 + i)
     return d
   }),
 )
+const canPrevWeek = computed(() => weekOffset.value > 0)
+function shiftWeek(delta: number) {
+  weekOffset.value = Math.max(0, weekOffset.value + delta)
+}
 const isClosed = (d: Date) =>
   (settings.value?.daysClosed?.includes(weekdayOf(d)) ?? false) ||
   (!anyBarber.value && !!selectedBarber.value && barberOnVacation(selectedBarber.value, d))
@@ -384,20 +406,42 @@ const gcalUrl = computed(() => {
           </div>
         </div>
 
-        <!-- semana -->
-        <div class="grid grid-cols-7 gap-1.5">
-          <button
-            v-for="d in weekDays"
-            :key="d.toISOString()"
-            type="button"
-            :disabled="isClosed(d)"
-            class="flex flex-col items-center gap-1.5 rounded-xl border py-2 disabled:opacity-40"
-            :class="d.getTime() === selectedDate.getTime() ? 'bg-primary border-primary text-inverted' : 'bg-muted border-default'"
-            @click="pickDay(d)"
-          >
-            <span class="font-mono text-[0.6rem] uppercase">{{ fmtDate(d, 'EEEEE') }}</span>
-            <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
-          </button>
+        <!-- semana (navegable) -->
+        <div>
+          <div class="mb-2 flex items-center justify-between">
+            <button
+              type="button"
+              :disabled="!canPrevWeek"
+              aria-label="Semana anterior"
+              class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border disabled:opacity-30"
+              @click="shiftWeek(-1)"
+            >
+              <UIcon name="i-lucide-chevron-left" class="size-4" />
+            </button>
+            <span class="font-display text-sm capitalize">{{ fmtDate(weekDays[0]!, 'd MMM') }} – {{ fmtDate(weekDays[6]!, 'd MMM') }}</span>
+            <button
+              type="button"
+              aria-label="Semana siguiente"
+              class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border"
+              @click="shiftWeek(1)"
+            >
+              <UIcon name="i-lucide-chevron-right" class="size-4" />
+            </button>
+          </div>
+          <div class="grid grid-cols-7 gap-1.5">
+            <button
+              v-for="d in weekDays"
+              :key="d.toISOString()"
+              type="button"
+              :disabled="isClosed(d)"
+              class="flex flex-col items-center gap-1.5 rounded-xl border py-2 disabled:opacity-40"
+              :class="d.getTime() === selectedDate.getTime() ? 'bg-primary border-primary text-inverted' : 'bg-muted border-default'"
+              @click="pickDay(d)"
+            >
+              <span class="font-mono text-[0.6rem] uppercase">{{ fmtDate(d, 'EEEEE') }}</span>
+              <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- slots -->
@@ -460,7 +504,7 @@ const gcalUrl = computed(() => {
 
         <div class="border-default flex gap-2.5 rounded-xl border border-dashed p-3.5">
           <UIcon name="i-lucide-lock" class="text-dimmed size-4 shrink-0" />
-          <span class="text-dimmed text-xs leading-relaxed">Cancela gratis hasta 4 h antes. Te recordaremos la cita el día anterior.</span>
+          <span class="text-dimmed text-xs leading-relaxed">Cancela gratis hasta {{ cancelHours }} h antes. Te recordaremos la cita el día anterior.</span>
         </div>
       </div>
 
@@ -594,7 +638,7 @@ const gcalUrl = computed(() => {
           <UButton class="mt-5 justify-center" color="primary" size="lg" block :loading="submitting" icon="i-lucide-check" @click="confirm">Confirmar reserva</UButton>
           <div class="border-default mt-3.5 flex gap-2.5 rounded-xl border border-dashed p-3.5">
             <UIcon name="i-lucide-lock" class="text-dimmed size-3.5 shrink-0" />
-            <span class="text-dimmed text-[0.72rem] leading-relaxed">Cancela gratis hasta 4 h antes. Te recordaremos la cita el día anterior.</span>
+            <span class="text-dimmed text-[0.72rem] leading-relaxed">Cancela gratis hasta {{ cancelHours }} h antes. Te recordaremos la cita el día anterior.</span>
           </div>
           <button type="button" class="text-dimmed hover:text-default mt-3 w-full text-center text-xs" @click="step = 1">← Volver atrás</button>
         </div>

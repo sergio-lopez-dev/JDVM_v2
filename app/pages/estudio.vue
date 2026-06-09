@@ -6,14 +6,15 @@ const { active: barbers } = useBarbers()
 const { images } = useImages()
 const { settings } = useSettings()
 
-// Galería real (Storage). Alturas variables para el efecto masonry.
-const HEIGHTS = [168, 132, 130, 170, 150, 148]
+// Galería real (Storage). Antes se usaba un masonry con CSS `columns`, que en móvil
+// con muchas fotos disparaba el coste de layout/memoria y reventaba la pestaña
+// ("la página ha tenido problemas repetidamente"). Ahora un grid simple con
+// lazy-load fiable: el navegador solo decodifica lo visible.
 const gallery = computed(() =>
-  images.value.map((img, i) => ({
+  images.value.map((img) => ({
     id: img.id,
     src: img.url,
     label: img.caption || 'trabajo',
-    h: HEIGHTS[i % HEIGHTS.length],
   })),
 )
 
@@ -37,10 +38,10 @@ const igUrl = computed(() => {
     </header>
 
     <div class="flex-1 space-y-7 px-5 py-3 lg:px-8 lg:py-5">
-      <!-- galería masonry (CSS columns) -->
-      <div v-if="gallery.length" class="columns-2 gap-2.5 sm:columns-3 lg:columns-4 lg:gap-4 [&>*]:mb-2.5 lg:[&>*]:mb-4">
-        <div v-for="g in gallery" :key="g.id" class="relative break-inside-avoid">
-          <UiPhoto :src="g.src" :label="g.label" :height="g.h" :radius="14" />
+      <!-- galería (grid con lazy-load: estable y ligero también en móvil) -->
+      <div v-if="gallery.length" class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
+        <div v-for="g in gallery" :key="g.id" class="relative">
+          <UiPhoto :src="g.src" :label="g.label" :radius="14" ratio="3 / 4" />
         </div>
       </div>
       <UiEmptyState v-else icon="i-lucide-image" title="Galería en preparación" description="Pronto subiremos fotos de nuestros trabajos." />

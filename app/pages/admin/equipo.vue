@@ -2,18 +2,22 @@
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { fmtDate } from '~~/lib/format'
 import { toDate } from '~~/lib/datetime'
-import type { Barber, BarberInput, WeekTimetable, DateRange } from '~~/schemas'
+import { normalizeEmail, type Barber, type BarberInput, type WeekTimetable, type DateRange } from '~~/schemas'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Equipo · Admin' })
 
-const { barbers, sendInvite, update, remove } = useBarbers()
+const { barbers, addForUid, sendInvite, update, remove } = useBarbers()
 const { pending: pendingInvites, create: createInvite, sendEmail: sendInviteEmail, remove: removeInvite } = useBarberInvites()
 const { services } = useServices()
 const { reviews } = useReviews()
 const { clients } = useClients()
 const { name: studioName } = useStudio()
 const { settings } = useSettings()
+const me = useCurrentUser()
+
+// ¿El admin ya está dado de alta como barbero? (barbers/{suUid} existe).
+const meIsBarber = computed(() => !!me.value && barbers.value.some((b) => b.id === me.value!.uid))
 
 // Enlace de invitación que comparte el admin (lleva a la pantalla /invitacion).
 const inviteLink = (email: string) =>
@@ -171,6 +175,36 @@ function startCreate() {
   form.value = blank()
   open.value = true
 }
+
+// El admin se añade a sí mismo como barbero reutilizando su cuenta (sin crear otra).
+// Crea barbers/{suUid}; mantiene su rol admin → es admin Y barbero.
+const addingSelf = ref(false)
+async function addSelfAsBarber() {
+  if (!me.value || meIsBarber.value) return
+  const name = me.value.displayName || clients.value.find((c) => c.id === me.value!.uid)?.name || 'Yo'
+  addingSelf.value = true
+  try {
+    const payload: BarberInput = {
+      name,
+      slug: slugify(name) || 'admin',
+      color: '#C2A24E',
+      instagram: '',
+      bio: '',
+      photoUrl: '',
+      active: true,
+      commissionPercent: 100,
+      servicesOffered: services.value.map((s) => s.id),
+      timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
+      vacations: [],
+    }
+    await addForUid(me.value.uid, payload)
+    toast.add({ title: 'Ya eres barbero', description: 'Edita tu horario y servicios cuando quieras.', icon: 'i-lucide-check', color: 'success' })
+  } catch (e) {
+    toast.add({ title: 'No se pudo añadir', description: (e as Error).message, color: 'error' })
+  } finally {
+    addingSelf.value = false
+  }
+}
 function startEdit(b: Barber) {
   form.value = {
     id: b.id,
@@ -229,6 +263,26 @@ async function save() {
   if (!form.value.id && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
     toast.add({ title: 'Email no válido', color: 'error', icon: 'i-lucide-triangle-alert' })
     return
+  }
+  // No permitir invitar sobre un email que YA tiene cuenta (cliente o barbero) o una
+  // invitación pendiente. Evita duplicar cuentas. (El admin que quiera ser barbero usa
+  // el botón "Añadirme como barbero", que reutiliza su cuenta.)
+  if (!form.value.id) {
+    const norm = normalizeEmail(form.value.email)
+    const existingUser = clients.value.find((c) => c.email && normalizeEmail(c.email) === norm)
+    if (existingUser) {
+      toast.add({
+        title: 'Ese email ya tiene cuenta',
+        description: 'Ya existe un usuario con ese email. Usa otro o, si eres tú, pulsa "Añadirme como barbero".',
+        color: 'error',
+        icon: 'i-lucide-triangle-alert',
+      })
+      return
+    }
+    if (pendingInvites.value.some((i) => i.email === norm)) {
+      toast.add({ title: 'Ya hay una invitación pendiente para ese email', color: 'error', icon: 'i-lucide-triangle-alert' })
+      return
+    }
   }
   saving.value = true
   try {
@@ -290,6 +344,7 @@ async function confirmRemove() {
   <div>
     <AdminHeader title="Equipo" :sub="`${barbers.length} barberos · gestiona horarios, servicios y permisos`">
       <template #actions>
+        <UButton v-if="!meIsBarber" color="neutral" variant="soft" icon="i-lucide-user-plus" :loading="addingSelf" @click="addSelfAsBarber">Añadirme como barbero</UButton>
         <UButton color="primary" icon="i-lucide-plus" @click="startCreate">Añadir barbero</UButton>
       </template>
     </AdminHeader>

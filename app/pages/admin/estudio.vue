@@ -86,7 +86,7 @@ async function delReview(id: string) {
             <button
               type="button"
               aria-label="Eliminar"
-              class="absolute top-2 right-2 flex size-8 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+              class="absolute top-2 right-2 flex size-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur transition-opacity hover:bg-error/80 lg:opacity-70 lg:group-hover:opacity-100"
               @click="delImage(img.id)"
             >
               <UIcon name="i-lucide-trash-2" class="size-4" />

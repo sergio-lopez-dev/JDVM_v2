@@ -51,6 +51,10 @@ export const settingsSchema = z.object({
   daysClosed: z.array(weekdaySchema).default([]),
   // Paso de la rejilla de huecos en minutos (los slots se alinean a este paso).
   slotStepMinutes: z.number().int().positive().default(15),
+  // Horas mínimas de antelación para que el cliente cancele/reprograme (admin siempre puede).
+  cancellationWindowHours: z.number().int().positive().default(4),
+  // Barbero preseleccionado al reservar (en vez de "cualquiera"). Vacío = cualquiera.
+  defaultBarberId: z.string().default(''),
   acceptingAppointments: z.boolean().default(true),
   acceptingCancellations: z.boolean().default(true),
   special: z.array(specialTimetableRuleSchema).default([]),

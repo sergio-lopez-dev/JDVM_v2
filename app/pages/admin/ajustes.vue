@@ -11,6 +11,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Ajustes · Admin' })
 
 const { settings, save } = useSettings()
+const { active: activeBarbers } = useBarbers()
 const toast = useToast()
 
 // Paleta realmente guardada (no la previsualizada). Se usa para restaurar al salir
@@ -22,10 +23,12 @@ const themeCookie = useCookie<string>(THEME_COOKIE, { maxAge: 60 * 60 * 24 * 365
 const DAY_LABELS: Record<Weekday, string> = {
   mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom',
 }
-const STEPS = [5, 10, 15, 20, 30, 45, 60]
+const STEPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60]
 
 const form = reactive({
   slotStepMinutes: 15,
+  cancellationWindowHours: 4,
+  defaultBarberId: '',
   daysClosed: [] as Weekday[],
   acceptingAppointments: true,
   acceptingCancellations: true,
@@ -74,6 +77,8 @@ watch(
   (s) => {
     if (!s) return
     form.slotStepMinutes = s.slotStepMinutes ?? 15
+    form.cancellationWindowHours = s.cancellationWindowHours ?? 4
+    form.defaultBarberId = s.defaultBarberId ?? ''
     form.daysClosed = [...(s.daysClosed ?? [])]
     form.acceptingAppointments = s.acceptingAppointments ?? true
     form.acceptingCancellations = s.acceptingCancellations ?? true
@@ -123,6 +128,8 @@ async function submit() {
   try {
     await save({
       slotStepMinutes: form.slotStepMinutes,
+      cancellationWindowHours: Math.max(1, Number(form.cancellationWindowHours) || 4),
+      defaultBarberId: form.defaultBarberId,
       daysClosed: form.daysClosed,
       acceptingAppointments: form.acceptingAppointments,
       acceptingCancellations: form.acceptingCancellations,
@@ -315,6 +322,43 @@ async function submit() {
         </div>
       </AdminCard>
 
+      <!-- barbero por defecto al reservar -->
+      <AdminCard>
+        <h2 class="font-display text-lg">Barbero por defecto</h2>
+        <p class="text-muted mt-1 text-sm">El que aparece preseleccionado al reservar (en vez de "cualquiera disponible"). El cliente puede cambiarlo.</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="rounded-full border px-4 py-2 text-sm font-semibold"
+            :class="!form.defaultBarberId ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted text-toned'"
+            @click="form.defaultBarberId = ''"
+          >
+            Cualquiera
+          </button>
+          <button
+            v-for="b in activeBarbers"
+            :key="b.id"
+            type="button"
+            class="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold"
+            :class="form.defaultBarberId === b.id ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted text-toned'"
+            @click="form.defaultBarberId = b.id"
+          >
+            <span class="size-2.5 rounded-full" :style="{ background: b.color }" />
+            {{ b.name }}
+          </button>
+        </div>
+      </AdminCard>
+
+      <!-- ventana de cancelación -->
+      <AdminCard>
+        <h2 class="font-display text-lg">Antelación para cancelar</h2>
+        <p class="text-muted mt-1 text-sm">Horas mínimas antes de la cita para que el cliente pueda cancelar o reprogramar. El admin siempre puede.</p>
+        <div class="mt-4 flex items-center gap-3">
+          <UInput v-model.number="form.cancellationWindowHours" type="number" min="1" max="168" class="w-28" />
+          <span class="text-dimmed text-sm">horas antes</span>
+        </div>
+      </AdminCard>
+
       <!-- reservas -->
       <AdminCard :pad="false">
         <div class="flex items-center justify-between p-5">
@@ -327,7 +371,7 @@ async function submit() {
         <div class="border-default flex items-center justify-between border-t p-5">
           <div>
             <p class="text-sm font-semibold">Aceptar cancelaciones</p>
-            <p class="text-dimmed text-xs">Permite cancelar/reprogramar hasta 4 h antes.</p>
+            <p class="text-dimmed text-xs">Permite cancelar/reprogramar hasta {{ form.cancellationWindowHours }} h antes.</p>
           </div>
           <USwitch v-model="form.acceptingCancellations" />
         </div>

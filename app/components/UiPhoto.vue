@@ -19,7 +19,7 @@ withDefaults(
         : 'repeating-linear-gradient(135deg, var(--jdvm-bg-2) 0px, var(--jdvm-bg-2) 9px, var(--jdvm-bg-1) 9px, var(--jdvm-bg-1) 18px)',
     }"
   >
-    <img v-if="src" :src="src" :alt="label || ''" class="absolute inset-0 size-full object-cover" loading="lazy" />
+    <img v-if="src" :src="src" :alt="label || ''" class="absolute inset-0 size-full object-cover" loading="lazy" decoding="async" />
     <span
       v-if="label && !src"
       class="bg-default text-dimmed border-default m-2 rounded border px-1.5 py-0.5 font-mono text-[0.55rem] tracking-wide uppercase"

@@ -3,6 +3,9 @@ import {
   signInWithEmailAndPassword,
   signOut as fbSignOut,
   sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
   GoogleAuthProvider,
   signInWithPopup,
   updateProfile,
@@ -18,6 +21,21 @@ export function useAuth() {
   const auth = useFirebaseAuth()!
   const db = useFirestore()
   const user = useCurrentUser()
+
+  // Mantener la sesión iniciada entre arranques (clave en PWA / acceso directo).
+  // IndexedDB sobrevive mejor en modo standalone; si no está disponible, localStorage.
+  // Debe fijarse ANTES de crear la sesión.
+  async function ensurePersistence() {
+    try {
+      await setPersistence(auth, indexedDBLocalPersistence)
+    } catch {
+      try {
+        await setPersistence(auth, browserLocalPersistence)
+      } catch {
+        // Algunos navegadores en modo privado no permiten persistencia; se sigue igual.
+      }
+    }
+  }
 
   // Crea el doc users/{uid} en el primer acceso (rol 'client' por defecto).
   async function ensureUserDoc(fbUser: User, extra: { name?: string; phone?: string } = {}) {
@@ -72,6 +90,7 @@ export function useAuth() {
   }
 
   async function signUp(input: SignUpInput) {
+    await ensurePersistence()
     const cred = await createUserWithEmailAndPassword(auth, input.email, input.password)
     await updateProfile(cred.user, { displayName: input.name })
     await ensureUserDoc(cred.user, { name: input.name, phone: input.phone })
@@ -81,6 +100,7 @@ export function useAuth() {
   // Registro con email/contraseña SIN exigir teléfono (para el alta de barbero por
   // invitación). ensureUserDoc reclama la invitación y eleva el rol si procede.
   async function registerWithPassword(input: { email: string; password: string; name?: string }) {
+    await ensurePersistence()
     const cred = await createUserWithEmailAndPassword(auth, input.email, input.password)
     if (input.name) await updateProfile(cred.user, { displayName: input.name })
     await ensureUserDoc(cred.user, { name: input.name })
@@ -88,12 +108,14 @@ export function useAuth() {
   }
 
   async function signIn(input: SignInInput) {
+    await ensurePersistence()
     const cred = await signInWithEmailAndPassword(auth, input.email, input.password)
     await ensureUserDoc(cred.user)
     return cred.user
   }
 
   async function signInWithGoogle() {
+    await ensurePersistence()
     const cred = await signInWithPopup(auth, new GoogleAuthProvider())
     await ensureUserDoc(cred.user)
     return cred.user

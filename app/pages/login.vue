@@ -49,8 +49,8 @@ async function google() {
       <AppLogo variant="mark" :size="44" />
       <div class="space-y-2">
         <p class="font-display text-2xl leading-none">{{ studioName }}</p>
-        <p class="text-primary font-mono text-[0.7rem] tracking-[0.3em] uppercase">
-          Barbería · desde {{ studio.foundedYear }}
+        <p v-if="studio.city" class="text-primary font-mono text-[0.7rem] tracking-[0.3em] uppercase">
+          {{ studio.city }}
         </p>
         <h1 class="font-display text-4xl leading-none">Bienvenido de nuevo</h1>
       </div>
