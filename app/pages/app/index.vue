@@ -90,19 +90,8 @@ const mapsUrl = computed(
     </section>
 
     <div class="mx-auto w-full max-w-6xl flex-1 space-y-6 px-5 pb-6 pt-3 lg:px-8 lg:pt-6">
-      <!-- noticias destacadas -->
-      <NuxtLink
-        v-if="alerts.length"
-        to="/avisos"
-        class="border-primary/30 bg-primary/5 flex items-center gap-3 rounded-2xl border p-3.5"
-      >
-        <UIcon name="i-lucide-megaphone" class="text-primary size-5 shrink-0" />
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-semibold">{{ alerts[0]!.title }}</p>
-          <p v-if="alerts[0]!.body" class="text-muted truncate text-xs">{{ alerts[0]!.body }}</p>
-        </div>
-        <UIcon name="i-lucide-chevron-right" class="text-primary size-4 shrink-0" />
-      </NuxtLink>
+      <!-- noticias destacadas (todas las activas) -->
+      <AppNews />
 
       <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
         <!-- columna izquierda -->
@@ -214,19 +203,8 @@ const mapsUrl = computed(
       <h1 class="font-display mt-2 text-5xl leading-none">Buenas, {{ firstName }}.</h1>
     </div>
 
-    <!-- noticia destacada -->
-    <NuxtLink
-      v-if="alerts.length"
-      to="/avisos"
-      class="border-primary/30 bg-primary/5 mb-7 flex items-center gap-3 rounded-2xl border px-5 py-4"
-    >
-      <UIcon name="i-lucide-megaphone" class="text-primary size-5 shrink-0" />
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold">{{ alerts[0]!.title }}</p>
-        <p v-if="alerts[0]!.body" class="text-muted truncate text-xs">{{ alerts[0]!.body }}</p>
-      </div>
-      <UIcon name="i-lucide-chevron-right" class="text-primary size-4 shrink-0" />
-    </NuxtLink>
+    <!-- noticias destacadas (todas las activas) -->
+    <AppNews class="mb-7" />
 
     <!-- próxima cita hero -->
     <section

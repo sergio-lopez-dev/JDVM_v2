@@ -38,9 +38,15 @@ const igUrl = computed(() => {
     </header>
 
     <div class="flex-1 space-y-7 px-5 py-3 lg:px-8 lg:py-5">
-      <!-- galería (grid con lazy-load: estable y ligero también en móvil) -->
+      <!-- galería (grid con lazy-load + content-visibility: en iOS las fotos fuera de
+           pantalla no se decodifican/retienen → memoria acotada, sin crash) -->
       <div v-if="gallery.length" class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 lg:gap-4">
-        <div v-for="g in gallery" :key="g.id" class="relative">
+        <div
+          v-for="g in gallery"
+          :key="g.id"
+          class="relative"
+          style="content-visibility: auto; contain-intrinsic-size: auto 300px"
+        >
           <UiPhoto :src="g.src" :label="g.label" :radius="14" ratio="3 / 4" />
         </div>
       </div>

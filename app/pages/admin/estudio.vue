@@ -81,8 +81,13 @@ async function delReview(id: string) {
         </div>
 
         <div v-if="images.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <div v-for="img in images" :key="img.id" class="group border-default bg-muted relative aspect-square overflow-hidden rounded-2xl border">
-            <img :src="img.url" :alt="img.caption || 'Trabajo del estudio'" class="size-full object-cover" loading="lazy" />
+          <div
+            v-for="img in images"
+            :key="img.id"
+            class="group border-default bg-muted relative aspect-square overflow-hidden rounded-2xl border"
+            style="content-visibility: auto; contain-intrinsic-size: auto 240px"
+          >
+            <img :src="img.url" :alt="img.caption || 'Trabajo del estudio'" class="size-full object-cover" loading="lazy" decoding="async" />
             <button
               type="button"
               aria-label="Eliminar"

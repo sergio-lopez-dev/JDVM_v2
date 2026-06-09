@@ -111,20 +111,6 @@ const slots = computed(() => {
   })
 })
 
-// Tira de 7 días; navegable por semanas (el cliente puede ver más adelante de la
-// semana actual, no solo los 7 días de hoy).
-const weekOffset = ref(0)
-const weekDays = computed(() =>
-  Array.from({ length: 7 }, (_, i) => {
-    const d = startOfToday()
-    d.setDate(d.getDate() + weekOffset.value * 7 + i)
-    return d
-  }),
-)
-const canPrevWeek = computed(() => weekOffset.value > 0)
-function shiftWeek(delta: number) {
-  weekOffset.value = Math.max(0, weekOffset.value + delta)
-}
 const isClosed = (d: Date) =>
   (settings.value?.daysClosed?.includes(weekdayOf(d)) ?? false) ||
   (!anyBarber.value && !!selectedBarber.value && barberOnVacation(selectedBarber.value, d))
@@ -406,41 +392,46 @@ const gcalUrl = computed(() => {
           </div>
         </div>
 
-        <!-- semana (navegable) -->
+        <!-- calendario mensual (navega a cualquier día, no solo esta semana) -->
         <div>
-          <div class="mb-2 flex items-center justify-between">
+          <div class="mb-2.5 flex items-center justify-between">
             <button
               type="button"
-              :disabled="!canPrevWeek"
-              aria-label="Semana anterior"
+              :disabled="!canPrevMonth"
+              aria-label="Mes anterior"
               class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border disabled:opacity-30"
-              @click="shiftWeek(-1)"
+              @click="shiftMonth(-1)"
             >
               <UIcon name="i-lucide-chevron-left" class="size-4" />
             </button>
-            <span class="font-display text-sm capitalize">{{ fmtDate(weekDays[0]!, 'd MMM') }} – {{ fmtDate(weekDays[6]!, 'd MMM') }}</span>
+            <span class="font-display text-base capitalize">{{ fmtDate(viewMonth, 'MMMM yyyy') }}</span>
             <button
               type="button"
-              aria-label="Semana siguiente"
+              aria-label="Mes siguiente"
               class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border"
-              @click="shiftWeek(1)"
+              @click="shiftMonth(1)"
             >
               <UIcon name="i-lucide-chevron-right" class="size-4" />
             </button>
           </div>
-          <div class="grid grid-cols-7 gap-1.5">
-            <button
-              v-for="d in weekDays"
-              :key="d.toISOString()"
-              type="button"
-              :disabled="isClosed(d)"
-              class="flex flex-col items-center gap-1.5 rounded-xl border py-2 disabled:opacity-40"
-              :class="d.getTime() === selectedDate.getTime() ? 'bg-primary border-primary text-inverted' : 'bg-muted border-default'"
-              @click="pickDay(d)"
-            >
-              <span class="font-mono text-[0.6rem] uppercase">{{ fmtDate(d, 'EEEEE') }}</span>
-              <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
-            </button>
+          <div class="mb-1.5 grid grid-cols-7 gap-1">
+            <div v-for="w in weekdayLabels" :key="w" class="text-dimmed text-center font-mono text-[0.6rem]">{{ w }}</div>
+          </div>
+          <div class="grid grid-cols-7 gap-1">
+            <template v-for="(d, i) in monthGrid" :key="i">
+              <div v-if="!d" />
+              <button
+                v-else
+                type="button"
+                :disabled="dayDisabled(d)"
+                class="relative flex aspect-square items-center justify-center rounded-lg text-sm disabled:opacity-25"
+                :class="sameDay(d, selectedDate) ? 'bg-primary border-primary text-inverted font-bold' : 'text-default hover:bg-elevated font-medium'"
+                @click="pickDay(d)"
+              >
+                {{ d.getDate() }}
+                <span v-if="!dayDisabled(d) && !sameDay(d, selectedDate)" class="bg-primary/60 absolute bottom-1 size-1 rounded-full" />
+              </button>
+            </template>
           </div>
         </div>
 

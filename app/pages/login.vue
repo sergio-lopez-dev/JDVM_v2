@@ -12,6 +12,7 @@ const { signIn, signInWithGoogle, destinationFor } = useAuth()
 const { studio, name: studioName } = useStudio()
 
 const state = reactive<SignInInput>({ email: '', password: '' })
+const remember = ref(true)
 const loading = ref(false)
 
 async function destination(uid: string) {
@@ -21,7 +22,7 @@ async function destination(uid: string) {
 async function onSubmit(event: FormSubmitEvent<SignInInput>) {
   loading.value = true
   try {
-    const u = await signIn(event.data)
+    const u = await signIn(event.data, { remember: remember.value })
     await navigateTo(await destination(u.uid))
   } catch (e) {
     toast.add({ title: 'No se pudo entrar', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
@@ -33,7 +34,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
 async function google() {
   loading.value = true
   try {
-    const u = await signInWithGoogle()
+    const u = await signInWithGoogle({ remember: remember.value })
     await navigateTo(await destination(u.uid))
   } catch (e) {
     toast.add({ title: 'Google', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
@@ -81,7 +82,8 @@ async function google() {
         />
       </UFormField>
 
-      <div class="flex justify-end">
+      <div class="flex items-center justify-between gap-3">
+        <UCheckbox v-model="remember" label="Mantener sesión iniciada" />
         <NuxtLink to="/recuperar" class="text-muted hover:text-default text-sm">
           ¿Olvidaste la contraseña?
         </NuxtLink>

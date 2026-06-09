@@ -5,6 +5,7 @@ import {
   sendPasswordResetEmail,
   setPersistence,
   browserLocalPersistence,
+  browserSessionPersistence,
   indexedDBLocalPersistence,
   GoogleAuthProvider,
   signInWithPopup,
@@ -22,10 +23,19 @@ export function useAuth() {
   const db = useFirestore()
   const user = useCurrentUser()
 
-  // Mantener la sesión iniciada entre arranques (clave en PWA / acceso directo).
-  // IndexedDB sobrevive mejor en modo standalone; si no está disponible, localStorage.
-  // Debe fijarse ANTES de crear la sesión.
-  async function ensurePersistence() {
+  // Persistencia de la sesión. `remember` (por defecto true) = se mantiene iniciada
+  // entre arranques (clave en PWA / acceso directo): IndexedDB, con fallback a
+  // localStorage. Si el usuario NO marca "mantener sesión", se usa persistencia de
+  // sesión (se cierra al cerrar el navegador/pestaña). Debe fijarse ANTES del login.
+  async function ensurePersistence(remember = true) {
+    if (!remember) {
+      try {
+        await setPersistence(auth, browserSessionPersistence)
+      } catch {
+        // modo privado / sin storage: la sesión queda solo en memoria
+      }
+      return
+    }
     try {
       await setPersistence(auth, indexedDBLocalPersistence)
     } catch {
@@ -107,15 +117,15 @@ export function useAuth() {
     return cred.user
   }
 
-  async function signIn(input: SignInInput) {
-    await ensurePersistence()
+  async function signIn(input: SignInInput, opts: { remember?: boolean } = {}) {
+    await ensurePersistence(opts.remember ?? true)
     const cred = await signInWithEmailAndPassword(auth, input.email, input.password)
     await ensureUserDoc(cred.user)
     return cred.user
   }
 
-  async function signInWithGoogle() {
-    await ensurePersistence()
+  async function signInWithGoogle(opts: { remember?: boolean } = {}) {
+    await ensurePersistence(opts.remember ?? true)
     const cred = await signInWithPopup(auth, new GoogleAuthProvider())
     await ensureUserDoc(cred.user)
     return cred.user
