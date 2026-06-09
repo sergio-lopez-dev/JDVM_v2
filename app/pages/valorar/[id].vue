@@ -8,9 +8,9 @@ const route = useRoute()
 const toast = useToast()
 const user = useCurrentUser()
 const { client } = useCurrentClient()
-const { byId } = useMyAppointments()
+const { byDocId } = useMyAppointments()
 const { create } = useReviews()
-const appt = byId(route.params.id as string)
+const { appt, pending } = byDocId(route.params.id as string)
 
 const score = ref(4)
 const text = ref('')
@@ -106,6 +106,10 @@ async function submit() {
     <div class="border-default bg-default sticky bottom-0 border-t px-5 py-3">
       <UButton color="primary" size="lg" block :loading="sending" @click="submit">Enviar valoración</UButton>
     </div>
+  </div>
+
+  <div v-else-if="pending" class="flex min-h-dvh items-center justify-center">
+    <UIcon name="i-lucide-loader-circle" class="text-muted size-8 animate-spin" />
   </div>
 
   <div v-else class="flex min-h-dvh items-center justify-center">

@@ -193,6 +193,14 @@ const viewMonth = ref(startOfMonth(new Date()))
 const todayStart = startOfToday()
 const weekdayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
+// Antelación máxima para reservar (configurable en admin; def. 60 días ≈ 2 meses).
+const maxBookingDate = computed(() => {
+  const d = startOfToday()
+  d.setDate(d.getDate() + (settings.value?.bookingHorizonDays ?? 60))
+  return d
+})
+const canNextMonth = computed(() => viewMonth.value.getTime() < startOfMonth(maxBookingDate.value).getTime())
+
 const monthGrid = computed(() => {
   const first = viewMonth.value
   const year = first.getFullYear()
@@ -210,7 +218,7 @@ function shiftMonth(delta: number) {
 }
 const canPrevMonth = computed(() => viewMonth.value.getTime() > startOfMonth(new Date()).getTime())
 function dayDisabled(d: Date) {
-  return d.getTime() < todayStart.getTime() || isClosed(d)
+  return d.getTime() < todayStart.getTime() || d.getTime() > maxBookingDate.value.getTime() || isClosed(d)
 }
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -484,8 +492,9 @@ const gcalUrl = computed(() => {
             <span class="font-display text-base capitalize">{{ fmtDate(viewMonth, 'MMMM yyyy') }}</span>
             <button
               type="button"
+              :disabled="!canNextMonth"
               aria-label="Mes siguiente"
-              class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border"
+              class="border-default bg-muted flex size-8 items-center justify-center rounded-lg border disabled:opacity-30"
               @click="shiftMonth(1)"
             >
               <UIcon name="i-lucide-chevron-right" class="size-4" />
@@ -802,7 +811,7 @@ const gcalUrl = computed(() => {
               <div class="flex items-center gap-3">
                 <button type="button" :disabled="!canPrevMonth" class="text-toned disabled:opacity-30" @click="shiftMonth(-1)"><UIcon name="i-lucide-chevron-left" class="size-[18px]" /></button>
                 <span class="font-display text-base capitalize">{{ fmtDate(viewMonth, 'MMMM yyyy') }}</span>
-                <button type="button" class="text-toned" @click="shiftMonth(1)"><UIcon name="i-lucide-chevron-right" class="size-[18px]" /></button>
+                <button type="button" :disabled="!canNextMonth" class="text-toned disabled:opacity-30" @click="shiftMonth(1)"><UIcon name="i-lucide-chevron-right" class="size-[18px]" /></button>
               </div>
             </div>
             <div class="border-default bg-muted rounded-2xl border p-5">

@@ -19,12 +19,14 @@ import { toZdt, fromTemporal, STUDIO_TZ } from '~~/lib/schedulex'
 import { fmtDate, formatPrice, initials } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 import { isCancellable } from '~~/lib/cancellation'
+import { freeWindows, resolveDayTimetable } from '~~/lib/slots'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Agenda · Admin' })
 
 const { inRange, setStatus, cancel, remove } = useAppointments()
 const { active: barbers } = useBarbers()
+const { settings } = useSettings()
 const { notifyCancellation } = useNotifications()
 const toast = useToast()
 
@@ -176,6 +178,19 @@ const dayAppts = computed(() =>
     .filter((a) => a.status !== 'cancelled' && sameDay(a.startsAt, selectedDay.value))
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
 )
+
+// Huecos libres del día para el barbero filtrado (solo tiene sentido con un barbero
+// concreto; con "todos" no se puede saber de quién es el hueco).
+const dayFreeSlots = computed(() => {
+  const b = barberFilter.value ? barbers.value.find((x) => x.id === barberFilter.value) : null
+  if (!b) return []
+  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, selectedDay.value) : undefined
+  const barberTt = resolveDayTimetable(b.timetable, selectedDay.value)
+  const busy = dayAppts.value
+    .filter((a) => a.status === 'booked' || a.status === 'completed')
+    .map((a) => ({ start: a.startsAt, end: a.endsAt }))
+  return freeWindows({ day: selectedDay.value, localTimetable: localTt, barberTimetable: barberTt, busy, minMinutes: 10 })
+})
 type PillKind = 'confirmed' | 'done' | 'pending' | 'cancelled' | 'neutral'
 function mobileStatusKind(s: string): PillKind {
   return s === 'completed' ? 'done' : s === 'no_show' ? 'cancelled' : 'confirmed'
@@ -296,6 +311,15 @@ const fixedOpen = ref(false)
           </div>
         </div>
         <UiEmptyState v-else icon="i-lucide-calendar-x" title="Sin citas" :description="`No hay citas el ${fmtDate(selectedDay, 'd MMM')}.`" />
+
+        <!-- huecos libres del barbero filtrado -->
+        <div v-if="dayFreeSlots.length" class="mt-4">
+          <p class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"><span class="bg-success size-1.5 rounded-full" />Huecos libres</p>
+          <div class="flex flex-wrap gap-2">
+            <span v-for="(f, i) in dayFreeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+          </div>
+        </div>
+        <p v-else-if="!barberFilter" class="text-dimmed mt-4 text-center text-xs">Filtra por un barbero para ver sus huecos libres.</p>
       </div>
     </div>
 

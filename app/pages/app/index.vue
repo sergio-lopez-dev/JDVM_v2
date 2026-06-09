@@ -145,6 +145,9 @@ const mapsUrl = computed(
           <UButton to="/reservar" color="primary" size="lg" block icon="i-lucide-scissors">
             Reservar nueva cita
           </UButton>
+          <UButton to="/citas" color="neutral" variant="soft" size="lg" block icon="i-lucide-calendar-days">
+            Ver todas mis citas
+          </UButton>
         </div>
 
         <!-- columna derecha -->
@@ -309,7 +312,7 @@ const mapsUrl = computed(
       <div>
         <div class="mb-3.5 flex items-baseline justify-between">
           <h2 class="font-display text-2xl">Historial</h2>
-          <span class="text-dimmed font-mono text-xs">{{ past.length }} visitas</span>
+          <NuxtLink to="/citas" class="text-primary flex items-center gap-1 text-xs font-semibold">Ver todas mis citas <UIcon name="i-lucide-chevron-right" class="size-3" /></NuxtLink>
         </div>
         <div v-if="past.length" class="border-default bg-muted overflow-hidden rounded-2xl border">
           <div

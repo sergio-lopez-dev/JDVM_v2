@@ -75,6 +75,45 @@ export function isOnVacation(date: Date, vacations: DateRange[]): boolean {
   return vacations.some((r) => isWithinRange(date, r))
 }
 
+/**
+ * Intervalos LIBRES de un día: (horario local ∩ horario barbero) − ocupados.
+ * Para mostrar los huecos disponibles en las agendas (barbero/admin). Descarta
+ * huecos menores que `minMinutes` y, si se pasa `now` y es el mismo día, recorta
+ * el tiempo ya pasado.
+ */
+export function freeWindows(opts: {
+  day: Date
+  localTimetable?: DayTimetable
+  barberTimetable?: DayTimetable
+  busy?: Interval[]
+  now?: Date
+  minMinutes?: number
+}): Interval[] {
+  const local = dayWindows(opts.day, opts.localTimetable)
+  const barber = dayWindows(opts.day, opts.barberTimetable)
+  const windows =
+    local.length && barber.length ? intersectWindows(local, barber) : local.length ? local : barber
+  const busy = (opts.busy ?? []).slice().sort((a, b) => a.start.getTime() - b.start.getTime())
+  const minMs = (opts.minMinutes ?? 1) * MS_MIN
+  const isToday = opts.now ? sameDay(opts.day, opts.now) : false
+  const floor = isToday ? opts.now!.getTime() : -Infinity
+
+  const out: Interval[] = []
+  for (const w of windows) {
+    let cursor = Math.max(w.start.getTime(), floor)
+    const winEnd = w.end.getTime()
+    for (const b of busy) {
+      const bs = Math.max(b.start.getTime(), w.start.getTime())
+      const be = Math.min(b.end.getTime(), winEnd)
+      if (be <= cursor || bs >= winEnd) continue
+      if (bs > cursor && bs - cursor >= minMs) out.push({ start: new Date(cursor), end: new Date(bs) })
+      if (be > cursor) cursor = be
+    }
+    if (winEnd - cursor >= minMs) out.push({ start: new Date(cursor), end: new Date(winEnd) })
+  }
+  return out
+}
+
 export interface GenerateSlotsOptions {
   /** Día objetivo (se usa su fecha; la hora se ignora salvo `now`). */
   day: Date

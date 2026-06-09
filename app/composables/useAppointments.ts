@@ -21,13 +21,12 @@ export function useAppointments() {
   // Ventana de cancelación configurable (settings), 4 h por defecto.
   const cancelHours = () => settings.value?.cancellationWindowHours ?? 4
 
-  // Citas del usuario logueado (más recientes primero).
+  // Citas del usuario logueado. SIN orderBy a propósito: así la query necesita solo
+  // el índice de campo único (automático) y NO un índice compuesto (clientId+startsAt),
+  // que si falta en prod hace que la lista no cargue. El orden lo pone el consumidor
+  // (useMyAppointments ordena upcoming/past en JS).
   const mine = useCollection<Appointment>(
-    computed(() =>
-      user.value
-        ? query(col, where('clientId', '==', user.value.uid), orderBy('startsAt', 'desc'))
-        : null,
-    ),
+    computed(() => (user.value ? query(col, where('clientId', '==', user.value.uid)) : null)),
   )
 
   // Citas de un barbero para un día (para la agenda admin / barbero).

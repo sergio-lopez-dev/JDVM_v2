@@ -3,32 +3,31 @@ import {
   collection,
   deleteDoc,
   doc,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
   where,
 } from 'firebase/firestore'
+import { toDate } from '~~/lib/datetime'
 import type { Notification, NotificationInput } from '~~/schemas'
+
+const createdMs = (n: Notification) => (n.createdAt ? toDate(n.createdAt).getTime() : 0)
 
 export function useNotifications() {
   const db = useFirestore()
   const user = useCurrentUser()
   const col = collection(db, COL.notifications)
 
-  // Buzón personal (cliente o barbero): lo dirigido a mí.
-  const mine = useCollection<Notification>(
-    computed(() =>
-      user.value
-        ? query(col, where('targetUid', '==', user.value.uid), orderBy('createdAt', 'desc'))
-        : null,
-    ),
+  // Buzón personal (cliente o barbero): lo dirigido a mí. SIN orderBy → solo índice
+  // de campo único (automático), no compuesto; el orden se aplica en JS.
+  const mineRaw = useCollection<Notification>(
+    computed(() => (user.value ? query(col, where('targetUid', '==', user.value.uid)) : null)),
   )
+  const mine = computed(() => [...mineRaw.value].sort((a, b) => createdMs(b) - createdMs(a)))
 
   // Feed del panel admin: avisos de rol 'admin' (cancelaciones, nuevas citas…).
-  const adminFeed = useCollection<Notification>(
-    query(col, where('audience', '==', 'admin'), orderBy('createdAt', 'desc')),
-  )
+  const adminFeedRaw = useCollection<Notification>(query(col, where('audience', '==', 'admin')))
+  const adminFeed = computed(() => [...adminFeedRaw.value].sort((a, b) => createdMs(b) - createdMs(a)))
 
   const unreadMine = computed(() => mine.value.filter((n) => !n.read).length)
 

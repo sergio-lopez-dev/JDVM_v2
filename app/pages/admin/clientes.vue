@@ -11,6 +11,12 @@ const { services } = useServices()
 const { barbers } = useBarbers()
 const { forClient } = useAppointments()
 
+// Último acceso (users_v2/{uid}.lastLogin). Puede no existir (cuentas antiguas).
+function lastSeen(c: Client): string {
+  if (!c.lastLogin) return '—'
+  return fmtDate(toDate(c.lastLogin), 'd MMM yyyy · HH:mm')
+}
+
 const search = ref('')
 const roleFilter = ref<'all' | 'client' | 'barber' | 'admin'>('all')
 
@@ -104,14 +110,14 @@ function newApptFor(id: string) {
 
       <!-- tabla / lista -->
       <div class="border-default overflow-hidden rounded-2xl border">
-        <div class="text-dimmed bg-muted hidden grid-cols-[2fr_1.5fr_1fr_auto] gap-3 px-4 py-2.5 font-mono text-[0.6rem] tracking-widest uppercase lg:grid">
-          <span>Nombre</span><span>Email</span><span>Teléfono</span><span>Rol</span>
+        <div class="text-dimmed bg-muted hidden grid-cols-[2fr_1.5fr_1fr_1.3fr_auto] gap-3 px-4 py-2.5 font-mono text-[0.6rem] tracking-widest uppercase lg:grid">
+          <span>Nombre</span><span>Email</span><span>Teléfono</span><span>Último acceso</span><span>Rol</span>
         </div>
         <button
           v-for="c in filtered"
           :key="c.id"
           type="button"
-          class="border-default hover:bg-elevated grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t px-4 py-3 text-left first:border-t-0 lg:grid-cols-[2fr_1.5fr_1fr_auto] lg:first:border-t-0"
+          class="border-default hover:bg-elevated grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t px-4 py-3 text-left first:border-t-0 lg:grid-cols-[2fr_1.5fr_1fr_1.3fr_auto] lg:first:border-t-0"
           @click="selectedId = c.id"
         >
           <span class="flex min-w-0 items-center gap-3">
@@ -120,6 +126,7 @@ function newApptFor(id: string) {
           </span>
           <span class="text-muted hidden truncate text-sm lg:block">{{ c.email }}</span>
           <span class="text-muted hidden font-mono text-sm lg:block">{{ c.phone || '—' }}</span>
+          <span class="text-dimmed hidden truncate text-xs lg:block">{{ lastSeen(c) }}</span>
           <span class="rounded-full px-2 py-0.5 text-center font-mono text-[0.55rem] tracking-wide uppercase" :class="roleOf(c).class">{{ roleOf(c).label }}</span>
         </button>
         <div v-if="!filtered.length" class="py-10">
@@ -151,6 +158,7 @@ function newApptFor(id: string) {
               <div class="flex items-center gap-3"><UIcon name="i-lucide-mail" class="text-muted size-4" /><span class="truncate text-sm">{{ selected.email || '—' }}</span></div>
               <div class="flex items-center gap-3"><UIcon name="i-lucide-phone" class="text-muted size-4" /><span class="font-mono text-sm">{{ selected.phone || '—' }}</span></div>
               <div v-if="selected.instagram" class="flex items-center gap-3"><UIcon name="i-lucide-instagram" class="text-muted size-4" /><span class="text-sm">@{{ selected.instagram }}</span></div>
+              <div class="flex items-center gap-3"><UIcon name="i-lucide-clock" class="text-muted size-4" /><span class="text-sm">Último acceso: {{ lastSeen(selected) }}</span></div>
             </div>
 
             <div class="grid grid-cols-3 gap-2.5">

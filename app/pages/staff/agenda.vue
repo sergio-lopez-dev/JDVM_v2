@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { fmtDate, formatPrice, initials } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
+import { freeWindows, resolveDayTimetable } from '~~/lib/slots'
 
 definePageMeta({ layout: 'barber', middleware: 'barber' })
 useHead({ title: 'Mi agenda · Barbero' })
 
 const toast = useToast()
 const { today, onDay, isNow, me, now } = useBarber()
+const { settings } = useSettings()
 
 function startOfWeek(d: Date) {
   const x = new Date(d)
@@ -40,6 +42,24 @@ const summary = computed(() => {
 const nextAppt = computed(() =>
   list.value.find((a) => a.status === 'booked' && a.startsAt.getTime() > now.value.getTime()) ?? null,
 )
+
+// Huecos LIBRES del día (horario local ∩ horario del barbero − citas ocupadas).
+const freeSlots = computed(() => {
+  if (!me.value) return []
+  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, selectedDay.value) : undefined
+  const barberTt = resolveDayTimetable(me.value.timetable, selectedDay.value)
+  const busy = list.value
+    .filter((a) => a.status === 'booked' || a.status === 'completed')
+    .map((a) => ({ start: a.startsAt, end: a.endsAt }))
+  return freeWindows({
+    day: selectedDay.value,
+    localTimetable: localTt,
+    barberTimetable: barberTt,
+    busy,
+    now: now.value,
+    minMinutes: 10,
+  })
+})
 
 function blockSlot() {
   toast.add({ title: 'Bloquear hueco', description: 'Disponible próximamente.', icon: 'i-lucide-lock' })
@@ -84,6 +104,14 @@ function blockSlot() {
           </NuxtLink>
         </div>
         <UiEmptyState v-else icon="i-lucide-calendar-x" title="Sin citas" :description="`No tienes citas el ${fmtDate(selectedDay, 'd MMM')}.`" />
+
+        <!-- huecos libres del día -->
+        <div v-if="freeSlots.length" class="mt-5">
+          <p class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"><span class="bg-success size-1.5 rounded-full" />Huecos libres</p>
+          <div class="flex flex-wrap gap-2">
+            <span v-for="(f, i) in freeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -130,6 +158,13 @@ function blockSlot() {
               <div class="border-default flex items-center justify-between border-t py-2.5"><span class="text-toned text-sm">Citas</span><span class="font-display text-lg">{{ summary.count }}</span></div>
               <div class="border-default flex items-center justify-between border-t py-2.5"><span class="text-toned text-sm">Completadas</span><span class="font-display text-lg">{{ summary.done }}</span></div>
               <div class="border-default flex items-center justify-between border-t py-2.5"><span class="text-toned text-sm">Previsto</span><span class="font-display text-primary text-lg">{{ formatPrice(summary.forecast) }}</span></div>
+            </AdminCard>
+
+            <AdminCard v-if="freeSlots.length">
+              <div class="font-display mb-3 flex items-center gap-2 text-lg"><span class="bg-success size-2 rounded-full" />Huecos libres</div>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="(f, i) in freeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+              </div>
             </AdminCard>
 
             <AdminCard v-if="nextAppt" class="border-primary/30">

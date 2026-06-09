@@ -28,6 +28,7 @@ const STEPS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60]
 const form = reactive({
   slotStepMinutes: 15,
   cancellationWindowHours: 4,
+  bookingHorizonDays: 60,
   defaultBarberId: '',
   daysClosed: [] as Weekday[],
   acceptingAppointments: true,
@@ -78,6 +79,7 @@ watch(
     if (!s) return
     form.slotStepMinutes = s.slotStepMinutes ?? 15
     form.cancellationWindowHours = s.cancellationWindowHours ?? 4
+    form.bookingHorizonDays = s.bookingHorizonDays ?? 60
     form.defaultBarberId = s.defaultBarberId ?? ''
     form.daysClosed = [...(s.daysClosed ?? [])]
     form.acceptingAppointments = s.acceptingAppointments ?? true
@@ -129,6 +131,7 @@ async function submit() {
     await save({
       slotStepMinutes: form.slotStepMinutes,
       cancellationWindowHours: Math.max(1, Number(form.cancellationWindowHours) || 4),
+      bookingHorizonDays: Math.max(1, Number(form.bookingHorizonDays) || 60),
       defaultBarberId: form.defaultBarberId,
       daysClosed: form.daysClosed,
       acceptingAppointments: form.acceptingAppointments,
@@ -346,6 +349,16 @@ async function submit() {
             <span class="size-2.5 rounded-full" :style="{ background: b.color }" />
             {{ b.name }}
           </button>
+        </div>
+      </AdminCard>
+
+      <!-- horizonte de reserva -->
+      <AdminCard>
+        <h2 class="font-display text-lg">Antelación máxima para reservar</h2>
+        <p class="text-muted mt-1 text-sm">Con cuántos días de antelación, como máximo, puede reservar el cliente. (60 ≈ 2 meses.)</p>
+        <div class="mt-4 flex items-center gap-3">
+          <UInput v-model.number="form.bookingHorizonDays" type="number" min="1" max="365" class="w-28" />
+          <span class="text-dimmed text-sm">días (≈ {{ Math.round(form.bookingHorizonDays / 30) }} {{ Math.round(form.bookingHorizonDays / 30) === 1 ? 'mes' : 'meses' }})</span>
         </div>
       </AdminCard>
 

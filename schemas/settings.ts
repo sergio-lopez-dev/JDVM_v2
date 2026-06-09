@@ -55,6 +55,8 @@ export const settingsSchema = z.object({
   cancellationWindowHours: z.number().int().positive().default(4),
   // Barbero preseleccionado al reservar (en vez de "cualquiera"). Vacío = cualquiera.
   defaultBarberId: z.string().default(''),
+  // Antelación máxima (en días) con la que el cliente puede reservar. Def. 60 (~2 meses).
+  bookingHorizonDays: z.number().int().positive().default(60),
   acceptingAppointments: z.boolean().default(true),
   acceptingCancellations: z.boolean().default(true),
   special: z.array(specialTimetableRuleSchema).default([]),

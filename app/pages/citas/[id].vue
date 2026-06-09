@@ -7,12 +7,12 @@ useHead({ title: 'Tu cita' })
 
 const route = useRoute()
 const toast = useToast()
-const { byId } = useMyAppointments()
+const { byDocId } = useMyAppointments()
 const { cancel } = useAppointments()
 const { notifyCancellation } = useNotifications()
 const { client } = useCurrentClient()
 const { settings } = useSettings()
-const appt = byId(route.params.id as string)
+const { appt, pending } = byDocId(route.params.id as string)
 
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
 const cancellable = computed(() =>
@@ -111,7 +111,12 @@ async function doCancel() {
     </div>
   </div>
 
-  <div v-else class="flex min-h-dvh items-center justify-center">
-    <UiEmptyState icon="i-lucide-calendar-x" title="Cita no encontrada" />
+  <div v-else-if="pending" class="flex min-h-dvh items-center justify-center">
+    <UIcon name="i-lucide-loader-circle" class="text-muted size-8 animate-spin" />
+  </div>
+
+  <div v-else class="flex min-h-dvh flex-col items-center justify-center gap-4">
+    <UiEmptyState icon="i-lucide-calendar-x" title="Cita no encontrada" description="Puede que se haya cancelado o el enlace no sea válido." />
+    <UButton to="/citas" color="neutral" variant="soft">Ver mis citas</UButton>
   </div>
 </template>

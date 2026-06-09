@@ -16,8 +16,9 @@ export interface RankRow {
   revenue: number
 }
 
-// Las citas que cuentan como "realizadas" para ingresos.
-const DONE = new Set(['booked', 'completed'])
+// Las citas que cuentan como "realizadas" para ingresos: SOLO las hechas
+// (completed). Las 'booked' (futuras o aún sin marcar) NO suman facturación.
+const DONE = new Set(['completed'])
 
 // Agregados para la pantalla Reports sobre un rango [start, end).
 export function useAdminStats(start: Ref<Date>, end: Ref<Date>) {
