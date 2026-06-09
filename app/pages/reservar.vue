@@ -37,32 +37,39 @@ function startOfToday() {
   return d
 }
 
-// Preselección de barbero: por query (?barber=slug) desde el detalle, o el barbero
-// por defecto del estudio (settings.defaultBarberId) en vez de "cualquiera".
-const barberPreselected = ref(false)
-watchEffect(() => {
-  if (barberPreselected.value || !barbers.value.length) return
-  const slug = route.query.barber as string | undefined
-  if (slug) {
-    const b = barbers.value.find((x) => x.slug === slug)
-    if (b) {
-      selectedBarber.value = b
-      anyBarber.value = false
-      barberPreselected.value = true
+// Preselección de barbero (una sola vez): por query (?barber=slug) desde el detalle,
+// o el barbero por defecto del estudio (settings.defaultBarberId). Si hay barbero por
+// defecto, la reserva arranca con "Barbero concreto" marcado y ese barbero elegido,
+// en vez de "cualquiera". Se espera a que lleguen `settings` antes de decidir para no
+// perder el barbero por defecto por una carrera de carga.
+let barberPreselected = false
+watch(
+  [barbers, settings, () => route.query.barber as string | undefined],
+  ([list, s, slug]) => {
+    if (barberPreselected || !list.length) return
+    if (slug) {
+      const b = list.find((x) => x.slug === slug)
+      if (b) {
+        selectedBarber.value = b
+        anyBarber.value = false
+        barberPreselected = true
+      }
+      return
     }
-    return
-  }
-  const defId = settings.value?.defaultBarberId
-  if (defId) {
-    const b = barbers.value.find((x) => x.id === defId)
-    if (b) {
-      selectedBarber.value = b
-      anyBarber.value = false
+    // Sin query: necesitamos settings para saber si hay barbero por defecto.
+    if (!s) return
+    const defId = s.defaultBarberId
+    if (defId) {
+      const b = list.find((x) => x.id === defId)
+      if (b) {
+        selectedBarber.value = b
+        anyBarber.value = false // → toggle "Barbero concreto" marcado
+      }
     }
-    // settings ya llegó: fija la preselección (haya o no barbero por defecto válido).
-    barberPreselected.value = true
-  }
-})
+    barberPreselected = true
+  },
+  { immediate: true },
+)
 
 // Servicios agrupados (populares = primeros / premium).
 const populares = computed(() => publicServices.value.filter((s) => s.category !== 'premium'))
