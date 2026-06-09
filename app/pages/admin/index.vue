@@ -139,7 +139,7 @@ const bookingOpen = ref(false)
               <span class="h-9 w-[3px] shrink-0 rounded-full" :style="{ background: a.barberColor || 'var(--jdvm-accent)' }" />
               <div class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(a.clientName) }}</div>
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">{{ a.clientName }}</div>
+                <div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div>
                 <div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ a.barberName }}</div>
               </div>
               <AdminPill :kind="nextId === a.id ? 'confirmed' : statusKind(a.status)">

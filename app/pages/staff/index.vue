@@ -106,7 +106,7 @@ async function markDone(id: string) {
             <NuxtLink v-for="(a, i) in list" :key="a.id" :to="`/staff/cita/${a.id}`" class="flex items-center gap-3 px-4 py-3" :class="[i ? 'border-default border-t' : '', a.status === 'completed' ? 'opacity-55' : '', isNow(a) ? 'bg-primary/10' : '']">
               <span class="font-mono text-xs font-semibold" :class="isNow(a) ? 'text-primary' : 'text-toned'">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
               <div class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(a.clientName) }}</div>
-              <div class="min-w-0 flex-1"><div class="truncate text-sm font-semibold" :class="a.status === 'completed' ? 'line-through' : ''">{{ a.clientName }}</div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
+              <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold" :class="a.status === 'completed' ? 'line-through' : ''">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
               <span v-if="a.status === 'completed'" class="text-success flex items-center gap-1 text-xs font-semibold"><UIcon name="i-lucide-check" class="size-3.5" />Hecha</span>
               <AdminPill v-else-if="isNow(a)" kind="confirmed">Ahora</AdminPill>
               <UIcon v-else name="i-lucide-chevron-right" class="text-dimmed size-4" />
@@ -145,7 +145,7 @@ async function markDone(id: string) {
                 <span class="w-12 shrink-0 text-right font-mono text-[0.8rem] font-semibold" :class="isNow(a) ? 'text-primary' : ''">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
                 <span class="h-9 w-[3px] shrink-0 rounded-full" :style="{ background: isNow(a) ? 'var(--jdvm-accent)' : 'var(--jdvm-accent-line)' }" />
                 <div class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(a.clientName) }}</div>
-                <div class="min-w-0 flex-1"><div class="truncate text-sm font-semibold" :class="a.status === 'completed' ? 'line-through' : ''">{{ a.clientName }}</div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
+                <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold" :class="a.status === 'completed' ? 'line-through' : ''">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
                 <AdminPill :kind="isNow(a) ? 'confirmed' : pillKind(a.status)">{{ a.status === 'completed' ? 'Hecha' : isNow(a) ? 'En curso' : 'Confirmada' }}</AdminPill>
               </NuxtLink>
             </div>

@@ -76,7 +76,7 @@ function blockSlot() {
             <div class="mb-3 flex-1 rounded-2xl border border-l-[3px] p-3.5" :class="isNow(a) ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'" :style="{ borderLeftColor: 'var(--jdvm-accent)', opacity: a.status === 'completed' ? 0.6 : 1 }">
               <div class="flex items-center gap-3">
                 <div class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(a.clientName) }}</div>
-                <div class="min-w-0 flex-1"><div class="truncate text-sm font-semibold">{{ a.clientName }}</div><div class="text-dimmed truncate text-xs">{{ a.serviceName }}</div></div>
+                <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }}</div></div>
                 <UIcon v-if="a.status === 'completed'" name="i-lucide-check" class="text-success size-4" />
                 <AdminPill v-else-if="isNow(a)" kind="confirmed">Ahora</AdminPill>
               </div>
@@ -116,7 +116,7 @@ function blockSlot() {
                 <span class="w-12 shrink-0 text-right font-mono text-[0.8rem] font-semibold" :class="isNow(a) ? 'text-primary' : ''">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
                 <span class="h-9 w-[3px] shrink-0 rounded-full" :style="{ background: isNow(a) ? 'var(--jdvm-accent)' : 'var(--jdvm-accent-line)' }" />
                 <div class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(a.clientName) }}</div>
-                <div class="min-w-0 flex-1"><div class="truncate text-sm font-semibold">{{ a.clientName }}</div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
+                <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
                 <AdminPill :kind="isNow(a) ? 'confirmed' : a.status === 'completed' ? 'done' : 'confirmed'">{{ a.status === 'completed' ? 'Hecha' : isNow(a) ? 'En curso' : 'Confirmada' }}</AdminPill>
               </NuxtLink>
             </div>

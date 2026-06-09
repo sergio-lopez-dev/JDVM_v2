@@ -13,6 +13,7 @@ export interface AdminAppointment extends Omit<Appointment, 'startsAt' | 'endsAt
   barberColor?: string
   clientName: string
   clientPhone?: string
+  clientEmail?: string
   clientInitials: string
   price: number
 }
@@ -40,6 +41,7 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
         barberColor: bb?.color,
         clientName: cl?.name ?? 'Cliente',
         clientPhone: cl?.phone,
+        clientEmail: cl?.email,
         clientInitials: initials(cl?.name),
         price: a.priceSnapshot ?? (svc ? effectivePrice(svc, a.barberId) : 0),
       }
