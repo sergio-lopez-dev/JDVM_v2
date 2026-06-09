@@ -32,6 +32,9 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
       const cl = clients.value.find((c) => c.id === a.clientId)
       return {
         ...a,
+        // VueFire añade el id como propiedad NO enumerable → el spread `...a` la
+        // pierde. Lo preservamos o el enrutado (/staff/cita/{id}, etc.) va a undefined.
+        id: a.id,
         startsAt: toDate(a.startsAt),
         endsAt: toDate(a.endsAt),
         serviceName: svc?.name ?? 'Servicio',

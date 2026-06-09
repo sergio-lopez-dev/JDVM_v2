@@ -27,6 +27,9 @@ export function useMyAppointments() {
     const bb = barbers.value.find((b) => b.id === a.barberId)
     return {
       ...a,
+      // VueFire añade el id del doc como propiedad NO enumerable → el spread `...a`
+      // la pierde. Lo preservamos explícitamente o el enrutado va a /citas/undefined.
+      id: a.id,
       startsAt: toDate(a.startsAt),
       endsAt: toDate(a.endsAt),
       serviceName: svc?.name ?? 'Servicio',

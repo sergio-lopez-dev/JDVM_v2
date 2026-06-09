@@ -49,6 +49,7 @@ const enrichedHistory = computed(() =>
       const bb = barbers.value.find((b) => b.id === a.barberId)
       return {
         ...a,
+        id: a.id, // el spread pierde el id (no enumerable en VueFire)
         startsAt: toDate(a.startsAt),
         serviceName: svc?.name ?? 'Servicio',
         barberName: bb?.name ?? 'Barbero',
