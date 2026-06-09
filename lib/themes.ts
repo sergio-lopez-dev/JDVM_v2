@@ -126,35 +126,37 @@ export const BRAND_THEMES: BrandTheme[] = [
     success: '#4F7A4A', warning: '#B0792A', danger: '#B0432E',
     serviceA: '#9E3B2E', serviceB: '#4F6E7A', serviceC: '#8A6A3E',
   },
+  {
+    key: 'mist',
+    name: 'Niebla',
+    tagline: 'Frío claro · sereno & minimalista',
+    serif: "'Cormorant Garamond', Georgia, serif",
+    light: true,
+    bg0: '#E9EDF2', bg1: '#F4F6FA', bg2: '#DCE2EA',
+    border: '#C5CDD8', borderSoft: '#D6DCE5',
+    fg0: '#1B2430', fg1: '#5A6675', fg2: '#8A95A4',
+    accent: '#3F6E9E', accentHover: '#4E7EB0', accentTint: '#346090',
+    accentSoft: 'rgba(63,110,158,0.10)', accentLine: 'rgba(63,110,158,0.28)',
+    accentText: '#F4F8FC',
+    success: '#3F7A57', warning: '#B0792A', danger: '#B0432E',
+    serviceA: '#3F6E9E', serviceB: '#7A6E4F', serviceC: '#8A5E6A',
+  },
+  {
+    key: 'linen',
+    name: 'Lino',
+    tagline: 'Cálido claro · natural & sereno',
+    serif: "'EB Garamond', Georgia, serif",
+    light: true,
+    bg0: '#E8EADE', bg1: '#F2F3EB', bg2: '#DBDFCE',
+    border: '#C6CBB4', borderSoft: '#D6DAC6',
+    fg0: '#1E241A', fg1: '#5C6450', fg2: '#8B937C',
+    accent: '#4F7A4A', accentHover: '#5C8A55', accentTint: '#436B3F',
+    accentSoft: 'rgba(79,122,74,0.10)', accentLine: 'rgba(79,122,74,0.28)',
+    accentText: '#F2F6EE',
+    success: '#4F7A4A', warning: '#B0792A', danger: '#B0432E',
+    serviceA: '#4F7A4A', serviceB: '#7A6E4F', serviceC: '#8A5E6A',
+  },
   // --- Paletas extra (segunda tanda; agrupadas bajo "Más paletas") ----------
-  {
-    key: 'midnight',
-    name: 'Azul medianoche',
-    tagline: 'Indigo nocturno · sereno & tecnológico',
-    serif: "'Playfair Display', Georgia, serif",
-    bg0: '#0A0B12', bg1: '#0F1118', bg2: '#181B26',
-    border: '#262B3C', borderSoft: '#1D2130',
-    fg0: '#E8EAF2', fg1: '#99A0B5', fg2: '#5D6477',
-    accent: '#7B8CDE', accentHover: '#92A1E8', accentTint: '#ADB8F0',
-    accentSoft: 'rgba(123,140,222,0.15)', accentLine: 'rgba(123,140,222,0.34)',
-    accentText: '#0A0C13',
-    success: '#6FA98A', warning: '#D4A24C', danger: '#C9624A',
-    serviceA: '#7B8CDE', serviceB: '#9A8C6E', serviceC: '#8F7C9E',
-  },
-  {
-    key: 'ember',
-    name: 'Brasa',
-    tagline: 'Ember · ardiente & enérgico',
-    serif: "'DM Serif Display', Georgia, serif",
-    bg0: '#0F0A08', bg1: '#170F0B', bg2: '#221610',
-    border: '#322117', borderSoft: '#271A12',
-    fg0: '#F3E7DD', fg1: '#AD9A8C', fg2: '#6F5D4F',
-    accent: '#D2602E', accentHover: '#E4763E', accentTint: '#EE8C56',
-    accentSoft: 'rgba(210,96,46,0.15)', accentLine: 'rgba(210,96,46,0.34)',
-    accentText: '#160B05',
-    success: '#7F9A57', warning: '#CE9A45', danger: '#C25E36',
-    serviceA: '#D2602E', serviceB: '#6E8676', serviceC: '#9A7F5C',
-  },
   {
     key: 'plum',
     name: 'Ciruela',
@@ -200,7 +202,7 @@ export const BRAND_THEMES: BrandTheme[] = [
 ]
 
 // Las 6 paletas originales se muestran de inicio; estas van bajo "Más paletas".
-export const EXTRA_THEME_KEYS = ['midnight', 'ember', 'plum', 'emerald', 'noir']
+export const EXTRA_THEME_KEYS = ['plum', 'emerald', 'noir']
 
 export const THEME_KEYS = BRAND_THEMES.map((t) => t.key)
 export const DEFAULT_THEME_KEY = 'forest'

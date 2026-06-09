@@ -80,7 +80,7 @@ export default defineNuxtConfig({
           rel: 'stylesheet',
           // Serifs de todas las direcciones de marca (la paleta activa elige una
           // vía --font-display). Ver lib/themes.ts.
-          href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Spectral:wght@400;500;600&family=Libre+Caslon+Display&family=Playfair+Display:wght@400;500;600;700&family=DM+Serif+Display&family=Fraunces:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&family=Cardo:wght@400;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
+          href: 'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Bodoni+Moda:ital,wght@0,400;0,500;0,600;0,700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Spectral:wght@400;500;600&family=Libre+Caslon+Display&family=Fraunces:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&family=Cardo:wght@400;700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
         },
       ],
     },

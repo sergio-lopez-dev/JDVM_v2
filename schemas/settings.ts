@@ -15,7 +15,7 @@ export type SpecialTimetableRule = z.infer<typeof specialTimetableRuleSchema>
 
 // Paleta de marca aplicada a TODA la app (las direcciones de diseño).
 // Mantener en sync con lib/themes.ts (BRAND_THEMES).
-export const themeKeySchema = z.enum(['forest', 'brass', 'copper', 'burgundy', 'steel', 'bone', 'midnight', 'ember', 'plum', 'emerald', 'noir'])
+export const themeKeySchema = z.enum(['forest', 'brass', 'copper', 'burgundy', 'steel', 'bone', 'mist', 'linen', 'plum', 'emerald', 'noir'])
 export type ThemeKey = z.infer<typeof themeKeySchema>
 
 // Datos de marca/contacto del estudio (white-label). Lo muestra toda la app y se
