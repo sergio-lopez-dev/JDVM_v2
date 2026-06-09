@@ -14,7 +14,7 @@ const toast = useToast()
 const { publicServices } = useServices()
 const { active: barbers } = useBarbers()
 const { settings } = useSettings()
-const { create } = useAppointments()
+const { create, inRange } = useAppointments()
 const { studio, name: studioName, codePrefix } = useStudio()
 const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
@@ -207,6 +207,74 @@ function dayDisabled(d: Date) {
 }
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
+// ----- Días completos (todos los huecos ocupados) en el calendario -----
+// Citas reservadas del mes visible (todos los barberos). Con ellas se marca en rojo
+// cada día sin ningún hueco libre para el servicio (y barbero) elegido.
+const monthRangeEnd = computed(() => {
+  const d = new Date(viewMonth.value)
+  d.setMonth(d.getMonth() + 1)
+  return d
+})
+const monthAppts = inRange(viewMonth, monthRangeEnd)
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+
+// Mapa barbero+día → intervalos ocupados (reservados) ese día.
+const busyByBarberDay = computed(() => {
+  const map = new Map<string, { start: Date; end: Date }[]>()
+  for (const a of monthAppts.value) {
+    if (a.status !== 'booked') continue
+    const start = toDate(a.startsAt)
+    const k = `${a.barberId}|${dayKey(start)}`
+    const interval = { start, end: toDate(a.endsAt) }
+    const arr = map.get(k)
+    if (arr) arr.push(interval)
+    else map.set(k, [interval])
+  }
+  return map
+})
+
+function barberHasSlots(b: Barber, d: Date): boolean {
+  const svc = selectedService.value
+  if (!svc) return true
+  if (barberOnVacation(b, d)) return false
+  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, d) : undefined
+  const barberTt = resolveDayTimetable(b.timetable, d)
+  const free = generateSlots({
+    day: d,
+    durationMinutes: effectiveDuration(svc, b.id),
+    localTimetable: localTt,
+    barberTimetable: barberTt,
+    busy: busyByBarberDay.value.get(`${b.id}|${dayKey(d)}`) ?? [],
+    stepMinutes: settings.value?.slotStepMinutes ?? 30,
+  })
+  return free.length > 0
+}
+
+// Días del mes sin disponibilidad. Solo se calcula con un servicio elegido (sin él
+// no se conoce la duración). Con "cualquiera" un día está completo solo si NINGÚN
+// barbero elegible tiene hueco.
+const fullDays = computed(() => {
+  const set = new Set<string>()
+  if (!selectedService.value) return set
+  for (const d of monthGrid.value) {
+    if (!d || dayDisabled(d)) continue
+    const full = anyBarber.value
+      ? eligibleBarbers.value.length > 0 && eligibleBarbers.value.every((b) => !barberHasSlots(b, d))
+      : !!selectedBarber.value && !barberHasSlots(selectedBarber.value, d)
+    if (full) set.add(dayKey(d))
+  }
+  return set
+})
+const isDayFull = (d: Date) => fullDays.value.has(dayKey(d))
+
+// Clase de cada celda del calendario según su estado (seleccionado / completo / normal).
+function dayClass(d: Date) {
+  if (sameDay(d, selectedDate.value)) return 'bg-primary text-inverted font-bold'
+  if (isDayFull(d)) return 'bg-error/10 text-error/70 font-medium line-through'
+  return 'text-default hover:bg-elevated font-medium'
 }
 
 const slotEnd = computed(() =>
@@ -425,14 +493,21 @@ const gcalUrl = computed(() => {
                 type="button"
                 :disabled="dayDisabled(d)"
                 class="relative flex aspect-square items-center justify-center rounded-lg text-sm disabled:opacity-25"
-                :class="sameDay(d, selectedDate) ? 'bg-primary border-primary text-inverted font-bold' : 'text-default hover:bg-elevated font-medium'"
+                :class="dayClass(d)"
                 @click="pickDay(d)"
               >
                 {{ d.getDate() }}
-                <span v-if="!dayDisabled(d) && !sameDay(d, selectedDate)" class="bg-primary/60 absolute bottom-1 size-1 rounded-full" />
+                <span
+                  v-if="!dayDisabled(d) && !sameDay(d, selectedDate)"
+                  class="absolute bottom-1 size-1 rounded-full"
+                  :class="isDayFull(d) ? 'bg-error/70' : 'bg-primary/60'"
+                />
               </button>
             </template>
           </div>
+          <p class="text-dimmed mt-2 flex items-center gap-1.5 text-[0.65rem]">
+            <span class="bg-error/70 size-1.5 rounded-full" />Día completo (sin huecos)
+          </p>
         </div>
 
         <!-- slots -->
@@ -734,17 +809,21 @@ const gcalUrl = computed(() => {
                     type="button"
                     :disabled="dayDisabled(d)"
                     class="relative flex aspect-square items-center justify-center rounded-[10px] text-sm transition-colors disabled:opacity-30"
-                    :class="sameDay(d, selectedDate) ? 'bg-primary text-inverted font-bold' : 'text-default hover:bg-elevated font-medium'"
+                    :class="dayClass(d)"
                     @click="pickDay(d)"
                   >
                     {{ d.getDate() }}
                     <span
                       v-if="!dayDisabled(d) && !sameDay(d, selectedDate)"
-                      class="bg-primary/70 absolute bottom-1.5 size-1 rounded-full"
+                      class="absolute bottom-1.5 size-1 rounded-full"
+                      :class="isDayFull(d) ? 'bg-error/70' : 'bg-primary/70'"
                     />
                   </button>
                 </template>
               </div>
+              <p v-if="selectedService" class="text-dimmed mt-2.5 flex items-center gap-1.5 text-[0.7rem]">
+                <span class="bg-error/70 size-1.5 rounded-full" />Día completo (sin huecos)
+              </p>
             </div>
           </div>
         </div>
