@@ -112,11 +112,12 @@ async function banFromPrompt() {
     banBusy.value = false
   }
 }
-async function revertNoShow() {
+// Deshace "no vino" o "hecha": la cita vuelve a 'booked' (confirmada).
+async function revertToBooked() {
   if (!selected.value) return
   const id = selected.value.id
   await setStatus(id, 'booked')
-  toast.add({ title: 'Marca de “no vino” deshecha', icon: 'i-lucide-undo-2', color: 'success' })
+  toast.add({ title: 'Cita reactivada', description: 'Vuelve a “confirmada”.', icon: 'i-lucide-undo-2', color: 'success' })
   if (selected.value?.id === id) selected.value = { ...selected.value, status: 'booked' }
   banPrompt.value = false
 }
@@ -276,7 +277,8 @@ const bookingOpen = ref(false)
             <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="act(() => setStatus(selected!.id, 'completed'), 'Cita completada')">Completar</UButton>
             <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="noShowSel">No vino</UButton>
             <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="act(() => cancelSel(), 'Cita cancelada')">Cancelar</UButton>
-            <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertNoShow">Deshacer “no vino”</UButton>
+            <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked">Deshacer “no vino”</UButton>
+            <UButton v-if="selected.status === 'completed'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked">Deshacer “hecha”</UButton>
             <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="act(() => remove(selected!.id), 'Cita eliminada')">Eliminar</UButton>
           </div>
 

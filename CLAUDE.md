@@ -589,3 +589,10 @@ recompensas (catálogo) y los canjes.
   seleccionado (scroll horizontal si hay muchos barberos); "Lista" = el timeline anterior.
 - **Escritorio:** el board de la vista **Equipo** usa `boardBarbers` (respeta el filtro de barbero)
   y muestra también las horas libres. Mismo componente que móvil.
+- **Navegación de semanas (móvil):** la agenda móvil ya no se limita a la semana actual — hay una
+  cabecera con ‹ / › (`shiftWeek`) y el rango "d MMM – d MMM" clicable que vuelve a hoy (`goToday`).
+  Mueve `rangeStart`/`rangeEnd` (consulta a Firestore) y `selectedDay`. El Schedule-X oculto en
+  `lg:` no pisa el rango (su `onRangeUpdate` solo dispara al navegar la propia vista).
+- **Revertir estado:** "No vino" y "Hecha" se pueden deshacer (`revertToBooked`: status → `booked`)
+  desde [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue) y los drawers de
+  [`/admin/agenda`](app/pages/admin/agenda.vue) y [`/admin/citas`](app/pages/admin/citas.vue).

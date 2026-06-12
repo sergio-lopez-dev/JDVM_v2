@@ -162,9 +162,10 @@ async function banFromPrompt() {
     banBusy.value = false
   }
 }
-async function revertNoShow(id: string) {
+// Deshace "no vino" o "hecha": la cita vuelve a 'booked' (confirmada).
+async function revertToBooked(id: string) {
   await setStatus(id, 'booked')
-  toast.add({ title: 'Marca de “no vino” deshecha', icon: 'i-lucide-undo-2', color: 'success' })
+  toast.add({ title: 'Cita reactivada', description: 'Vuelve a “confirmada”.', icon: 'i-lucide-undo-2', color: 'success' })
   if (selected.value?.id === id) selected.value = { ...selected.value, status: 'booked' }
   banPrompt.value = false
 }
@@ -277,6 +278,21 @@ function goToday() {
   selectedDay.value = d
   ensureRange(d)
 }
+// Navegación de semanas (móvil): mueve el rango consultado y el día seleccionado ±7d.
+function shiftWeek(n: number) {
+  const s = startOfWeek(rangeStart.value)
+  s.setDate(s.getDate() + n * 7)
+  rangeStart.value = s
+  rangeEnd.value = new Date(s.getTime() + 7 * 86_400_000)
+  const d = new Date(selectedDay.value)
+  d.setDate(d.getDate() + n * 7)
+  selectedDay.value = d
+}
+const weekEnd = computed(() => {
+  const d = new Date(rangeStart.value)
+  d.setDate(d.getDate() + 6)
+  return d
+})
 </script>
 
 <template>
@@ -289,6 +305,15 @@ function goToday() {
     </AdminHeader>
 
     <div class="space-y-4 px-5 py-5 pb-24 lg:px-7 lg:pb-5">
+      <!-- navegación de semana (solo móvil) -->
+      <div class="flex items-center justify-between gap-2 lg:hidden">
+        <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-chevron-left" aria-label="Semana anterior" @click="shiftWeek(-1)" />
+        <button type="button" class="text-toned hover:text-default flex-1 text-center text-sm font-medium capitalize" @click="goToday">
+          {{ fmtDate(rangeStart, 'd MMM') }} – {{ fmtDate(weekEnd, 'd MMM') }}
+        </button>
+        <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-chevron-right" aria-label="Semana siguiente" @click="shiftWeek(1)" />
+      </div>
+
       <!-- tira de días (solo móvil) -->
       <div class="grid grid-cols-7 gap-1.5 lg:hidden">
         <button
@@ -499,7 +524,8 @@ function goToday() {
               <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="markCompleted(selected.id)">Completar</UButton>
               <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="markNoShow(selected.id)">No vino</UButton>
               <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="cancelAppt">Cancelar</UButton>
-              <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertNoShow(selected.id)">Deshacer “no vino”</UButton>
+              <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked(selected.id)">Deshacer “no vino”</UButton>
+              <UButton v-if="selected.status === 'completed'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked(selected.id)">Deshacer “hecha”</UButton>
               <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="deleteAppt">Eliminar</UButton>
             </div>
             <p v-if="selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
