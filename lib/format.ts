@@ -1,4 +1,4 @@
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function initials(name?: string | null): string {
@@ -27,4 +27,9 @@ export function formatDuration(min?: number): string {
 /** "jue 4" / "Jueves 4 de junio" / "17:30" usando date-fns con locale es. */
 export function fmtDate(d: Date, pattern: string): string {
   return format(d, pattern, { locale: es })
+}
+
+/** Tiempo relativo en español: "hace 5 minutos", "hace 2 horas", "hace 3 días". */
+export function timeAgo(d: Date): string {
+  return formatDistanceToNow(d, { addSuffix: true, locale: es })
 }

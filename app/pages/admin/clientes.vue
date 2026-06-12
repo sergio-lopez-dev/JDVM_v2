@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { initials, fmtDate, formatPrice } from '~~/lib/format'
+import { initials, fmtDate, formatPrice, timeAgo } from '~~/lib/format'
 import { toDate } from '~~/lib/datetime'
 import type { Client } from '~~/schemas'
 
@@ -12,14 +12,38 @@ const { barbers } = useBarbers()
 const { forClient } = useAppointments()
 const toast = useToast()
 
+// "Ahora" reactivo (se refresca cada minuto) para los indicadores de actividad.
+const now = ref(Date.now())
+let nowTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => (nowTimer = setInterval(() => (now.value = Date.now()), 60_000)))
+onUnmounted(() => nowTimer && clearInterval(nowTimer))
+
+// "En línea" = ha tenido actividad en los últimos 10 min (el heartbeat escribe cada
+// 5 min mientras la app está abierta; ver usePresence).
+const ONLINE_MS = 10 * 60 * 1000
+function lastLoginMs(c: Client): number | null {
+  return c.lastLogin ? toDate(c.lastLogin).getTime() : null
+}
+function isOnline(c: Client): boolean {
+  const t = lastLoginMs(c)
+  return t != null && now.value - t < ONLINE_MS
+}
 // Último acceso (users_v2/{uid}.lastLogin). Puede no existir (cuentas antiguas).
 function lastSeen(c: Client): string {
   if (!c.lastLogin) return '—'
   return fmtDate(toDate(c.lastLogin), 'd MMM yyyy · HH:mm')
 }
+// Etiqueta corta para móvil: "En línea" / "hace 5 minutos" / "Sin acceso".
+function lastSeenShort(c: Client): string {
+  if (isOnline(c)) return 'En línea'
+  if (!c.lastLogin) return 'Sin acceso aún'
+  return timeAgo(toDate(c.lastLogin))
+}
 
 const search = ref('')
 const roleFilter = ref<'all' | 'client' | 'barber' | 'admin'>('all')
+const sortBy = ref<'name' | 'recent'>('name')
+const onlineCount = computed(() => clients.value.filter((c) => isOnline(c)).length)
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -32,7 +56,11 @@ const filtered = computed(() => {
           c.email?.toLowerCase().includes(q) ||
           c.phone?.includes(q),
     )
-    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+    .sort((a, b) =>
+      sortBy.value === 'recent'
+        ? (lastLoginMs(b) ?? 0) - (lastLoginMs(a) ?? 0)
+        : (a.name ?? '').localeCompare(b.name ?? ''),
+    )
 })
 
 // Ficha seleccionada + su historial.
@@ -133,7 +161,7 @@ async function deleteClient(c: Client) {
 
 <template>
   <div>
-    <AdminHeader title="Clientes" :sub="`${filtered.length} personas`" />
+    <AdminHeader title="Clientes" :sub="onlineCount ? `${filtered.length} personas · ${onlineCount} en línea` : `${filtered.length} personas`" />
 
     <div class="space-y-4 px-5 py-5 pb-24 lg:px-7 lg:pb-6">
       <div class="flex flex-wrap items-center gap-3">
@@ -148,6 +176,12 @@ async function deleteClient(c: Client) {
             @click="roleFilter = r"
           >
             {{ r === 'all' ? 'Todos' : roleMeta[r]?.label }}
+          </button>
+        </div>
+        <div class="border-default flex overflow-hidden rounded-xl border text-sm">
+          <button type="button" class="border-default border-r px-3 py-2 font-medium" :class="sortBy === 'name' ? 'bg-primary/15 text-primary' : 'text-muted hover:bg-elevated'" @click="sortBy = 'name'">A–Z</button>
+          <button type="button" class="flex items-center gap-1.5 px-3 py-2 font-medium" :class="sortBy === 'recent' ? 'bg-primary/15 text-primary' : 'text-muted hover:bg-elevated'" @click="sortBy = 'recent'">
+            <UIcon name="i-lucide-activity" class="size-3.5" />Recientes
           </button>
         </div>
       </div>
@@ -165,12 +199,15 @@ async function deleteClient(c: Client) {
           @click="selectedId = c.id"
         >
           <span class="flex min-w-0 items-center gap-3">
-            <span class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(c.name) }}</span>
-            <span class="min-w-0"><span class="flex items-center gap-1.5"><span class="truncate text-sm font-semibold">{{ c.name || 'Sin nombre' }}</span><UIcon v-if="c.banned" name="i-lucide-ban" class="text-error size-3.5 shrink-0" /></span><span class="text-dimmed block truncate text-xs lg:hidden">{{ c.email }}</span></span>
+            <span class="relative shrink-0">
+              <span class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(c.name) }}</span>
+              <span v-if="isOnline(c)" class="ring-default bg-success absolute -right-0.5 -bottom-0.5 size-3 rounded-full ring-2" />
+            </span>
+            <span class="min-w-0"><span class="flex items-center gap-1.5"><span class="truncate text-sm font-semibold">{{ c.name || 'Sin nombre' }}</span><UIcon v-if="c.banned" name="i-lucide-ban" class="text-error size-3.5 shrink-0" /></span><span class="block truncate text-xs lg:hidden" :class="isOnline(c) ? 'text-success font-medium' : 'text-dimmed'">{{ lastSeenShort(c) }}</span></span>
           </span>
           <span class="text-muted hidden truncate text-sm lg:block">{{ c.email }}</span>
           <span class="text-muted hidden font-mono text-sm lg:block">{{ c.phone || '—' }}</span>
-          <span class="text-dimmed hidden truncate text-xs lg:block">{{ lastSeen(c) }}</span>
+          <span class="hidden truncate text-xs lg:flex lg:items-center lg:gap-1.5" :class="isOnline(c) ? 'text-success font-medium' : 'text-dimmed'" :title="lastSeen(c)"><span v-if="isOnline(c)" class="bg-success size-1.5 shrink-0 rounded-full" />{{ lastSeenShort(c) }}</span>
           <span class="rounded-full px-2 py-0.5 text-center font-mono text-[0.55rem] tracking-wide uppercase" :class="roleOf(c).class">{{ roleOf(c).label }}</span>
         </button>
         <div v-if="!filtered.length" class="py-10">
@@ -205,7 +242,11 @@ async function deleteClient(c: Client) {
               <div class="flex items-center gap-3"><UIcon name="i-lucide-mail" class="text-muted size-4" /><span class="truncate text-sm">{{ selected.email || '—' }}</span></div>
               <div class="flex items-center gap-3"><UIcon name="i-lucide-phone" class="text-muted size-4" /><span class="font-mono text-sm">{{ selected.phone || '—' }}</span></div>
               <div v-if="selected.instagram" class="flex items-center gap-3"><UIcon name="i-lucide-instagram" class="text-muted size-4" /><span class="text-sm">@{{ selected.instagram }}</span></div>
-              <div class="flex items-center gap-3"><UIcon name="i-lucide-clock" class="text-muted size-4" /><span class="text-sm">Último acceso: {{ lastSeen(selected) }}</span></div>
+              <div class="flex items-center gap-3">
+                <UIcon name="i-lucide-clock" class="text-muted size-4" />
+                <span class="text-sm">Último acceso: {{ lastSeen(selected) }}</span>
+                <span v-if="isOnline(selected)" class="text-success bg-success/15 ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold"><span class="bg-success size-1.5 rounded-full" />En línea</span>
+              </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2.5">

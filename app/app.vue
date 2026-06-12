@@ -3,6 +3,10 @@
 // toda la app, en vivo. Ver app/composables/useBrandTheme.ts.
 useBrandThemeSync()
 
+// Actualiza el "último acceso" mientras se usa la app (presencia para que el admin
+// vea quién está activo). Ver app/composables/usePresence.ts.
+usePresence()
+
 // Título de pestaña white-label: cada página pone su nombre y aquí se le añade el
 // nombre del estudio configurado (settings.studio.name).
 const { name } = useStudio()

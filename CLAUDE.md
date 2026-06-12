@@ -596,3 +596,14 @@ recompensas (catálogo) y los canjes.
 - **Revertir estado:** "No vino" y "Hecha" se pueden deshacer (`revertToBooked`: status → `booked`)
   desde [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue) y los drawers de
   [`/admin/agenda`](app/pages/admin/agenda.vue) y [`/admin/citas`](app/pages/admin/citas.vue).
+
+### 15.3 Presencia / último acceso (admin ve quién está activo)
+
+- **`users.lastLogin` = presencia real:** además de en el login, [`usePresence`](app/composables/usePresence.ts)
+  (montado en [`app.vue`](app/app.vue)) lo actualiza con heartbeat mientras se usa la app
+  (throttle 5 min, solo con pestaña visible). Así "último acceso" refleja actividad real.
+- **[`/admin/clientes`](app/pages/admin/clientes.vue):** punto verde "en línea" (actividad < 10 min)
+  en el avatar; el último acceso se ve **también en móvil** como tiempo relativo (`timeAgo` en
+  [`lib/format`](lib/format.ts)); contador "N en línea" en la cabecera; orden **A–Z / Recientes**
+  (`sortBy`). Pensado para detectar quién está entrando y avisarle de huecos / animar a reservar
+  (campañas en [`/admin/notificaciones`](app/pages/admin/notificaciones.vue)).
