@@ -3,7 +3,10 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { signInSchema, type SignInInput } from '~~/schemas'
 import { authErrorMessage } from '~~/lib/authErrors'
 
-definePageMeta({ layout: 'auth', middleware: 'guest' })
+// El login es la página principal: se sirve bajo la URL base (`/`) además de `/login`
+// (que sigue funcionando para middleware y flujos de auth). La landing pública vive
+// ahora en `/about-us`.
+definePageMeta({ layout: 'auth', middleware: 'guest', alias: ['/'] })
 useHead({ title: 'Entrar' })
 
 const route = useRoute()
@@ -107,5 +110,9 @@ async function google() {
       ¿No tienes cuenta?
       <NuxtLink to="/registro" class="text-primary font-medium">Regístrate</NuxtLink>
     </p>
+
+    <NuxtLink to="/about-us" class="text-dimmed hover:text-muted flex items-center justify-center gap-1.5 text-xs">
+      <UIcon name="i-lucide-arrow-left" class="size-3.5" />Conoce el estudio
+    </NuxtLink>
   </div>
 </template>

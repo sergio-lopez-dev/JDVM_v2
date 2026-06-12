@@ -528,6 +528,12 @@ recompensas (catálogo) y los canjes.
 
 ## 15. Lote de mejoras/bugs (mejoras barbería)
 
+> **Rutas raíz (cambio):** el **login es la página principal** (URL base `/`) — `login.vue` añade
+> `alias: ['/']`; `/login` sigue funcionando (lo usan middleware y flujos de auth). La **landing
+> pública** se movió de `/` a **`/about-us`** (`app/pages/about-us.vue`, antes `index.vue`). El login
+> incluye un enlace "Conoce el estudio" → `/about-us`. (App SPA `ssr:false`; el logo de la landing
+> usa anclas `#`, ningún enlace apunta a `/`.)
+
 - **Fix fecha "hoy/mañana" (home cliente):** `daysUntil` en [`app/index.vue`](app/pages/app/index.vue)
   comparaba ms en UTC mientras `fmtDate` formatea en hora local → de madrugada una parte
   decía "hoy" y otra "mañana". Ahora se compara por **medianoche local** de ambas fechas.
