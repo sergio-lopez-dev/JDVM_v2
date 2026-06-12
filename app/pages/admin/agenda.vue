@@ -162,6 +162,12 @@ async function banFromPrompt() {
     banBusy.value = false
   }
 }
+async function revertNoShow(id: string) {
+  await setStatus(id, 'booked')
+  toast.add({ title: 'Marca de “no vino” deshecha', icon: 'i-lucide-undo-2', color: 'success' })
+  if (selected.value?.id === id) selected.value = { ...selected.value, status: 'booked' }
+  banPrompt.value = false
+}
 async function cancelAppt() {
   if (!selected.value) return
   try {
@@ -493,6 +499,7 @@ function goToday() {
               <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="markCompleted(selected.id)">Completar</UButton>
               <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="markNoShow(selected.id)">No vino</UButton>
               <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="cancelAppt">Cancelar</UButton>
+              <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertNoShow(selected.id)">Deshacer “no vino”</UButton>
               <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="deleteAppt">Eliminar</UButton>
             </div>
             <p v-if="selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">

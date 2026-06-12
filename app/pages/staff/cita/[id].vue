@@ -51,6 +51,12 @@ async function banFromPrompt() {
   await toggleBan()
   banPrompt.value = false
 }
+async function revertNoShow() {
+  if (!appt.value) return
+  await setStatus(appt.value.id, 'booked')
+  toast.add({ title: 'Marca de “no vino” deshecha', icon: 'i-lucide-undo-2', color: 'success' })
+  banPrompt.value = false
+}
 async function toggleBan() {
   if (!clientUid.value || banBusy.value) return
   banBusy.value = true
@@ -152,7 +158,8 @@ function reschedule() {
       <div class="border-default bg-default sticky bottom-0 flex gap-3 border-t px-5 py-4">
         <UButton color="neutral" variant="outline" size="lg" class="flex-1 justify-center" @click="reschedule">Reprogramar</UButton>
         <UButton v-if="appt.status === 'booked'" color="primary" size="lg" class="flex-[1.5] justify-center" icon="i-lucide-check" @click="markDone">Marcar hecha</UButton>
-        <UButton v-else color="neutral" variant="subtle" size="lg" class="flex-[1.5] justify-center" disabled>{{ appt.status === 'completed' ? 'Completada' : 'No vino' }}</UButton>
+        <UButton v-else-if="appt.status === 'no_show'" color="neutral" variant="soft" size="lg" class="flex-[1.5] justify-center" icon="i-lucide-undo-2" @click="revertNoShow">Deshacer “no vino”</UButton>
+        <UButton v-else color="neutral" variant="subtle" size="lg" class="flex-[1.5] justify-center" disabled>Completada</UButton>
       </div>
     </template>
 
