@@ -16,13 +16,16 @@ firebase.initializeApp({
 const messaging = firebase.messaging()
 
 // Push en segundo plano → muestra notificación del sistema.
+// Los mensajes llegan DATA-ONLY (las Functions no envían `notification` para evitar
+// el doble aviso de FCM web): título y cuerpo vienen en `data`.
 messaging.onBackgroundMessage((payload) => {
-  const n = payload.notification || {}
   const data = payload.data || {}
-  self.registration.showNotification(n.title || 'JDVM Hair Studio', {
-    body: n.body || '',
+  const n = payload.notification || {}
+  self.registration.showNotification(data.title || n.title || 'JDVM Hair Studio', {
+    body: data.body || n.body || '',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-192x192.png',
+    tag: data.appointmentId || undefined, // colapsa duplicados del mismo evento
     data: { link: data.link || '/', ...data },
   })
 })

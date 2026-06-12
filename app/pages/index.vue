@@ -363,18 +363,12 @@ const igUrl = computed(() => {
             </NuxtLink>
           </div>
         </div>
-        <component
-          :is="studio.mapsUrl ? 'a' : 'div'"
-          :href="studio.mapsUrl || undefined"
-          :target="studio.mapsUrl ? '_blank' : undefined"
-          rel="noopener"
-          class="border-default relative block min-h-72 overflow-hidden rounded-2xl border"
-        >
-          <UiPhoto label="mapa · maracena" :radius="0" class="absolute inset-0 size-full !border-0" />
-          <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-primary flex size-12 items-center justify-center"><UIcon name="i-lucide-map-pin" class="size-9 drop-shadow-lg" /></span>
-          </div>
-        </component>
+        <div class="border-default relative min-h-72 overflow-hidden rounded-2xl border">
+          <UiMap
+            :query="studio.address || [studio.name, studio.city].filter(Boolean).join(', ')"
+            :href="studio.mapsUrl || undefined"
+          />
+        </div>
       </div>
     </section>
 

@@ -201,6 +201,29 @@ function mobileStatusLabel(s: string) {
 
 const bookingOpen = ref(false)
 const fixedOpen = ref(false)
+
+// — Vista de escritorio: "calendar" (Schedule-X) o "team" (columnas por barbero) —
+const desktopView = ref<'calendar' | 'team'>('calendar')
+// Asegura que el rango consultado a Firestore cubre el día mostrado en la vista equipo.
+function ensureRange(d: Date) {
+  if (d.getTime() < rangeStart.value.getTime() || d.getTime() >= rangeEnd.value.getTime()) {
+    const s = startOfWeek(d)
+    rangeStart.value = s
+    rangeEnd.value = new Date(s.getTime() + 7 * 86_400_000)
+  }
+}
+function shiftDay(n: number) {
+  const d = new Date(selectedDay.value)
+  d.setDate(d.getDate() + n)
+  selectedDay.value = d
+  ensureRange(d)
+}
+function goToday() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  selectedDay.value = d
+  ensureRange(d)
+}
 </script>
 
 <template>
@@ -250,8 +273,51 @@ const fixedOpen = ref(false)
         </button>
       </div>
 
+      <!-- selector de vista de escritorio: Calendario / Equipo (columnas) -->
+      <div class="hidden items-center justify-between gap-3 lg:flex">
+        <div class="border-default bg-muted inline-flex rounded-lg border p-0.5">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="desktopView === 'calendar' ? 'bg-primary text-inverted' : 'text-muted hover:text-default'"
+            @click="desktopView = 'calendar'"
+          >
+            <UIcon name="i-lucide-calendar-days" class="mr-1 inline size-4 align-[-2px]" />Calendario
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="desktopView === 'team' ? 'bg-primary text-inverted' : 'text-muted hover:text-default'"
+            @click="desktopView = 'team'"
+          >
+            <UIcon name="i-lucide-columns-3" class="mr-1 inline size-4 align-[-2px]" />Equipo
+          </button>
+        </div>
+        <!-- navegación de día (solo vista equipo) -->
+        <div v-if="desktopView === 'team'" class="flex items-center gap-1.5">
+          <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-left" aria-label="Día anterior" @click="shiftDay(-1)" />
+          <button type="button" class="border-default bg-muted hover:text-default text-toned min-w-44 rounded-lg border px-3 py-1.5 text-center text-sm font-medium capitalize" @click="goToday">
+            {{ fmtDate(selectedDay, "EEEE d 'de' MMMM") }}
+          </button>
+          <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-right" aria-label="Día siguiente" @click="shiftDay(1)" />
+        </div>
+      </div>
+
+      <!-- vista equipo: columnas por barbero -->
+      <div v-show="desktopView === 'team'" class="border-default bg-muted relative hidden max-h-[760px] overflow-auto rounded-2xl border lg:block">
+        <AdminDayBoard :day="selectedDay" :barbers="barbers" :appointments="enriched" @select="selected = $event" />
+        <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+          <div v-if="loading" class="bg-default/55 absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[1px]">
+            <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
+              <UIcon name="i-lucide-loader-circle" class="text-primary size-4 animate-spin" />
+              <span class="text-toned text-sm font-medium">Cargando citas…</span>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
       <!-- calendario (escritorio) -->
-      <div class="border-default bg-muted relative hidden overflow-hidden rounded-2xl border lg:block">
+      <div v-show="desktopView === 'calendar'" class="border-default bg-muted relative hidden overflow-hidden rounded-2xl border lg:block">
         <ClientOnly>
           <ScheduleXCalendar v-if="calendarApp" :calendar-app="calendarApp" />
           <div v-else class="flex h-[720px] flex-col items-center justify-center gap-3">

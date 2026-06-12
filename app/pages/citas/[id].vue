@@ -12,7 +12,10 @@ const { cancel } = useAppointments()
 const { notifyCancellation } = useNotifications()
 const { client } = useCurrentClient()
 const { settings } = useSettings()
+const { studio } = useStudio()
 const { appt, pending } = byDocId(route.params.id as string)
+
+const mapQuery = computed(() => studio.value.address || [studio.value.name, studio.value.city].filter(Boolean).join(', '))
 
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
 const cancellable = computed(() =>
@@ -64,13 +67,8 @@ async function doCancel() {
         </p>
       </div>
 
-      <div class="border-default relative overflow-hidden rounded-2xl border">
-        <UiPhoto label="mapa · maracena" :height="130" :radius="0" />
-        <div class="absolute right-3 bottom-3">
-          <span class="bg-primary text-inverted flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold">
-            <UIcon name="i-lucide-navigation" class="size-3.5" />Cómo llegar
-          </span>
-        </div>
+      <div class="border-default relative h-40 overflow-hidden rounded-2xl border">
+        <UiMap :query="mapQuery" :href="studio.mapsUrl || undefined" />
       </div>
 
       <div class="border-default bg-muted rounded-2xl border px-4">

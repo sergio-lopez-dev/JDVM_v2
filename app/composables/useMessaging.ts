@@ -153,8 +153,11 @@ export function useMessaging() {
     if (!import.meta.client || !(await isSupported().catch(() => false))) return
     try {
       unsub = onMessage(getMessaging(app), (payload) => {
-        const n = payload.notification
-        if (n) toast.add({ title: n.title || 'Aviso', description: n.body, icon: 'i-lucide-bell' })
+        // Mensajes data-only (ver functions/pushToTokens): título/cuerpo en data.
+        const d = payload.data || {}
+        const title = d.title || payload.notification?.title
+        const body = d.body || payload.notification?.body
+        if (title || body) toast.add({ title: title || 'Aviso', description: body, icon: 'i-lucide-bell' })
       })
     } catch {
       /* mensajería no disponible en este contexto */

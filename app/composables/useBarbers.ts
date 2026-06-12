@@ -48,7 +48,13 @@ export function useBarbers() {
   const app = useFirebaseApp()
   const primaryAuth = useFirebaseAuth()!
   const col = collection(db, COL.barbers)
-  const barbers = useCollection<Barber>(col)
+  const barbersRaw = useCollection<Barber>(col)
+
+  // Orden estable: sortOrder asc (lo fija el admin), desempate por nombre. Se aplica
+  // a todas las listas (admin y selector de reserva) para un orden coherente.
+  const byOrder = (a: Barber, b: Barber) =>
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, 'es')
+  const barbers = computed(() => [...barbersRaw.value].sort(byOrder))
 
   const active = computed(() => barbers.value.filter((b) => b.active))
   const bySlug = (slug: string) =>

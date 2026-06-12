@@ -134,6 +134,7 @@ interface FormState {
   photoUrl: string
   active: boolean
   commissionPercent: number
+  sortOrder: number
   servicesOffered: string[]
   timetable: WeekTimetable
   vacations: DateRange[]
@@ -160,6 +161,8 @@ function blank(): FormState {
     photoUrl: '',
     active: true,
     commissionPercent: 50,
+    // Nuevo barbero al final de la lista del selector de reserva.
+    sortOrder: barbers.value.length,
     servicesOffered: services.value.map((s) => s.id),
     // Por defecto hereda el horario del local; el admin lo ajusta si hace falta.
     timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
@@ -193,6 +196,7 @@ async function addSelfAsBarber() {
       photoUrl: '',
       active: true,
       commissionPercent: 100,
+      sortOrder: barbers.value.length,
       servicesOffered: services.value.map((s) => s.id),
       timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
       vacations: [],
@@ -217,6 +221,7 @@ function startEdit(b: Barber) {
     photoUrl: b.photoUrl ?? '',
     active: b.active,
     commissionPercent: b.commissionPercent ?? 50,
+    sortOrder: b.sortOrder ?? 0,
     servicesOffered: [...(b.servicesOffered ?? [])],
     timetable: structuredClone(toRaw(b.timetable ?? {})),
     vacations: (b.vacations ?? []).map((v) => ({ start: toDate(v.start), end: toDate(v.end) })),
@@ -296,6 +301,7 @@ async function save() {
       photoUrl: form.value.photoUrl,
       active: form.value.active,
       commissionPercent: Math.min(100, Math.max(0, Math.round(form.value.commissionPercent))),
+      sortOrder: Math.round(form.value.sortOrder) || 0,
       servicesOffered: form.value.servicesOffered,
       timetable: form.value.timetable,
       vacations: form.value.vacations,
@@ -331,6 +337,26 @@ async function save() {
 async function toggleActive(b: Barber) {
   await update(b.id, { active: !b.active })
 }
+
+// Reordena el barbero una posición (↑/↓). Reescribe sortOrder = índice de TODA la
+// lista (estable aunque los valores antiguos fueran todos 0), aplicando el swap.
+const reordering = ref(false)
+async function move(b: Barber, dir: -1 | 1) {
+  if (reordering.value) return
+  const list = [...barbers.value]
+  const i = list.findIndex((x) => x.id === b.id)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= list.length) return
+  ;[list[i], list[j]] = [list[j]!, list[i]!]
+  reordering.value = true
+  try {
+    await Promise.all(
+      list.flatMap((x, idx) => (x.sortOrder === idx ? [] : [update(x.id, { sortOrder: idx })])),
+    )
+  } finally {
+    reordering.value = false
+  }
+}
 async function confirmRemove() {
   if (!form.value.id) return
   if (!confirm(`¿Eliminar a ${form.value.name}? Esta acción no se puede deshacer.`)) return
@@ -351,7 +377,7 @@ async function confirmRemove() {
 
     <div class="px-5 py-6 pb-24 lg:px-7 lg:pb-6">
       <div class="grid gap-4 lg:grid-cols-2">
-        <AdminCard v-for="b in barbers" :key="b.id" :pad="false" class="overflow-hidden" :class="!b.active ? 'opacity-70' : ''">
+        <AdminCard v-for="(b, idx) in barbers" :key="b.id" :pad="false" class="overflow-hidden" :class="!b.active ? 'opacity-70' : ''">
           <!-- cabecera -->
           <div class="flex gap-4 p-5">
             <div class="relative shrink-0">
@@ -364,7 +390,11 @@ async function confirmRemove() {
                   <div class="font-display truncate text-2xl leading-none">{{ b.name }}</div>
                   <div class="text-primary mt-1.5 font-mono text-[0.65rem] tracking-wide">@{{ b.slug }}</div>
                 </div>
-                <button type="button" aria-label="Editar" class="text-dimmed hover:text-default shrink-0" @click="startEdit(b)"><UIcon name="i-lucide-pencil" class="size-[18px]" /></button>
+                <div class="flex shrink-0 items-center gap-1">
+                  <button type="button" aria-label="Subir" :disabled="reordering || idx === 0" class="text-dimmed hover:text-default disabled:opacity-30" @click="move(b, -1)"><UIcon name="i-lucide-chevron-up" class="size-[18px]" /></button>
+                  <button type="button" aria-label="Bajar" :disabled="reordering || idx === barbers.length - 1" class="text-dimmed hover:text-default disabled:opacity-30" @click="move(b, 1)"><UIcon name="i-lucide-chevron-down" class="size-[18px]" /></button>
+                  <button type="button" aria-label="Editar" class="text-dimmed hover:text-default" @click="startEdit(b)"><UIcon name="i-lucide-pencil" class="size-[18px]" /></button>
+                </div>
               </div>
               <p v-if="b.bio" class="text-muted mt-2 line-clamp-2 text-xs">{{ b.bio }}</p>
             </div>
@@ -503,6 +533,13 @@ async function confirmRemove() {
               <div class="flex items-center gap-3">
                 <UInput v-model.number="form.commissionPercent" type="number" min="0" max="100" class="w-28" />
                 <span class="text-dimmed text-xs">del importe de sus servicios. El resto es del local.</span>
+              </div>
+            </UFormField>
+
+            <UFormField label="Orden en reserva" hint="Menor = aparece antes">
+              <div class="flex items-center gap-3">
+                <UInput v-model.number="form.sortOrder" type="number" min="0" class="w-28" />
+                <span class="text-dimmed text-xs">posición del barbero en el selector del cliente.</span>
               </div>
             </UFormField>
 

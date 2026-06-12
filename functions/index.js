@@ -73,12 +73,19 @@ async function getUserTokens(uid) {
 }
 
 // Envía push a una lista de tokens y limpia los inválidos.
+// IMPORTANTE (anti-duplicados): mensaje DATA-ONLY (sin clave `notification`). En web,
+// un payload con `notification` lo auto-muestra el navegador Y ADEMÁS dispara
+// onBackgroundMessage del SW → 2 notificaciones del sistema por cada push. Mandando
+// solo `data`, únicamente el service worker lo pinta (una sola vez). El SW y el
+// handler de primer plano leen título/cuerpo de `data`.
 async function pushToTokens(tokens, uid, { title, body, data }) {
   if (!tokens.length) return
+  const payloadData = Object.fromEntries(
+    Object.entries({ ...(data || {}), title, body }).map(([k, v]) => [k, String(v ?? '')]),
+  )
   const res = await getMessaging().sendEachForMulticast({
     tokens,
-    notification: { title, body },
-    data: Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)])),
+    data: payloadData,
     webpush: { fcmOptions: { link: (data && data.link) || '/' } },
   })
   const dead = []

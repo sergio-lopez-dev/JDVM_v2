@@ -26,8 +26,13 @@ const today = computed(() => fmtDate(new Date(), 'EEEE · d MMM'))
 const avatarInitials = computed(() => initials(client.value?.name || user.value?.displayName))
 
 function daysUntil(d: Date) {
-  const ms = d.getTime() - Date.now()
-  const days = Math.ceil(ms / 86_400_000)
+  // Comparamos por día de calendario local (no por diferencia de ms en UTC): de
+  // madrugada, restar timestamps daba "mañana" mientras fmtDate ya mostraba el día
+  // siguiente. Anclamos ambas fechas a su medianoche local.
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const days = Math.round((startOfTarget.getTime() - startOfToday.getTime()) / 86_400_000)
   if (days <= 0) return 'hoy'
   if (days === 1) return 'mañana'
   return `en ${days} días`

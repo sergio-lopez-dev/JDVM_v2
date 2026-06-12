@@ -525,3 +525,31 @@ recompensas (catálogo) y los canjes.
 'temporal-polyfill/global'` como **primer import** de [`agenda.vue`](app/pages/admin/agenda.vue),
   antes de `@schedule-x`. Verificado en navegador headless (login admin → render del
   calendario con eventos reales migrados).
+
+## 15. Lote de mejoras/bugs (mejoras barbería)
+
+- **Fix fecha "hoy/mañana" (home cliente):** `daysUntil` en [`app/index.vue`](app/pages/app/index.vue)
+  comparaba ms en UTC mientras `fmtDate` formatea en hora local → de madrugada una parte
+  decía "hoy" y otra "mañana". Ahora se compara por **medianoche local** de ambas fechas.
+- **Orden de barberos configurable:** nuevo campo `barber.sortOrder` (schema). `useBarbers`
+  ordena TODAS las listas por `sortOrder` asc (desempate por nombre) → afecta al selector de
+  reserva del cliente y al admin. Se edita en [`/admin/equipo`](app/pages/admin/equipo.vue):
+  campo "Orden en reserva" + flechas ↑/↓ en cada tarjeta (reescriben sortOrder = índice).
+- **Mapa real:** nuevo componente [`UiMap`](app/components/UiMap.vue) = iframe de Google Maps
+  embebido (`?q=<dirección>&output=embed`, sin API key, filtrado a oscuro). Sustituye los
+  placeholders `UiPhoto` "mapa" en la landing (`/`, sección Visítanos) y en el detalle de cita
+  (`/citas/[id]`). Se alimenta de `studio.address` (fallback `name, city`) + `studio.mapsUrl`
+  como enlace "Cómo llegar".
+- **Notificaciones push dobles (fix):** las Functions enviaban push con payload `notification`
+  → en web el navegador lo auto-mostraba Y además disparaba `onBackgroundMessage` del SW = 2
+  avisos. Ahora `pushToTokens` ([functions/index.js](functions/index.js)) manda **data-only**
+  (título/cuerpo en `data`); el SW [firebase-messaging-sw.js](public/firebase-messaging-sw.js)
+  y el handler de primer plano ([useMessaging](app/composables/useMessaging.ts)) leen de `data`,
+  y el SW usa `tag = appointmentId` para colapsar duplicados. **Requiere redeploy de Functions.**
+- **Agenda · vista equipo (columnas por barbero):** Schedule-X v4 no tiene vista de recursos;
+  nuevo componente [`AdminDayBoard`](app/components/AdminDayBoard.vue) = eje horario + una
+  columna por barbero con sus citas del día. Toggle "Calendario / Equipo" + navegación de día
+  en [`/admin/agenda`](app/pages/admin/agenda.vue) (escritorio). Click en cita → mismo drawer.
+- **Ya existían (verificados, sin cambios):** "última fecha de acceso" (`users.lastLogin`,
+  columna en [`/admin/clientes`](app/pages/admin/clientes.vue)) y "mantener sesión iniciada"
+  (checkbox `remember` en [`/login`](app/pages/login.vue) → `setPersistence` en `useAuth`).
