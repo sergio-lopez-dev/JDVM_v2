@@ -9,9 +9,16 @@ const router = useRouter()
 const toast = useToast()
 const { setStatus } = useAppointments()
 const { enriched } = useBarber()
+const { setBanned, clientById } = useClients()
 
 const id = computed(() => route.params.id as string)
 const appt = computed(() => enriched.value.find((a) => a.id === id.value) ?? null)
+
+// Estado de veto del cliente de esta cita (lo puede cambiar el barbero).
+const clientUid = computed(() => appt.value?.clientId ?? null)
+const clientDoc = clientById(clientUid)
+const banned = computed(() => !!clientDoc.value?.banned)
+const banBusy = ref(false)
 
 const PAY: Record<string, string> = { cash: 'Efectivo', revolut: 'Revolut' }
 
@@ -30,6 +37,29 @@ async function markDone() {
   if (!appt.value) return
   await setStatus(appt.value.id, 'completed')
   toast.add({ title: 'Cita marcada como hecha', icon: 'i-lucide-check', color: 'success' })
+}
+async function markNoShow() {
+  if (!appt.value) return
+  // No cuenta en la contabilidad (solo suman las 'completed').
+  await setStatus(appt.value.id, 'no_show')
+  toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
+}
+async function toggleBan() {
+  if (!clientUid.value || banBusy.value) return
+  banBusy.value = true
+  try {
+    await setBanned(clientUid.value, !banned.value)
+    toast.add({
+      title: banned.value ? 'Veto retirado' : 'Cliente vetado',
+      description: banned.value ? 'Ya puede reservar de nuevo.' : 'No podrá coger nuevas citas hasta que lo readmitas.',
+      icon: banned.value ? 'i-lucide-user-check' : 'i-lucide-ban',
+      color: banned.value ? 'success' : 'warning',
+    })
+  } catch (e) {
+    toast.add({ title: 'No se pudo actualizar', description: (e as Error).message, color: 'error' })
+  } finally {
+    banBusy.value = false
+  }
 }
 function reschedule() {
   toast.add({ title: 'Reprogramar', description: 'Pídeselo al administrador del local.', icon: 'i-lucide-calendar-clock' })
@@ -80,6 +110,13 @@ function reschedule() {
           <span class="flex-1 text-sm font-semibold">Llamar al cliente</span>
           <span class="text-dimmed font-mono text-xs">{{ appt.clientPhone }}</span>
         </a>
+
+        <!-- acciones sobre el cliente / la cita (barbero) -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <UButton v-if="appt.status === 'booked'" color="warning" variant="soft" size="lg" class="justify-center" icon="i-lucide-user-x" @click="markNoShow">No vino</UButton>
+          <UButton :color="banned ? 'success' : 'error'" variant="soft" size="lg" class="justify-center" :class="appt.status !== 'booked' ? 'col-span-2' : ''" :icon="banned ? 'i-lucide-user-check' : 'i-lucide-ban'" :loading="banBusy" @click="toggleBan">{{ banned ? 'Quitar veto' : 'Vetar cliente' }}</UButton>
+        </div>
+        <p v-if="banned" class="text-error -mt-2 flex items-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado: no puede coger nuevas citas.</p>
 
         <!-- últimas visitas -->
         <div v-if="history.length">

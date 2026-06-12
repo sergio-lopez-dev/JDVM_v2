@@ -10,6 +10,8 @@ useHead({ title: 'Reservar' })
 
 const route = useRoute()
 const user = useCurrentUser()
+const { client } = useCurrentClient()
+const banned = computed(() => !!client.value?.banned)
 const toast = useToast()
 const { publicServices } = useServices()
 const { active: barbers } = useBarbers()
@@ -152,6 +154,10 @@ async function confirm() {
   const svc = selectedService.value
   const slot = selectedSlot.value
   if (!svc || !slot || !user.value) return
+  if (banned.value) {
+    toast.add({ title: 'No puedes reservar', description: 'Tu cuenta está bloqueada para nuevas reservas. Contacta con el estudio.', color: 'error', icon: 'i-lucide-ban' })
+    return
+  }
   submitting.value = true
   try {
     let barber = anyBarber.value ? null : selectedBarber.value
@@ -323,6 +329,11 @@ const gcalUrl = computed(() => {
 
 <template>
   <div class="contents">
+  <!-- aviso de cuenta vetada: no puede reservar -->
+  <div v-if="banned" class="border-error/40 bg-error/10 text-error fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur">
+    <UIcon name="i-lucide-ban" class="size-5 shrink-0" />
+    <p class="text-sm">Tu cuenta está bloqueada para nuevas reservas. Contacta con el estudio para resolverlo.</p>
+  </div>
   <!-- ====================== MÓVIL ====================== -->
   <div class="flex flex-1 flex-col lg:hidden">
     <!-- ÉXITO -->

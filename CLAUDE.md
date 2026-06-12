@@ -553,3 +553,22 @@ recompensas (catálogo) y los canjes.
 - **Ya existían (verificados, sin cambios):** "última fecha de acceso" (`users.lastLogin`,
   columna en [`/admin/clientes`](app/pages/admin/clientes.vue)) y "mantener sesión iniciada"
   (checkbox `remember` en [`/login`](app/pages/login.vue) → `setPersistence` en `useAuth`).
+
+### 15.1 No-show, veto y eliminación de clientes
+
+- **No-show no contabiliza:** ya era así — TODA la contabilidad (`useAdminStats` con
+  `DONE={'completed'}`, `useFinance` que la reusa, y `/staff/ingresos`) cuenta **solo**
+  citas `completed`. Marcar `no_show` la excluye de ingresos/comisiones automáticamente.
+  Nuevo: el **barbero** ya puede marcar "No vino" desde [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue)
+  (antes solo "Marcar hecha"); el admin ya podía desde la agenda.
+- **Veto de cliente (`users.banned`):** lo marca **staff** (barbero o admin). Un cliente
+  vetado no puede coger nuevas citas: guard en [`reservar.vue`](app/pages/reservar.vue)
+  (`confirm()` bloquea + banner). Se conmuta desde [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue)
+  ("Vetar cliente"/"Quitar veto") y desde la ficha de [`/admin/clientes`](app/pages/admin/clientes.vue).
+  Helpers nuevos en [`useClients`](app/composables/useClients.ts): `setBanned`, `clientById`.
+  (Enforcement a nivel de app, coherente con las reglas permisivas heredadas de v1.)
+- **Eliminar cliente (admin):** botón en la ficha de [`/admin/clientes`](app/pages/admin/clientes.vue)
+  (doble confirmación) → `removeClient` borra el doc `users/{uid}`. La cuenta de Auth NO se
+  borra desde el cliente (requiere Admin SDK); si el usuario vuelve a entrar se recrea la ficha
+  (sin veto) → para impedir el acceso de verdad se usa el **veto**, no el borrado. Solo para
+  rol `client` (no se ofrece sobre barberos/admin).

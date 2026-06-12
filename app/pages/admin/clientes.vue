@@ -6,10 +6,11 @@ import type { Client } from '~~/schemas'
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Clientes · Admin' })
 
-const { clients } = useClients()
+const { clients, setBanned, removeClient } = useClients()
 const { services } = useServices()
 const { barbers } = useBarbers()
 const { forClient } = useAppointments()
+const toast = useToast()
 
 // Último acceso (users_v2/{uid}.lastLogin). Puede no existir (cuentas antiguas).
 function lastSeen(c: Client): string {
@@ -86,6 +87,48 @@ function newApptFor(id: string) {
   selectedId.value = id
   bookingOpen.value = true
 }
+
+// — Vetar / readmitir cliente —
+const banBusy = ref(false)
+async function toggleBan(c: Client) {
+  if (banBusy.value) return
+  banBusy.value = true
+  try {
+    await setBanned(c.id, !c.banned)
+    toast.add({
+      title: c.banned ? 'Veto retirado' : 'Cliente vetado',
+      description: c.banned ? 'Ya puede reservar.' : 'No podrá coger nuevas citas.',
+      icon: c.banned ? 'i-lucide-user-check' : 'i-lucide-ban',
+      color: c.banned ? 'success' : 'warning',
+    })
+  } catch (e) {
+    toast.add({ title: 'No se pudo actualizar', description: (e as Error).message, color: 'error' })
+  } finally {
+    banBusy.value = false
+  }
+}
+
+// — Eliminar ficha de cliente (doble confirmación) —
+const deleteArmed = ref(false)
+const deleting = ref(false)
+watch(selectedId, () => (deleteArmed.value = false)) // resetea al cambiar de ficha
+async function deleteClient(c: Client) {
+  if (!deleteArmed.value) {
+    deleteArmed.value = true
+    return
+  }
+  deleting.value = true
+  try {
+    await removeClient(c.id)
+    toast.add({ title: 'Cliente eliminado', icon: 'i-lucide-trash-2' })
+    selectedId.value = null
+  } catch (e) {
+    toast.add({ title: 'No se pudo eliminar', description: (e as Error).message, color: 'error' })
+  } finally {
+    deleting.value = false
+    deleteArmed.value = false
+  }
+}
 </script>
 
 <template>
@@ -123,7 +166,7 @@ function newApptFor(id: string) {
         >
           <span class="flex min-w-0 items-center gap-3">
             <span class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(c.name) }}</span>
-            <span class="min-w-0"><span class="block truncate text-sm font-semibold">{{ c.name || 'Sin nombre' }}</span><span class="text-dimmed block truncate text-xs lg:hidden">{{ c.email }}</span></span>
+            <span class="min-w-0"><span class="flex items-center gap-1.5"><span class="truncate text-sm font-semibold">{{ c.name || 'Sin nombre' }}</span><UIcon v-if="c.banned" name="i-lucide-ban" class="text-error size-3.5 shrink-0" /></span><span class="text-dimmed block truncate text-xs lg:hidden">{{ c.email }}</span></span>
           </span>
           <span class="text-muted hidden truncate text-sm lg:block">{{ c.email }}</span>
           <span class="text-muted hidden font-mono text-sm lg:block">{{ c.phone || '—' }}</span>
@@ -151,7 +194,10 @@ function newApptFor(id: string) {
               <div class="border-primary/40 bg-elevated flex size-16 items-center justify-center rounded-full border text-lg font-semibold">{{ initials(selected.name) }}</div>
               <div class="min-w-0">
                 <p class="font-display truncate text-2xl leading-none">{{ selected.name || 'Sin nombre' }}</p>
-                <span class="mt-1.5 inline-block rounded-full px-2 py-0.5 font-mono text-[0.55rem] tracking-wide uppercase" :class="roleOf(selected).class">{{ roleOf(selected).label }}</span>
+                <div class="mt-1.5 flex items-center gap-1.5">
+                  <span class="inline-block rounded-full px-2 py-0.5 font-mono text-[0.55rem] tracking-wide uppercase" :class="roleOf(selected).class">{{ roleOf(selected).label }}</span>
+                  <span v-if="selected.banned" class="text-error bg-error/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.55rem] tracking-wide uppercase"><UIcon name="i-lucide-ban" class="size-3" />Vetado</span>
+                </div>
               </div>
             </div>
 
@@ -196,8 +242,12 @@ function newApptFor(id: string) {
             </div>
           </div>
 
-          <footer class="border-default border-t px-5 py-4">
+          <footer class="border-default space-y-2.5 border-t px-5 py-4">
             <UButton color="primary" size="lg" block icon="i-lucide-plus" @click="newApptFor(selected.id)">Crear cita</UButton>
+            <div v-if="(selected.role ?? 'client') === 'client'" class="grid grid-cols-2 gap-2.5">
+              <UButton :color="selected.banned ? 'success' : 'warning'" variant="soft" block :icon="selected.banned ? 'i-lucide-user-check' : 'i-lucide-ban'" :loading="banBusy" @click="toggleBan(selected)">{{ selected.banned ? 'Quitar veto' : 'Vetar' }}</UButton>
+              <UButton :color="deleteArmed ? 'error' : 'neutral'" :variant="deleteArmed ? 'solid' : 'soft'" block :icon="deleteArmed ? 'i-lucide-trash-2' : 'i-lucide-user-minus'" :loading="deleting" @click="deleteClient(selected)">{{ deleteArmed ? '¿Confirmar?' : 'Eliminar' }}</UButton>
+            </div>
           </footer>
         </aside>
       </div>

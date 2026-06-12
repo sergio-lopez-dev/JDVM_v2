@@ -12,6 +12,9 @@ export const clientSchema = z.object({
   allowPush: z.boolean().default(false),
   createdAt: z.date().optional(),
   lastLogin: z.date().optional(),
+  // Cliente vetado por barbero/admin (p. ej. faltó a una cita y no la pagó): no puede
+  // coger nuevas citas. Solo lo marca el staff; el cliente no puede cambiarlo.
+  banned: z.boolean().optional(),
 })
 export type Client = z.infer<typeof clientSchema>
 
