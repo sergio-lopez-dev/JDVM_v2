@@ -28,6 +28,7 @@ const { inRange, setStatus, cancel, remove } = useAppointments()
 const { active: barbers } = useBarbers()
 const { settings } = useSettings()
 const { notifyCancellation } = useNotifications()
+const { setBanned, clientById } = useClients()
 const toast = useToast()
 
 // Rango consultado a Firestore (lo mueve Schedule-X vía onRangeUpdate).
@@ -86,6 +87,16 @@ const calendars = computed(() =>
 const calendarApp = shallowRef<CalendarApp | null>(null)
 const selected = ref<(typeof enriched.value)[number] | null>(null)
 
+// Veto del cliente de la cita seleccionada (para ofrecer vetar tras un "no vino").
+const selectedClientId = computed(() => selected.value?.clientId ?? null)
+const selectedClientDoc = clientById(selectedClientId)
+const selectedBanned = computed(() => !!selectedClientDoc.value?.banned)
+const banPrompt = ref(false)
+const banBusy = ref(false)
+// Resetea el prompt al cambiar DE cita (por id): así reflejar el nuevo estado de la
+// misma cita (spread con status no_show) no lo cierra.
+watch(() => selected.value?.id, () => (banPrompt.value = false))
+
 onMounted(() => {
   calendarApp.value = createCalendar({
     // Día / Semana / Mes / Lista — el selector superior permite cambiar de vista.
@@ -132,8 +143,24 @@ async function markCompleted(id: string) {
 }
 async function markNoShow(id: string) {
   await setStatus(id, 'no_show')
-  toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x' })
-  selected.value = null
+  toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
+  // Refleja el nuevo estado en el drawer (oculta los botones de 'booked') sin cerrarlo.
+  if (selected.value?.id === id) selected.value = { ...selected.value, status: 'no_show' }
+  // Ofrece vetar al cliente (no siempre se veta: solo si no paga la cita perdida).
+  if (!selectedBanned.value) banPrompt.value = true
+}
+async function banFromPrompt() {
+  if (!selected.value || banBusy.value) return
+  banBusy.value = true
+  try {
+    await setBanned(selected.value.clientId, true)
+    toast.add({ title: 'Cliente vetado', description: 'No podrá coger nuevas citas.', icon: 'i-lucide-ban', color: 'warning' })
+    banPrompt.value = false
+  } catch (e) {
+    toast.add({ title: 'No se pudo vetar', description: (e as Error).message, color: 'error' })
+  } finally {
+    banBusy.value = false
+  }
 }
 async function cancelAppt() {
   if (!selected.value) return
@@ -191,6 +218,26 @@ const dayFreeSlots = computed(() => {
     .map((a) => ({ start: a.startsAt, end: a.endsAt }))
   return freeWindows({ day: selectedDay.value, localTimetable: localTt, barberTimetable: barberTt, busy, minMinutes: 10 })
 })
+// Barberos a mostrar en el board de columnas: el filtrado (si hay) o todos.
+const boardBarbers = computed(() =>
+  barberFilter.value ? barbers.value.filter((b) => b.id === barberFilter.value) : barbers.value,
+)
+// Huecos libres por barbero para el día seleccionado (se pintan en cada columna).
+const freeByBarber = computed(() => {
+  const map: Record<string, { start: Date; end: Date }[]> = {}
+  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, selectedDay.value) : undefined
+  for (const b of boardBarbers.value) {
+    const barberTt = resolveDayTimetable(b.timetable, selectedDay.value)
+    const busy = dayAppts.value
+      .filter((a) => a.barberId === b.id && (a.status === 'booked' || a.status === 'completed'))
+      .map((a) => ({ start: a.startsAt, end: a.endsAt }))
+    map[b.id] = freeWindows({ day: selectedDay.value, localTimetable: localTt, barberTimetable: barberTt, busy, minMinutes: 10 })
+  }
+  return map
+})
+// Vista móvil de la agenda: "columns" (columnas por barbero) o "list" (timeline).
+const mobileView = ref<'columns' | 'list'>('columns')
+
 type PillKind = 'confirmed' | 'done' | 'pending' | 'cancelled' | 'neutral'
 function mobileStatusKind(s: string): PillKind {
   return s === 'completed' ? 'done' : s === 'no_show' ? 'cancelled' : 'confirmed'
@@ -305,7 +352,7 @@ function goToday() {
 
       <!-- vista equipo: columnas por barbero -->
       <div v-show="desktopView === 'team'" class="border-default bg-muted relative hidden max-h-[760px] overflow-auto rounded-2xl border lg:block">
-        <AdminDayBoard :day="selectedDay" :barbers="barbers" :appointments="enriched" @select="selected = $event" />
+        <AdminDayBoard :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" />
         <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
           <div v-if="loading" class="bg-default/55 absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[1px]">
             <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
@@ -342,8 +389,34 @@ function goToday() {
         </Transition>
       </div>
 
-      <!-- timeline (móvil) -->
-      <div class="lg:hidden">
+      <!-- móvil: selector Columnas / Lista -->
+      <div class="flex items-center gap-2 lg:hidden">
+        <div class="border-default bg-muted inline-flex rounded-lg border p-0.5">
+          <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition" :class="mobileView === 'columns' ? 'bg-primary text-inverted' : 'text-muted'" @click="mobileView = 'columns'">
+            <UIcon name="i-lucide-columns-3" class="mr-1 inline size-4 align-[-2px]" />Columnas
+          </button>
+          <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition" :class="mobileView === 'list' ? 'bg-primary text-inverted' : 'text-muted'" @click="mobileView = 'list'">
+            <UIcon name="i-lucide-list" class="mr-1 inline size-4 align-[-2px]" />Lista
+          </button>
+        </div>
+      </div>
+
+      <!-- móvil: columnas por barbero (visión general del equipo + huecos libres) -->
+      <div v-show="mobileView === 'columns'" class="border-default bg-muted relative max-h-[68vh] overflow-auto rounded-2xl border lg:hidden">
+        <AdminDayBoard v-if="boardBarbers.length" :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" />
+        <div v-else class="p-8"><UiEmptyState icon="i-lucide-users" title="Sin barberos" description="Añade barberos en Equipo." /></div>
+        <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
+          <div v-if="loading" class="bg-default/55 absolute inset-0 z-40 flex items-center justify-center backdrop-blur-[1px]">
+            <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
+              <UIcon name="i-lucide-loader-circle" class="text-primary size-4 animate-spin" />
+              <span class="text-toned text-sm font-medium">Cargando…</span>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- móvil: timeline (lista) -->
+      <div v-show="mobileView === 'list'" class="lg:hidden">
         <div v-if="loading" class="space-y-3 pt-1">
           <div v-for="i in 5" :key="i" class="flex gap-3">
             <div class="bg-muted mt-3 h-3 w-9 shrink-0 animate-pulse rounded" />
@@ -425,6 +498,16 @@ function goToday() {
             <p v-if="selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
               Fuera de la ventana de 4 h del cliente · como admin puedes igualmente.
             </p>
+
+            <!-- ofrecer veto tras marcar "no vino" -->
+            <div v-if="banPrompt" class="border-warning/40 bg-warning/10 mt-4 rounded-2xl border p-4">
+              <p class="text-sm font-medium">El cliente no se presentó. ¿Vetarlo para que no coja más citas hasta que pague la cita perdida?</p>
+              <div class="mt-3 flex gap-2.5">
+                <UButton color="error" class="flex-1 justify-center" icon="i-lucide-ban" :loading="banBusy" @click="banFromPrompt">Vetar cliente</UButton>
+                <UButton color="neutral" variant="soft" class="flex-1 justify-center" @click="banPrompt = false">Ahora no</UButton>
+              </div>
+            </div>
+            <p v-else-if="selectedBanned" class="text-error mt-3 flex items-center justify-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado.</p>
           </div>
         </div>
       </div>

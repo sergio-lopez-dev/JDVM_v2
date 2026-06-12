@@ -38,11 +38,18 @@ async function markDone() {
   await setStatus(appt.value.id, 'completed')
   toast.add({ title: 'Cita marcada como hecha', icon: 'i-lucide-check', color: 'success' })
 }
+const banPrompt = ref(false)
 async function markNoShow() {
   if (!appt.value) return
   // No cuenta en la contabilidad (solo suman las 'completed').
   await setStatus(appt.value.id, 'no_show')
   toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
+  // Ofrece vetar (no siempre se veta: solo si no paga la cita perdida).
+  if (!banned.value) banPrompt.value = true
+}
+async function banFromPrompt() {
+  await toggleBan()
+  banPrompt.value = false
 }
 async function toggleBan() {
   if (!clientUid.value || banBusy.value) return
@@ -117,6 +124,15 @@ function reschedule() {
           <UButton :color="banned ? 'success' : 'error'" variant="soft" size="lg" class="justify-center" :class="appt.status !== 'booked' ? 'col-span-2' : ''" :icon="banned ? 'i-lucide-user-check' : 'i-lucide-ban'" :loading="banBusy" @click="toggleBan">{{ banned ? 'Quitar veto' : 'Vetar cliente' }}</UButton>
         </div>
         <p v-if="banned" class="text-error -mt-2 flex items-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado: no puede coger nuevas citas.</p>
+
+        <!-- ofrecer veto tras marcar "no vino" -->
+        <div v-if="banPrompt" class="border-warning/40 bg-warning/10 rounded-2xl border p-4">
+          <p class="text-sm font-medium">El cliente no se presentó. ¿Quieres vetarlo para que no coja más citas hasta que pague la cita perdida?</p>
+          <div class="mt-3 flex gap-2.5">
+            <UButton color="error" class="flex-1 justify-center" icon="i-lucide-ban" :loading="banBusy" @click="banFromPrompt">Vetar cliente</UButton>
+            <UButton color="neutral" variant="soft" class="flex-1 justify-center" @click="banPrompt = false">Ahora no</UButton>
+          </div>
+        </div>
 
         <!-- últimas visitas -->
         <div v-if="history.length">

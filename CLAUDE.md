@@ -572,3 +572,20 @@ recompensas (catálogo) y los canjes.
   borra desde el cliente (requiere Admin SDK); si el usuario vuelve a entrar se recrea la ficha
   (sin veto) → para impedir el acceso de verdad se usa el **veto**, no el borrado. Solo para
   rol `client` (no se ofrece sobre barberos/admin).
+- **Ofrecer veto tras "no vino":** al marcar `no_show` (en [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue),
+  drawer de [`/admin/agenda`](app/pages/admin/agenda.vue) y de [`/admin/citas`](app/pages/admin/citas.vue))
+  aparece un prompt "¿Vetar cliente?" — **no es automático** (solo si no paga la cita perdida).
+  El drawer no se cierra; el botón "No vino" usa `noShowSel`/`markNoShow` que reflejan el nuevo
+  estado en `selected` (spread) y el `watch` del prompt se resetea por `id`, no por objeto.
+
+### 15.2 Agenda admin · columnas por barbero + horas libres (móvil y PC)
+
+- **[`AdminDayBoard`](app/components/AdminDayBoard.vue)** ampliado: además de las columnas por
+  barbero, pinta los **huecos libres** por columna (zonas verdes punteadas), un badge **€** en las
+  citas `completed` (pagadas) e indicador de **"ahora"** (línea roja, solo si el día es hoy).
+  Recibe `freeByBarber` (mapa barberId→[{start,end}]) calculado en la agenda con `freeWindows`.
+- **Móvil:** la agenda ([`/admin/agenda`](app/pages/admin/agenda.vue)) ahora ofrece un toggle
+  **Columnas / Lista** (`mobileView`, por defecto **Columnas**). "Columnas" = `AdminDayBoard` del día
+  seleccionado (scroll horizontal si hay muchos barberos); "Lista" = el timeline anterior.
+- **Escritorio:** el board de la vista **Equipo** usa `boardBarbers` (respeta el filtro de barbero)
+  y muestra también las horas libres. Mismo componente que móvil.

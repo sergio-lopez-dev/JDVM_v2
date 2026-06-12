@@ -8,6 +8,7 @@ useHead({ title: 'Citas · Admin' })
 
 const { inRange, setStatus, cancel, remove } = useAppointments()
 const { notifyCancellation } = useNotifications()
+const { setBanned, clientById } = useClients()
 const toast = useToast()
 
 function startOfToday() {
@@ -77,6 +78,41 @@ const pageRows = computed(() => filtered.value.slice((page.value - 1) * perPage,
 
 // Acciones sobre una cita.
 const selected = ref<AdminAppointment | null>(null)
+
+// Veto del cliente (para ofrecer vetar tras un "no vino").
+const selectedClientId = computed(() => selected.value?.clientId ?? null)
+const selectedClientDoc = clientById(selectedClientId)
+const selectedBanned = computed(() => !!selectedClientDoc.value?.banned)
+const banPrompt = ref(false)
+const banBusy = ref(false)
+watch(() => selected.value?.id, () => (banPrompt.value = false))
+
+async function noShowSel() {
+  if (!selected.value) return
+  const id = selected.value.id
+  try {
+    await setStatus(id, 'no_show')
+    toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
+    if (selected.value?.id === id) selected.value = { ...selected.value, status: 'no_show' }
+    if (!selectedBanned.value) banPrompt.value = true // ofrece vetar (no siempre se veta)
+  } catch (e) {
+    toast.add({ title: 'Error', description: (e as Error).message, color: 'error' })
+  }
+}
+async function banFromPrompt() {
+  if (!selected.value || banBusy.value) return
+  banBusy.value = true
+  try {
+    await setBanned(selected.value.clientId, true)
+    toast.add({ title: 'Cliente vetado', description: 'No podrá coger nuevas citas.', icon: 'i-lucide-ban', color: 'warning' })
+    banPrompt.value = false
+  } catch (e) {
+    toast.add({ title: 'No se pudo vetar', description: (e as Error).message, color: 'error' })
+  } finally {
+    banBusy.value = false
+  }
+}
+
 async function cancelSel() {
   if (!selected.value) return
   const s = selected.value
@@ -230,10 +266,20 @@ const bookingOpen = ref(false)
           </div>
           <div class="mt-5 grid grid-cols-2 gap-2.5">
             <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="act(() => setStatus(selected!.id, 'completed'), 'Cita completada')">Completar</UButton>
-            <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="act(() => setStatus(selected!.id, 'no_show'), 'Marcada como “no vino”')">No vino</UButton>
+            <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="noShowSel">No vino</UButton>
             <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="act(() => cancelSel(), 'Cita cancelada')">Cancelar</UButton>
             <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="act(() => remove(selected!.id), 'Cita eliminada')">Eliminar</UButton>
           </div>
+
+          <!-- ofrecer veto tras marcar "no vino" -->
+          <div v-if="banPrompt" class="border-warning/40 bg-warning/10 mt-4 rounded-2xl border p-4">
+            <p class="text-sm font-medium">El cliente no se presentó. ¿Vetarlo para que no coja más citas hasta que pague la cita perdida?</p>
+            <div class="mt-3 flex gap-2.5">
+              <UButton color="error" class="flex-1 justify-center" icon="i-lucide-ban" :loading="banBusy" @click="banFromPrompt">Vetar cliente</UButton>
+              <UButton color="neutral" variant="soft" class="flex-1 justify-center" @click="banPrompt = false">Ahora no</UButton>
+            </div>
+          </div>
+          <p v-else-if="selectedBanned" class="text-error mt-3 flex items-center justify-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado.</p>
         </div>
       </div>
     </Transition>
