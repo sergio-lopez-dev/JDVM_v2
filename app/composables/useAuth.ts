@@ -52,10 +52,22 @@ export function useAuth() {
     const ref = doc(db, COL.users, fbUser.uid)
     const snap = await getDoc(ref)
     if (!snap.exists()) {
+      // Compartimos base con la app legacy (v1): un cliente de siempre ya tiene su
+      // nombre/teléfono en la colección `users` de la v1. Si aún no se ha migrado su
+      // doc a `users_v2`, lo sembramos desde el legacy para NO volver a pedirle datos
+      // que ya tiene (lo que hacía que se le mandara a /completar-perfil al entrar).
+      let legacy: { name?: string; phone?: unknown; instagram?: string } = {}
+      try {
+        const legacySnap = await getDoc(doc(db, 'users', fbUser.uid))
+        if (legacySnap.exists()) legacy = legacySnap.data() as typeof legacy
+      } catch {
+        // sin permisos / offline: seguimos con lo que tengamos
+      }
       await setDoc(ref, {
-        name: extra.name ?? fbUser.displayName ?? '',
+        name: extra.name ?? fbUser.displayName ?? legacy.name ?? '',
         email: fbUser.email ?? '',
-        phone: extra.phone ?? '',
+        phone: extra.phone ?? (legacy.phone ? String(legacy.phone) : ''),
+        instagram: legacy.instagram ?? '',
         role: 'client',
         allowPush: false,
         createdAt: serverTimestamp(),

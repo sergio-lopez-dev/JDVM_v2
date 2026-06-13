@@ -12,6 +12,9 @@ const route = useRoute()
 const user = useCurrentUser()
 const { client } = useCurrentClient()
 const banned = computed(() => !!client.value?.banned)
+// El estudio puede cerrar las reservas (admin → Ajustes). Si está cerrado, el cliente
+// no puede coger nuevas citas (enforcement a nivel de app, como el veto).
+const bookingsClosed = computed(() => settings.value?.acceptingAppointments === false)
 const toast = useToast()
 const { publicServices } = useServices()
 const { active: barbers } = useBarbers()
@@ -156,6 +159,10 @@ async function confirm() {
   if (!svc || !slot || !user.value) return
   if (banned.value) {
     toast.add({ title: 'No puedes reservar', description: 'Tu cuenta está bloqueada para nuevas reservas. Contacta con el estudio.', color: 'error', icon: 'i-lucide-ban' })
+    return
+  }
+  if (bookingsClosed.value) {
+    toast.add({ title: 'Reservas cerradas', description: 'El estudio no está aceptando nuevas reservas en este momento.', color: 'error', icon: 'i-lucide-calendar-off' })
     return
   }
   submitting.value = true
@@ -333,6 +340,11 @@ const gcalUrl = computed(() => {
   <div v-if="banned" class="border-error/40 bg-error/10 text-error fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur">
     <UIcon name="i-lucide-ban" class="size-5 shrink-0" />
     <p class="text-sm">Tu cuenta está bloqueada para nuevas reservas. Contacta con el estudio para resolverlo.</p>
+  </div>
+  <!-- aviso de reservas cerradas por el estudio -->
+  <div v-else-if="bookingsClosed" class="border-error/40 bg-error/10 text-error fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur">
+    <UIcon name="i-lucide-calendar-off" class="size-5 shrink-0" />
+    <p class="text-sm">El estudio no está aceptando nuevas reservas en este momento. Inténtalo más tarde o contacta con el estudio.</p>
   </div>
   <!-- ====================== MÓVIL ====================== -->
   <div class="flex flex-1 flex-col lg:hidden">
