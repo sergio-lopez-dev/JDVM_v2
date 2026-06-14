@@ -513,7 +513,9 @@ const gcalUrl = computed(() => {
         <!-- barbero (selección directa, como en la web) -->
         <div>
           <p class="mb-3 text-sm font-semibold">Elige barbero</p>
-          <div class="flex gap-3 overflow-x-auto pb-1">
+          <!-- py-2: el anillo del seleccionado (ring + ring-offset) sobresale ~4px y
+               overflow-x-auto recorta también el eje vertical → necesita aire arriba/abajo -->
+          <div class="-mx-1 flex gap-3 overflow-x-auto px-1 py-2">
             <button type="button" class="flex shrink-0 flex-col items-center gap-1.5" @click="anyBarber = true">
               <span
                 class="flex size-12 items-center justify-center rounded-full border"
