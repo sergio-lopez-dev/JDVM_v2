@@ -30,7 +30,7 @@ const raw = inRange(rangeStart, rangeEnd)
 const { enriched } = useAdminAppointments(raw)
 
 const search = ref('')
-const FILTERS = ['Todas', 'Hoy', 'Confirmadas', 'Hechas', 'Canceladas'] as const
+const FILTERS = ['Todas', 'Hoy', 'Confirmadas', 'Hechas', 'No vino', 'Canceladas'] as const
 const filter = ref<(typeof FILTERS)[number]>('Todas')
 
 const today = startOfToday()
@@ -60,6 +60,7 @@ const filtered = computed(() => {
       if (filter.value === 'Hoy') return sameDay(a.startsAt, today)
       if (filter.value === 'Confirmadas') return a.status === 'booked'
       if (filter.value === 'Hechas') return a.status === 'completed'
+      if (filter.value === 'No vino') return a.status === 'no_show'
       if (filter.value === 'Canceladas') return a.status === 'cancelled'
       return true
     })
