@@ -276,18 +276,32 @@ async function confirm() {
 
           <!-- fecha + hueco -->
           <div v-if="service && barber">
-            <div class="mb-1.5 flex items-center justify-between">
-              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Fecha y hora</label>
-              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="outOfHours = !outOfHours; slot = null">
-                {{ outOfHours ? 'Ver huecos' : 'Fuera de horario' }}
-              </button>
-            </div>
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Fecha y hora</label>
             <input
               type="date"
               :value="dateInputValue"
-              class="border-default bg-muted text-default mb-3 w-full rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
+              class="border-default bg-muted text-default mb-2.5 w-full rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
               @input="setDateFromInput(($event.target as HTMLInputElement).value)"
             />
+            <!-- control segmentado: huecos del horario vs. hora libre (corte extra) -->
+            <div class="border-default bg-muted mb-2.5 grid grid-cols-2 gap-1 rounded-xl border p-1">
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="!outOfHours ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="outOfHours = false"
+              >
+                <UIcon name="i-lucide-clock" class="size-4" />Huecos
+              </button>
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="outOfHours ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="outOfHours = true; slot = null"
+              >
+                <UIcon name="i-lucide-clock-plus" class="size-4" />Fuera de horario
+              </button>
+            </div>
             <!-- hora libre (corte extra fuera del horario): se salta huecos y horario -->
             <template v-if="outOfHours">
               <input

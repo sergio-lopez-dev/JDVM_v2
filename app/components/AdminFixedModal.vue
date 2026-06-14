@@ -318,10 +318,24 @@ async function del(id: string) {
 
           <!-- hora: huecos reales según horario + paso (o hora libre fuera de horario) -->
           <div>
-            <div class="mb-1.5 flex items-center justify-between">
-              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Hora</label>
-              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="outOfHours = !outOfHours">
-                {{ outOfHours ? 'Ver huecos' : 'Fuera de horario' }}
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Hora</label>
+            <!-- control segmentado: huecos del horario vs. hora libre (corte extra) -->
+            <div class="border-default bg-muted mb-2.5 grid grid-cols-2 gap-1 rounded-xl border p-1">
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="!outOfHours ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="outOfHours = false"
+              >
+                <UIcon name="i-lucide-clock" class="size-4" />Huecos
+              </button>
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="outOfHours ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="outOfHours = true"
+              >
+                <UIcon name="i-lucide-clock-plus" class="size-4" />Fuera de horario
               </button>
             </div>
             <template v-if="outOfHours">
