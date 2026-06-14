@@ -16,7 +16,11 @@ const props = defineProps<{
   appointments: AdminAppointment[]
   freeByBarber?: Record<string, FreeWindow[]>
 }>()
-const emit = defineEmits<{ select: [AdminAppointment] }>()
+const emit = defineEmits<{
+  select: [AdminAppointment]
+  // Click en un hueco libre → pedir crear cita para ese barbero a esa hora.
+  pick: [{ barberId: string; start: Date }]
+}>()
 
 const PX_PER_MIN = 1.2 // alto de una hora = 72px
 
@@ -62,7 +66,9 @@ function bandStyle(start: Date, end: Date, gap = 2) {
   return { top: `${startMin * PX_PER_MIN}px`, height: `${durMin * PX_PER_MIN - gap}px` }
 }
 function styleOf(a: AdminAppointment) {
-  return { ...bandStyle(a.startsAt, a.endsAt), borderLeftColor: a.barberColor || 'var(--jdvm-accent)' }
+  // El borde izquierdo usa el color de la cita (servicio / serie fija) para
+  // distinguir tipos de servicio dentro de la columna del barbero.
+  return { ...bandStyle(a.startsAt, a.endsAt), borderLeftColor: a.eventColor || 'var(--jdvm-accent)' }
 }
 
 // Indicador de "ahora" (solo si el día mostrado es hoy).
@@ -117,15 +123,20 @@ const gridCols = computed(() => `48px repeat(${props.barbers.length}, minmax(116
             class="border-default/60 absolute inset-x-0 border-t"
             :style="{ top: `${i * 60 * PX_PER_MIN}px` }"
           />
-          <!-- huecos libres -->
-          <div
+          <!-- huecos libres (click → crear cita para ese barbero a esa hora) -->
+          <button
             v-for="(f, i) in freeOf(b.id)"
             :key="`free-${i}`"
-            class="border-success/30 bg-success/10 absolute inset-x-1 overflow-hidden rounded-md border border-dashed"
+            type="button"
+            class="group border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 absolute inset-x-1 overflow-hidden rounded-md border border-dashed text-left transition"
             :style="bandStyle(f.start, f.end)"
+            :title="`Crear cita · ${fmtDate(f.start, 'HH:mm')}`"
+            @click="emit('pick', { barberId: b.id, start: f.start })"
           >
-            <span class="text-success/90 px-1.5 py-0.5 font-mono text-[0.55rem] font-semibold">libre · {{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
-          </div>
+            <span class="text-success/90 flex items-center gap-1 px-1.5 py-0.5 font-mono text-[0.55rem] font-semibold">
+              <UIcon name="i-lucide-plus" class="size-2.5 opacity-0 transition group-hover:opacity-100" />libre · {{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}
+            </span>
+          </button>
           <!-- citas -->
           <button
             v-for="a in apptsOf(b.id)"

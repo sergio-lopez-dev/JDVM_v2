@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { weekdaySchema, timeStringSchema } from './common'
+import { weekdaySchema, timeStringSchema, hexColorSchema } from './common'
 
 // Plantilla de cita fija (semanal). El admin la crea; se materializan citas
 // concretas (appointments con isRecurring + fixedId) para las próximas semanas.
@@ -14,6 +14,9 @@ export const fixedAppointmentSchema = z.object({
   weekday: weekdaySchema,
   time: timeStringSchema, // "HH:mm"
   active: z.boolean().default(true),
+  // Color con el que se representa la serie en la agenda (tiene prioridad sobre el
+  // color del servicio para sus citas materializadas).
+  color: hexColorSchema.optional(),
   createdAt: z.date().optional(),
 })
 export type FixedAppointment = z.infer<typeof fixedAppointmentSchema>

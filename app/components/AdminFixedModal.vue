@@ -34,6 +34,8 @@ const service = ref<Service | null>(null)
 const barber = ref<Barber | null>(null)
 const weekday = ref<Weekday>('tue')
 const time = ref('10:00')
+// Color de la serie en la agenda (admin/barbero), para identificarla rápido.
+const color = ref('#C2A24E')
 const saving = ref(false)
 // id de la serie que se está editando (null = creando una nueva).
 const editingId = ref<string | null>(null)
@@ -51,6 +53,7 @@ function resetForm() {
   barber.value = null
   weekday.value = 'tue'
   time.value = '10:00'
+  color.value = '#C2A24E'
   editingId.value = null
   manualClient.value = false
   manualName.value = ''
@@ -76,6 +79,7 @@ function startEdit(f: FixedAppointment) {
   barber.value = barbers.value.find((b) => b.id === f.barberId) ?? null
   weekday.value = f.weekday
   time.value = f.time
+  color.value = f.color ?? '#C2A24E'
   // Si la hora guardada no es un hueco estándar, asumimos que fue "fuera de horario".
   outOfHours.value = false
 }
@@ -183,6 +187,7 @@ async function submit() {
       weekday: weekday.value,
       time: time.value,
       active: true,
+      color: color.value,
     }
     const res = editingId.value ? await update(editingId.value, input) : await create(input)
     const verb = editingId.value ? 'actualizada' : 'creada'
@@ -364,6 +369,24 @@ async function del(id: string) {
             </template>
           </div>
 
+          <!-- color en la agenda -->
+          <div>
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Color en la agenda</label>
+            <div class="flex items-center gap-3">
+              <input
+                v-model="color"
+                type="color"
+                aria-label="Color de la cita fija en la agenda"
+                class="border-default bg-muted h-10 w-14 cursor-pointer rounded-lg border"
+              />
+              <span class="border-default flex items-center gap-2 rounded-lg border px-3 py-2">
+                <span class="size-4 rounded-full" :style="{ background: color }" />
+                <span class="font-mono text-xs uppercase">{{ color }}</span>
+              </span>
+            </div>
+            <p class="text-dimmed mt-1.5 text-xs">Para identificar la serie rápido en la agenda del estudio.</p>
+          </div>
+
           <div class="flex gap-2">
             <UButton v-if="editingId" color="neutral" variant="soft" size="lg" icon="i-lucide-x" @click="resetForm">Cancelar</UButton>
             <UButton :disabled="!canSubmit" :loading="saving" color="primary" size="lg" block :icon="editingId ? 'i-lucide-check' : 'i-lucide-repeat'" @click="submit">{{ editingId ? 'Guardar cambios' : 'Crear cita fija' }}</UButton>
@@ -377,7 +400,7 @@ async function del(id: string) {
               <div v-for="g in groupedFixed" :key="g.weekday">
                 <p class="text-toned mb-1.5 text-xs font-semibold">{{ g.label }}</p>
                 <div class="space-y-2">
-                  <div v-for="f in g.items" :key="f.id" class="flex items-center gap-3 rounded-xl border p-3" :class="editingId === f.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'">
+                  <div v-for="f in g.items" :key="f.id" class="flex items-center gap-3 rounded-xl border border-l-[3px] p-3" :class="editingId === f.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'" :style="{ borderLeftColor: f.color || 'var(--jdvm-accent)' }">
                     <span class="text-primary font-mono text-sm font-semibold tabular-nums">{{ f.time }}</span>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold">{{ clientLabel(f) }}<span v-if="!f.clientId" class="text-dimmed font-normal"> · sin registrar</span></p>

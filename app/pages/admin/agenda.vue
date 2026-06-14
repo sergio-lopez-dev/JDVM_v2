@@ -26,6 +26,8 @@ useHead({ title: 'Agenda · Admin' })
 
 const { inRange, setStatus, cancel, remove } = useAppointments()
 const { active: barbers } = useBarbers()
+const { services } = useServices()
+const { fixed } = useFixedAppointments()
 const { settings } = useSettings()
 const { notifyCancellation } = useNotifications()
 const { setBanned, clientById } = useClients()
@@ -57,6 +59,12 @@ const visible = computed(() =>
   barberFilter.value ? enriched.value.filter((a) => a.barberId === barberFilter.value) : enriched.value,
 )
 
+// Schedule-X colorea por `calendarId`. Para pintar cada cita con su color resuelto
+// (serie fija > servicio > barbero) usamos un "calendario" por color único.
+function colorToken(hex: string) {
+  return `c${hex.replace('#', '').toLowerCase()}`
+}
+
 // Citas -> eventos Schedule-X (excluye canceladas).
 const events = computed<CalendarEvent[]>(() =>
   visible.value
@@ -66,23 +74,36 @@ const events = computed<CalendarEvent[]>(() =>
       title: `${a.clientName} · ${a.serviceName}`,
       start: toZdt(a.startsAt),
       end: toZdt(a.endsAt),
-      calendarId: a.barberId,
+      calendarId: colorToken(a.eventColor),
       people: [a.barberName],
     })),
 )
 
-// Color por barbero para Schedule-X.
+// Un "calendario" por color. Lo derivamos del conjunto ESTÁTICO de colores posibles
+// (servicios + barberos + series fijas + respaldo), no solo de las citas visibles, para
+// que el color siga estando definido al navegar de semana (Schedule-X fija los
+// calendarios al crearse).
+const ALL_COLORS = computed(() => {
+  const set = new Set<string>(['#C2A24E'])
+  for (const s of services.value) if (s.color) set.add(s.color)
+  for (const b of barbers.value) if (b.color) set.add(b.color)
+  for (const f of fixed.value) if (f.color) set.add(f.color)
+  return [...set]
+})
 const calendars = computed(() =>
   Object.fromEntries(
-    barbers.value.map((b) => [
-      b.id,
-      {
-        colorName: b.id,
-        label: b.name,
-        lightColors: { main: b.color, container: b.color, onContainer: '#0B0F0C' },
-        darkColors: { main: b.color, container: `${b.color}33`, onContainer: '#F2F1EC' },
-      },
-    ]),
+    ALL_COLORS.value.map((hex) => {
+      const token = colorToken(hex)
+      return [
+        token,
+        {
+          colorName: token,
+          label: token,
+          lightColors: { main: hex, container: hex, onContainer: '#0B0F0C' },
+          darkColors: { main: hex, container: `${hex}33`, onContainer: '#F2F1EC' },
+        },
+      ]
+    }),
   ),
 )
 
@@ -143,9 +164,16 @@ onMounted(() => {
 watch(events, (list) => {
   calendarApp.value?.events?.set(list)
 })
-// Refrescar colores si cambian barberos.
-watch(calendars, () => {
-  if (calendarApp.value) calendarApp.value.events.set(events.value)
+// Schedule-X fija los calendarios (colores) al crearse, pero los servicios/series
+// pueden cargar DESPUÉS del montaje. Actualizamos el signal interno de calendarios
+// para que esos colores se reflejen. Es API interna (`$app` es privado): lo hacemos
+// de forma defensiva — si cambiara, nos quedamos con los colores fijados al montar.
+type SxInternal = { $app?: { config?: { calendars?: { value: Record<string, unknown> } } } }
+watch(calendars, (cals) => {
+  if (!calendarApp.value) return
+  const internal = calendarApp.value as unknown as SxInternal
+  if (internal.$app?.config?.calendars) internal.$app.config.calendars.value = cals
+  calendarApp.value.events.set(events.value)
 })
 
 async function markCompleted(id: string) {
@@ -268,6 +296,21 @@ function mobileStatusLabel(s: string) {
 
 const bookingOpen = ref(false)
 const fixedOpen = ref(false)
+// Preselección de la "Nueva cita" cuando se abre desde un hueco libre de la agenda.
+const bookingPreset = ref<{ barberId?: string; date: Date; time?: string }>({ date: rangeStart.value })
+
+// Abre el modal de nueva cita prefijando barbero, día y hora del hueco pinchado.
+function bookFreeSlot(p: { barberId: string; start: Date }) {
+  const d = new Date(p.start)
+  d.setHours(0, 0, 0, 0)
+  bookingPreset.value = { barberId: p.barberId, date: d, time: fmtDate(p.start, 'HH:mm') }
+  bookingOpen.value = true
+}
+// Botón "Nueva cita" normal: sin preselección de barbero/hora (día = semana visible).
+function openNewBooking() {
+  bookingPreset.value = { date: rangeStart.value }
+  bookingOpen.value = true
+}
 
 // — Vista de escritorio: "calendar" (Schedule-X) o "team" (columnas por barbero) —
 const desktopView = ref<'calendar' | 'team'>('calendar')
@@ -313,7 +356,7 @@ const weekEnd = computed(() => {
     <AdminHeader title="Agenda" sub="Calendario del estudio">
       <template #actions>
         <UButton color="neutral" variant="soft" icon="i-lucide-repeat" @click="fixedOpen = true"><span class="hidden sm:inline">Citas fijas</span></UButton>
-        <UButton color="primary" icon="i-lucide-plus" @click="bookingOpen = true"><span class="hidden sm:inline">Nueva cita</span></UButton>
+        <UButton color="primary" icon="i-lucide-plus" @click="openNewBooking"><span class="hidden sm:inline">Nueva cita</span></UButton>
       </template>
     </AdminHeader>
 
@@ -396,7 +439,7 @@ const weekEnd = computed(() => {
 
       <!-- vista equipo: columnas por barbero -->
       <div v-show="desktopView === 'team'" class="border-default bg-muted relative hidden max-h-[760px] overflow-auto rounded-2xl border lg:block">
-        <AdminDayBoard :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" />
+        <AdminDayBoard :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" @pick="bookFreeSlot" />
         <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
           <div v-if="loading" class="bg-default/55 absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[1px]">
             <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
@@ -447,7 +490,7 @@ const weekEnd = computed(() => {
 
       <!-- móvil: columnas por barbero (visión general del equipo + huecos libres) -->
       <div v-show="mobileView === 'columns'" class="border-default bg-muted relative max-h-[68vh] overflow-auto rounded-2xl border lg:hidden">
-        <AdminDayBoard v-if="boardBarbers.length" :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" />
+        <AdminDayBoard v-if="boardBarbers.length" :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" @pick="bookFreeSlot" />
         <div v-else class="p-8"><UiEmptyState icon="i-lucide-users" title="Sin barberos" description="Añade barberos en Equipo." /></div>
         <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
           <div v-if="loading" class="bg-default/55 absolute inset-0 z-40 flex items-center justify-center backdrop-blur-[1px]">
@@ -473,13 +516,13 @@ const weekEnd = computed(() => {
               <span class="text-toned font-mono text-xs font-semibold">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
             </div>
             <div class="relative">
-              <span class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2" :style="{ background: a.barberColor || 'var(--jdvm-accent)' }" />
+              <span class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2" :style="{ background: a.eventColor || 'var(--jdvm-accent)' }" />
               <span class="bg-border absolute top-6 left-[3px] bottom-0 w-px" />
             </div>
             <button
               type="button"
               class="border-default bg-muted mb-3 flex-1 rounded-2xl border border-l-[3px] p-3.5 text-left"
-              :style="{ borderLeftColor: a.barberColor || 'var(--jdvm-accent)' }"
+              :style="{ borderLeftColor: a.eventColor || 'var(--jdvm-accent)' }"
               @click="selected = a"
             >
               <div class="flex items-center gap-3">
@@ -499,14 +542,22 @@ const weekEnd = computed(() => {
         <div v-if="dayFreeSlots.length" class="mt-4">
           <p class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"><span class="bg-success size-1.5 rounded-full" />Huecos libres</p>
           <div class="flex flex-wrap gap-2">
-            <span v-for="(f, i) in dayFreeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+            <button
+              v-for="(f, i) in dayFreeSlots"
+              :key="i"
+              type="button"
+              class="border-success/30 bg-success/10 text-success hover:bg-success/20 flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold transition"
+              @click="barberFilter && bookFreeSlot({ barberId: barberFilter, start: f.start })"
+            >
+              <UIcon name="i-lucide-plus" class="size-3" />{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}
+            </button>
           </div>
         </div>
         <p v-else-if="!barberFilter" class="text-dimmed mt-4 text-center text-xs">Filtra por un barbero para ver sus huecos libres.</p>
       </div>
     </div>
 
-    <AdminFab label="Nueva cita" @click="bookingOpen = true" />
+    <AdminFab label="Nueva cita" @click="openNewBooking" />
 
     <!-- detalle de cita (drawer) -->
     <Transition
@@ -559,7 +610,12 @@ const weekEnd = computed(() => {
       </div>
     </Transition>
 
-    <AdminBookingModal v-model:open="bookingOpen" :preset-date="rangeStart" />
+    <AdminBookingModal
+      v-model:open="bookingOpen"
+      :preset-date="bookingPreset.date"
+      :preset-barber-id="bookingPreset.barberId"
+      :preset-time="bookingPreset.time"
+    />
     <AdminFixedModal v-model:open="fixedOpen" />
   </div>
 </template>

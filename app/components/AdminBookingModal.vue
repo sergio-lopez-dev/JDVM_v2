@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { effectivePrice, effectiveDuration, type Service, type Barber } from '~~/schemas'
 import { generateSlots, resolveDayTimetable } from '~~/lib/slots'
-import { toDate } from '~~/lib/datetime'
+import { toDate, weekdayOf } from '~~/lib/datetime'
 import { fmtDate, formatPrice, formatDuration, initials } from '~~/lib/format'
 
 const props = defineProps<{
   open: boolean
   presetClientId?: string
   presetDate?: Date
+  // Al abrir desde un hueco libre de la agenda: barbero y hora ("HH:mm") prefijados.
+  presetBarberId?: string
+  presetTime?: string
 }>()
 const emit = defineEmits<{ 'update:open': [boolean]; created: [] }>()
 
@@ -17,6 +20,7 @@ const { active: barbers } = useBarbers()
 const { clients } = useClients()
 const { settings } = useSettings()
 const { create, busyFor } = useAppointments()
+const { fixed } = useFixedAppointments()
 
 const clientId = ref<string>('')
 const clientQuery = ref('')
@@ -39,6 +43,10 @@ function startOfToday() {
   return d
 }
 
+// Hora prefijada pendiente de aplicar al elegir servicio (one-shot). Viene de pinchar
+// un hueco libre en la agenda.
+const pendingPresetTime = ref<string | null>(null)
+
 // Resetea el formulario cada vez que se abre.
 watch(
   () => props.open,
@@ -47,7 +55,10 @@ watch(
       clientId.value = props.presetClientId ?? ''
       clientQuery.value = ''
       service.value = null
-      barber.value = null
+      // Si se abrió desde un hueco libre, preselecciona ese barbero.
+      barber.value = props.presetBarberId
+        ? (barbers.value.find((b) => b.id === props.presetBarberId) ?? null)
+        : null
       date.value = props.presetDate ? new Date(props.presetDate) : startOfToday()
       date.value.setHours(0, 0, 0, 0)
       slot.value = null
@@ -55,10 +66,19 @@ watch(
       manualName.value = ''
       manualPhone.value = ''
       outOfHours.value = false
-      manualTime.value = '10:00'
+      manualTime.value = props.presetTime ?? '10:00'
+      pendingPresetTime.value = props.presetTime ?? null
     }
   },
 )
+
+// Al abrirse con barbero preseleccionado pero antes de que cargue la colección de
+// barberos, reintenta fijarlo cuando llegue.
+watch(barbers, (list) => {
+  if (props.open && props.presetBarberId && !barber.value) {
+    barber.value = list.find((b) => b.id === props.presetBarberId) ?? null
+  }
+})
 
 const bookableServices = computed(() => services.value.filter((s) => !s.isPrivate))
 const eligibleBarbers = computed(() =>
@@ -85,6 +105,27 @@ const selectedClient = computed(() => clients.value.find((c) => c.id === clientI
 
 const barberId = computed(() => barber.value?.id ?? null)
 const busy = busyFor(barberId, date)
+
+// Huecos ocupados por citas FIJAS (semanales) del barbero ese día. Mismo criterio que
+// la reserva del cliente: una cita fija nunca debe poder cogerla otro (la
+// materialización solo cubre 12 semanas, así que también bloqueamos desde la plantilla
+// barbero + día de la semana + hora).
+function fixedBusy(bId: string | null, day: Date): { start: Date; end: Date }[] {
+  if (!bId) return []
+  const wd = weekdayOf(day)
+  const out: { start: Date; end: Date }[] = []
+  for (const f of fixed.value) {
+    if (f.active === false || f.barberId !== bId || f.weekday !== wd) continue
+    const [h, m] = f.time.split(':').map(Number)
+    const start = new Date(day)
+    start.setHours(h ?? 0, m ?? 0, 0, 0)
+    const svc = services.value.find((s) => s.id === f.serviceId)
+    const dur = svc ? effectiveDuration(svc, bId) : 30
+    out.push({ start, end: new Date(start.getTime() + dur * 60_000) })
+  }
+  return out
+}
+
 const slots = computed(() => {
   if (!service.value || !barber.value) return []
   const localTt = settings.value
@@ -96,9 +137,22 @@ const slots = computed(() => {
     durationMinutes: effectiveDuration(service.value, barberId.value ?? undefined),
     localTimetable: localTt,
     barberTimetable: barberTt,
-    busy: busy.value.map((a) => ({ start: toDate(a.startsAt), end: toDate(a.endsAt) })),
+    busy: [
+      ...busy.value.map((a) => ({ start: toDate(a.startsAt), end: toDate(a.endsAt) })),
+      ...fixedBusy(barberId.value, date.value),
+    ],
     stepMinutes: settings.value?.slotStepMinutes ?? 15,
   })
+})
+
+// En cuanto haya servicio + barbero (y por tanto huecos reales), si veníamos de un
+// hueco libre seleccionamos el slot que coincide con esa hora. One-shot: tras
+// intentarlo se descarta para no pisar cambios manuales del admin.
+watch(slots, (list) => {
+  if (pendingPresetTime.value == null || !service.value || !barber.value) return
+  const match = list.find((s) => fmtDate(s, 'HH:mm') === pendingPresetTime.value)
+  if (match) slot.value = match
+  pendingPresetTime.value = null
 })
 
 const price = computed(() =>

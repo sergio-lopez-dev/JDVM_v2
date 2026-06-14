@@ -228,8 +228,17 @@ async function confirmRemove() {
             :class="form?.id === s.id ? 'border-l-primary bg-primary/10' : 'hover:bg-elevated border-l-transparent'"
             @click="startEdit(s)"
           >
-            <span class="bg-accented flex size-9 shrink-0 items-center justify-center rounded-[9px]">
-              <UIcon name="i-lucide-scissors" class="size-4" :class="s.isPrivate ? 'text-dimmed' : 'text-primary'" />
+            <span
+              class="flex size-9 shrink-0 items-center justify-center rounded-[9px]"
+              :style="s.color && !s.isPrivate ? { backgroundColor: `${s.color}22` } : undefined"
+              :class="!s.color || s.isPrivate ? 'bg-accented' : ''"
+            >
+              <UIcon
+                name="i-lucide-scissors"
+                class="size-4"
+                :style="s.color && !s.isPrivate ? { color: s.color } : undefined"
+                :class="s.isPrivate ? 'text-dimmed' : !s.color ? 'text-primary' : ''"
+              />
             </span>
             <div class="min-w-0 flex-1">
               <div class="truncate text-sm font-semibold" :class="s.isPrivate ? 'text-dimmed' : ''">{{ s.name }}</div>
@@ -279,6 +288,23 @@ async function confirmRemove() {
                 >{{ c.name }}</button>
                 <span v-if="!categories.length" class="text-dimmed text-xs">Crea una categoría primero (arriba).</span>
               </div>
+            </div>
+
+            <div>
+              <p class="text-dimmed mb-2 text-xs font-medium">Color en la agenda</p>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model="form.color"
+                  type="color"
+                  aria-label="Color del servicio en la agenda"
+                  class="border-default bg-muted h-10 w-14 cursor-pointer rounded-lg border"
+                />
+                <span class="border-default flex items-center gap-2 rounded-lg border px-3 py-2">
+                  <span class="size-4 rounded-full" :style="{ background: form.color }" />
+                  <span class="font-mono text-xs uppercase">{{ form.color }}</span>
+                </span>
+              </div>
+              <p class="text-dimmed mt-1.5 text-xs">Solo para identificar el servicio en la agenda del estudio.</p>
             </div>
 
             <div>

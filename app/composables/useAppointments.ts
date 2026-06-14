@@ -112,15 +112,21 @@ export function useAppointments() {
       start.setHours(0, 0, 0, 0)
       const end = new Date(start)
       end.setDate(end.getDate() + 1)
+      // No filtramos por estado en la query: así reusa el índice (barberId, startsAt)
+      // y el estado se filtra abajo en cliente.
       return query(
         col,
         where('barberId', '==', barberId.value),
         where('startsAt', '>=', start),
         where('startsAt', '<', end),
-        where('status', '==', 'booked'),
       )
     })
-    return useCollection<Appointment>(q)
+    const all = useCollection<Appointment>(q)
+    // Ocupan hueco las citas reservadas y las ya realizadas (`completed`); las
+    // canceladas y los "no vino" liberan el hueco. (Antes solo se contaban las
+    // `booked`, de modo que una cita ya marcada como hecha dejaba el hueco libre y se
+    // podía reservar encima.)
+    return computed(() => all.value.filter((a) => a.status === 'booked' || a.status === 'completed'))
   }
 
   const create = (input: AppointmentInput) =>

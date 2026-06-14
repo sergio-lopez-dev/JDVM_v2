@@ -90,10 +90,10 @@ function blockSlot() {
           <NuxtLink v-for="(a, i) in list" :key="a.id" :to="`/staff/cita/${a.id}`" class="flex gap-3">
             <div class="w-11 shrink-0 pt-3 text-right"><span class="font-mono text-xs font-semibold" :class="isNow(a) ? 'text-primary' : 'text-toned'">{{ fmtDate(a.startsAt, 'HH:mm') }}</span></div>
             <div class="relative">
-              <span class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2" :style="{ background: isNow(a) ? 'var(--jdvm-accent)' : 'var(--jdvm-accent-tint)' }" />
+              <span class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2" :style="{ background: a.eventColor || 'var(--jdvm-accent)' }" />
               <span v-if="i < list.length - 1" class="bg-border absolute top-6 left-[3px] bottom-0 w-px" />
             </div>
-            <div class="mb-3 flex-1 rounded-2xl border border-l-[3px] p-3.5" :class="isNow(a) ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'" :style="{ borderLeftColor: 'var(--jdvm-accent)', opacity: a.status === 'completed' ? 0.6 : 1 }">
+            <div class="mb-3 flex-1 rounded-2xl border border-l-[3px] p-3.5" :class="isNow(a) ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'" :style="{ borderLeftColor: a.eventColor || 'var(--jdvm-accent)', opacity: a.status === 'completed' ? 0.6 : 1 }">
               <div class="flex items-center gap-3">
                 <div class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(a.clientName) }}</div>
                 <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }}</div></div>
@@ -142,7 +142,7 @@ function blockSlot() {
             <div v-if="list.length" class="px-5 py-2">
               <NuxtLink v-for="a in list" :key="a.id" :to="`/staff/cita/${a.id}`" class="border-default flex items-center gap-4 border-b py-3 last:border-b-0" :class="a.status === 'completed' ? 'opacity-55' : ''">
                 <span class="w-12 shrink-0 text-right font-mono text-[0.8rem] font-semibold" :class="isNow(a) ? 'text-primary' : ''">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
-                <span class="h-9 w-[3px] shrink-0 rounded-full" :style="{ background: isNow(a) ? 'var(--jdvm-accent)' : 'var(--jdvm-accent-line)' }" />
+                <span class="h-9 w-[3px] shrink-0 rounded-full" :style="{ background: a.eventColor || 'var(--jdvm-accent)' }" />
                 <div class="bg-elevated border-default flex size-9 shrink-0 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(a.clientName) }}</div>
                 <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div><div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ formatPrice(a.price) }}</div></div>
                 <AdminPill :kind="isNow(a) ? 'confirmed' : a.status === 'completed' ? 'done' : 'confirmed'">{{ a.status === 'completed' ? 'Hecha' : isNow(a) ? 'En curso' : 'Confirmada' }}</AdminPill>

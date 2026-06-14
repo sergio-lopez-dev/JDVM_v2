@@ -92,6 +92,8 @@ export function useFixedAppointments() {
       weekday: input.weekday,
       time: input.time,
       active: input.active ?? true,
+      // Color de la serie (solo agenda admin/barbero). Firestore no admite undefined.
+      ...(input.color ? { color: input.color } : {}),
       createdAt: serverTimestamp(),
     })
 
