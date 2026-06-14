@@ -27,7 +27,7 @@ useHead({ title: 'Agenda · Admin' })
 const { inRange, setStatus, cancel, remove } = useAppointments()
 const { active: barbers } = useBarbers()
 const { services } = useServices()
-const { fixed } = useFixedAppointments()
+const { cancelOccurrence } = useFixedAppointments()
 const { settings } = useSettings()
 const { notifyCancellation } = useNotifications()
 const { setBanned, clientById } = useClients()
@@ -87,7 +87,7 @@ const ALL_COLORS = computed(() => {
   const set = new Set<string>(['#C2A24E'])
   for (const s of services.value) if (s.color) set.add(s.color)
   for (const b of barbers.value) if (b.color) set.add(b.color)
-  for (const f of fixed.value) if (f.color) set.add(f.color)
+  if (settings.value?.fixedAppointmentColor) set.add(settings.value.fixedAppointmentColor)
   return [...set]
 })
 const calendars = computed(() =>
@@ -232,6 +232,24 @@ async function deleteAppt() {
   await remove(selected.value.id)
   toast.add({ title: 'Cita eliminada', icon: 'i-lucide-trash-2' })
   selected.value = null
+}
+// Libera SOLO este día de una cita fija (la serie sigue activa el resto de días). El
+// hueco queda libre para aceptar reservas.
+async function freeFixedDay() {
+  if (!selected.value?.fixedId) return
+  try {
+    await cancelOccurrence(selected.value.fixedId, selected.value.startsAt)
+    toast.add({
+      title: 'Día liberado',
+      description: 'El hueco queda libre para reservas. La cita fija sigue activa el resto de días.',
+      icon: 'i-lucide-calendar-check',
+      color: 'success',
+      duration: 6000,
+    })
+    selected.value = null
+  } catch (e) {
+    toast.add({ title: 'No se pudo liberar', description: (e as Error).message, color: 'error' })
+  }
 }
 
 // — Vista móvil (timeline) —
@@ -582,6 +600,7 @@ const weekEnd = computed(() => {
               <div class="flex items-center gap-3"><UIcon name="i-lucide-user" class="text-primary size-4" /><span class="text-sm font-semibold">{{ selected.clientName }}</span><span v-if="selected.clientPhone" class="text-dimmed ml-auto font-mono text-xs">{{ selected.clientPhone }}</span></div>
               <div class="flex items-center gap-3"><UIcon name="i-lucide-scissors" class="text-primary size-4" /><span class="text-sm">{{ selected.serviceName }}</span></div>
               <div class="flex items-center gap-3"><span class="size-3 rounded-full" :style="{ background: selected.barberColor }" /><span class="text-sm">{{ selected.barberName }}</span></div>
+              <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija (semanal)</span></div>
             </div>
 
             <div class="mt-4 grid grid-cols-2 gap-2.5">
@@ -592,6 +611,16 @@ const weekEnd = computed(() => {
               <UButton v-if="selected.status === 'completed'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked(selected.id)">Deshacer “hecha”</UButton>
               <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="deleteAppt">Eliminar</UButton>
             </div>
+            <!-- liberar solo este día de una cita fija (sin borrar la serie) -->
+            <UButton
+              v-if="selected.isRecurring && selected.fixedId && selected.status === 'booked'"
+              color="warning"
+              variant="outline"
+              block
+              class="mt-2.5"
+              icon="i-lucide-calendar-minus"
+              @click="freeFixedDay"
+            >Liberar solo este día (cita fija)</UButton>
             <p v-if="selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
               Fuera de la ventana de 4 h del cliente · como admin puedes igualmente.
             </p>

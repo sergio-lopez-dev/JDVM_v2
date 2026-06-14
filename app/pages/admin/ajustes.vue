@@ -33,6 +33,7 @@ const form = reactive({
   daysClosed: [] as Weekday[],
   acceptingAppointments: true,
   acceptingCancellations: true,
+  fixedAppointmentColor: '#6366F1',
   timetable: {} as WeekTimetable,
   theme: 'forest' as ThemeKey,
   studio: {
@@ -84,6 +85,7 @@ watch(
     form.daysClosed = [...(s.daysClosed ?? [])]
     form.acceptingAppointments = s.acceptingAppointments ?? true
     form.acceptingCancellations = s.acceptingCancellations ?? true
+    form.fixedAppointmentColor = s.fixedAppointmentColor ?? '#6366F1'
     form.timetable = structuredClone(toRaw(s.timetable ?? {}))
     form.theme = s.theme ?? 'forest'
     savedTheme.value = s.theme ?? 'forest'
@@ -136,6 +138,7 @@ async function submit() {
       daysClosed: form.daysClosed,
       acceptingAppointments: form.acceptingAppointments,
       acceptingCancellations: form.acceptingCancellations,
+      fixedAppointmentColor: form.fixedAppointmentColor,
       timetable: form.timetable,
       theme: form.theme,
       // Mezcla con los campos de logo (que se gestionan aparte) para no perderlos.
@@ -322,6 +325,24 @@ async function submit() {
           >
             {{ s }} min
           </button>
+        </div>
+      </AdminCard>
+
+      <!-- color de las citas fijas (agenda) -->
+      <AdminCard>
+        <h2 class="font-display text-lg">Color de las citas fijas</h2>
+        <p class="text-muted mt-1 text-sm">Todas las citas fijas (recurrentes) se pintan con este color en la agenda para distinguirlas de un vistazo. Es un color general, igual para todas.</p>
+        <div class="mt-4 flex items-center gap-3">
+          <input
+            v-model="form.fixedAppointmentColor"
+            type="color"
+            aria-label="Color de las citas fijas"
+            class="border-default bg-muted h-10 w-14 cursor-pointer rounded-lg border"
+          />
+          <span class="border-default flex items-center gap-2 rounded-lg border px-3 py-2">
+            <span class="size-4 rounded-full" :style="{ background: form.fixedAppointmentColor }" />
+            <span class="font-mono text-xs uppercase">{{ form.fixedAppointmentColor }}</span>
+          </span>
         </div>
       </AdminCard>
 

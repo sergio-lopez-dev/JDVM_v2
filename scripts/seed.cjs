@@ -99,6 +99,7 @@ async function run() {
       slotStepMinutes: 15,
       acceptingAppointments: true,
       acceptingCancellations: true,
+      fixedAppointmentColor: '#6366F1',
       special: [],
       studio: {
         name: 'JDVM Hair Studio',

@@ -1,17 +1,26 @@
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
   where,
 } from 'firebase/firestore'
 import { effectivePrice, effectiveDuration } from '~~/schemas'
 import type { FixedAppointment, FixedAppointmentInput } from '~~/schemas'
 import { toDate } from '~~/lib/datetime'
+
+// Clave de fecha local (yyyy-MM-dd) para las excepciones de una serie.
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 // Resultado de crear/editar una serie: la plantilla, cuántas citas se materializaron
 // y qué días se omitieron por chocar con una cita ya existente.
@@ -28,6 +37,7 @@ export function useFixedAppointments() {
   const db = useFirestore()
   const { services } = useServices()
   const col = collection(db, COL.fixed_appointments)
+  const appts = collection(db, COL.appointments)
 
   const fixed = useCollection<FixedAppointment>(query(col, orderBy('createdAt', 'desc')))
 
@@ -62,7 +72,7 @@ export function useFixedAppointments() {
     const svc = services.value.find((s) => s.id === input.serviceId)
     const dur = svc ? effectiveDuration(svc, input.barberId) : 30
     const price = svc ? effectivePrice(svc, input.barberId) : 0
-    const appts = collection(db, COL.appointments)
+    const exceptions = input.exceptions ?? []
 
     const slots = occurrences(input.weekday, input.time).map(({ start }) => ({
       start,
@@ -92,13 +102,14 @@ export function useFixedAppointments() {
       weekday: input.weekday,
       time: input.time,
       active: input.active ?? true,
-      // Color de la serie (solo agenda admin/barbero). Firestore no admite undefined.
-      ...(input.color ? { color: input.color } : {}),
+      ...(exceptions.length ? { exceptions } : {}),
       createdAt: serverTimestamp(),
     })
 
     const skipped: Date[] = []
     const toCreate = slots.filter((sl) => {
+      // Días liberados manualmente (excepciones): no se materializan.
+      if (exceptions.includes(dateKey(sl.start))) return false
       if (clashes(sl.start.getTime(), sl.end.getTime())) {
         skipped.push(sl.start)
         return false
@@ -126,39 +137,97 @@ export function useFixedAppointments() {
     return { id: tpl.id, created: toCreate.length, skipped }
   }
 
-  // Intervalos ocupados (no cancelados) de un barbero en un rango.
+  // Intervalos ocupados (no cancelados) de un barbero en un rango. Consulta por rango
+  // de fecha (índice de campo único, sin índice compuesto) y filtra el barbero en
+  // cliente: así funciona en prod aunque no se hayan desplegado índices compuestos.
   async function barberBusy(barberId: string, from: Date, to: Date) {
-    const appts = collection(db, COL.appointments)
     const snap = await getDocs(
-      query(
-        appts,
-        where('barberId', '==', barberId),
-        where('startsAt', '>=', from),
-        where('startsAt', '<=', to),
-      ),
+      query(appts, where('startsAt', '>=', from), where('startsAt', '<=', to)),
     )
     return snap.docs
       .map((d) => d.data())
-      .filter((a) => a.status !== 'cancelled')
+      .filter((a) => a.barberId === barberId && a.status !== 'cancelled')
       .map((a) => ({ s: toDate(a.startsAt).getTime(), e: toDate(a.endsAt).getTime() }))
   }
 
   // Borra la plantilla y sus citas futuras (las pasadas quedan como histórico).
+  // Consulta solo por fixedId (sin índice compuesto) y filtra "futuras" en cliente.
   async function removeSeries(id: string) {
-    const appts = collection(db, COL.appointments)
-    const snap = await getDocs(
-      query(appts, where('fixedId', '==', id), where('startsAt', '>=', new Date())),
+    const snap = await getDocs(query(appts, where('fixedId', '==', id)))
+    const now = Date.now()
+    await Promise.all(
+      snap.docs
+        .filter((d) => toDate(d.data().startsAt).getTime() >= now)
+        .map((d) => deleteDoc(d.ref)),
     )
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
     await deleteDoc(doc(db, COL.fixed_appointments, id))
   }
 
   // Editar = borrar la serie (plantilla + citas futuras) y volver a materializarla
   // con los nuevos datos. Las citas pasadas de la serie anterior quedan como histórico.
+  // Se conservan las excepciones (días liberados) de la serie anterior.
   async function update(id: string, input: FixedAppointmentInput) {
+    const prev = await getDoc(doc(db, COL.fixed_appointments, id))
+    const prevExc = ((prev.data()?.exceptions as string[] | undefined) ?? []).filter(Boolean)
     await removeSeries(id)
-    return create(input)
+    return create({ ...input, exceptions: [...new Set([...(input.exceptions ?? []), ...prevExc])] })
   }
 
-  return { fixed, create, update, removeSeries }
+  // Libera UN día concreto de la serie sin borrarla: marca la excepción en la
+  // plantilla y elimina la cita materializada de ese día → el hueco queda libre para
+  // reservas (la serie sigue activa el resto de días).
+  async function cancelOccurrence(fixedId: string, date: Date) {
+    await updateDoc(doc(db, COL.fixed_appointments, fixedId), { exceptions: arrayUnion(dateKey(date)) })
+    const dayStart = new Date(date)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(dayStart)
+    dayEnd.setDate(dayEnd.getDate() + 1)
+    const snap = await getDocs(query(appts, where('fixedId', '==', fixedId)))
+    await Promise.all(
+      snap.docs
+        .filter((d) => {
+          const s = toDate(d.data().startsAt)
+          return s >= dayStart && s < dayEnd
+        })
+        .map((d) => deleteDoc(d.ref)),
+    )
+  }
+
+  // Deshace la liberación de un día: quita la excepción y vuelve a materializar la
+  // cita de ese día (si el hueco sigue libre).
+  async function restoreOccurrence(fixedId: string, date: Date) {
+    const tplSnap = await getDoc(doc(db, COL.fixed_appointments, fixedId))
+    if (!tplSnap.exists()) return
+    const f = tplSnap.data() as FixedAppointment
+    await updateDoc(doc(db, COL.fixed_appointments, fixedId), { exceptions: arrayRemove(dateKey(date)) })
+
+    const svc = services.value.find((s) => s.id === f.serviceId)
+    const dur = svc ? effectiveDuration(svc, f.barberId) : 30
+    const price = svc ? effectivePrice(svc, f.barberId) : 0
+    const [h, m] = f.time.split(':').map(Number)
+    const start = new Date(date)
+    start.setHours(h ?? 0, m ?? 0, 0, 0)
+    const end = new Date(start.getTime() + dur * 60_000)
+    const busy = await barberBusy(f.barberId, new Date(start.getTime() - 4 * 3_600_000), end)
+    if (busy.some((b) => start.getTime() < b.e && b.s < end.getTime())) return // hueco ya ocupado
+
+    const manual: Record<string, string> = {}
+    if (f.clientName) manual.clientName = f.clientName
+    if (f.clientPhone) manual.clientPhone = f.clientPhone
+    await addDoc(appts, {
+      clientId: f.clientId,
+      ...manual,
+      barberId: f.barberId,
+      serviceId: f.serviceId,
+      startsAt: start,
+      endsAt: end,
+      status: 'booked',
+      priceSnapshot: price,
+      isRecurring: true,
+      fixedId,
+      createdAt: serverTimestamp(),
+    })
+  }
+
+  return { fixed, create, update, removeSeries, cancelOccurrence, restoreOccurrence }
 }

@@ -113,9 +113,12 @@ const busy = busyFor(barberId, date)
 function fixedBusy(bId: string | null, day: Date): { start: Date; end: Date }[] {
   if (!bId) return []
   const wd = weekdayOf(day)
+  // Día concreto liberado por el admin (excepción de la serie): el hueco queda libre.
+  const dk = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
   const out: { start: Date; end: Date }[] = []
   for (const f of fixed.value) {
     if (f.active === false || f.barberId !== bId || f.weekday !== wd) continue
+    if (f.exceptions?.includes(dk)) continue
     const [h, m] = f.time.split(':').map(Number)
     const start = new Date(day)
     start.setHours(h ?? 0, m ?? 0, 0, 0)

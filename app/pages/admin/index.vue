@@ -72,7 +72,34 @@ const weekEnd = computed(() => {
   return d
 })
 const { perDay, totals } = useAdminStats(weekStart, weekEnd)
-const maxRev = computed(() => Math.max(1, ...perDay.value.map((d) => d.revenue)))
+const { sales } = useProductSales()
+
+// Ventas de producto de la semana actual, agrupadas por día (ingreso = precio·uds).
+const weekSales = computed(() =>
+  sales.value.filter((s) => {
+    const t = toDate(s.soldAt).getTime()
+    return t >= weekStart.value.getTime() && t < weekEnd.value.getTime()
+  }),
+)
+// Ingreso del día = citas HECHAS (perDay, solo completed) + venta de productos.
+const perDayTotal = computed(() =>
+  perDay.value.map((d) => {
+    const products = weekSales.value
+      .filter((s) => sameDay(toDate(s.soldAt), d.date))
+      .reduce((sum, s) => sum + s.unitPrice * s.qty, 0)
+    return { ...d, revenue: d.revenue + products }
+  }),
+)
+const productRevenue = computed(() => weekSales.value.reduce((s, x) => s + x.unitPrice * x.qty, 0))
+// Total semanal = servicios hechos + productos.
+const weekRevenue = computed(() => totals.value.revenue + productRevenue.value)
+const maxRev = computed(() => Math.max(1, ...perDayTotal.value.map((d) => d.revenue)))
+
+// Inicial del día en español (date-fns da "M" para martes y miércoles): L M X J V S D.
+const WEEKDAY_LETTER = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+function dayLetter(d: Date) {
+  return WEEKDAY_LETTER[d.getDay()]
+}
 
 // — Equipo hoy —
 const teamToday = computed(() =>
@@ -158,10 +185,11 @@ const bookingOpen = ref(false)
           <AdminCard>
             <div class="flex items-baseline justify-between">
               <div class="font-display text-lg">Ingresos semana</div>
-              <span class="text-dimmed font-mono text-xs">{{ formatPrice(totals.revenue) }}</span>
+              <span class="text-dimmed font-mono text-xs">{{ formatPrice(weekRevenue) }}</span>
             </div>
+            <p class="text-dimmed mt-0.5 text-[0.7rem]">Citas hechas + productos · semana actual</p>
             <div class="mt-5 flex h-28 items-end gap-2.5">
-              <div v-for="d in perDay" :key="d.label" class="flex flex-1 flex-col items-center gap-2">
+              <div v-for="d in perDayTotal" :key="d.label" class="flex flex-1 flex-col items-center gap-2">
                 <div class="flex h-24 w-full items-end">
                   <div
                     class="w-full rounded-[5px] border"
@@ -169,7 +197,7 @@ const bookingOpen = ref(false)
                     :style="{ height: `${d.revenue ? Math.max(6, (d.revenue / maxRev) * 100) : 0}%` }"
                   />
                 </div>
-                <span class="font-mono text-[0.65rem] capitalize" :class="d.revenue === maxRev ? 'text-primary' : 'text-dimmed'">{{ fmtDate(d.date, 'EEEEE') }}</span>
+                <span class="font-mono text-[0.65rem]" :class="d.revenue === maxRev ? 'text-primary' : 'text-dimmed'">{{ dayLetter(d.date) }}</span>
               </div>
             </div>
           </AdminCard>

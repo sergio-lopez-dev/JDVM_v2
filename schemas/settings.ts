@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { weekdaySchema, dateRangeSchema } from './common'
+import { weekdaySchema, dateRangeSchema, hexColorSchema } from './common'
 import { weekTimetableSchema } from './barber'
 import { loyaltyConfigSchema } from './loyalty'
 import { serviceCategoryDefSchema, DEFAULT_SERVICE_CATEGORIES } from './service'
@@ -59,6 +59,9 @@ export const settingsSchema = z.object({
   bookingHorizonDays: z.number().int().positive().default(60),
   acceptingAppointments: z.boolean().default(true),
   acceptingCancellations: z.boolean().default(true),
+  // Color con el que se pintan TODAS las citas fijas en la agenda admin/barbero
+  // (para distinguirlas de un vistazo). Configuración global, no por serie.
+  fixedAppointmentColor: hexColorSchema.default('#6366F1'),
   special: z.array(specialTimetableRuleSchema).default([]),
   // Paleta de marca de toda la app (la elige el admin en /admin/ajustes).
   theme: themeKeySchema.default('forest'),
