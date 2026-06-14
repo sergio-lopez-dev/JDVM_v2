@@ -235,10 +235,24 @@ async function del(id: string) {
         <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <!-- cliente -->
           <div>
-            <div class="mb-1.5 flex items-center justify-between">
-              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
-              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="manualClient = !manualClient; clientId = ''">
-                {{ manualClient ? 'Buscar registrado' : 'No registrado' }}
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
+            <!-- control segmentado: cliente registrado vs. a mano (walk-in) -->
+            <div class="border-default bg-muted mb-2.5 grid grid-cols-2 gap-1 rounded-xl border p-1">
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="!manualClient ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="manualClient = false; manualName = ''; manualPhone = ''"
+              >
+                <UIcon name="i-lucide-user-round-check" class="size-4" />Registrado
+              </button>
+              <button
+                type="button"
+                class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition"
+                :class="manualClient ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+                @click="manualClient = true; clientId = ''"
+              >
+                <UIcon name="i-lucide-user-round-plus" class="size-4" />Sin registrar
               </button>
             </div>
             <div v-if="manualClient" class="space-y-2">
