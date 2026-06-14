@@ -47,22 +47,28 @@ export function useAuth() {
     }
   }
 
+  // Lee el doc legacy v1 `users/{uid}` (la base es COMPARTIDA con la app vieja). Un
+  // cliente de siempre ya tiene ahí su nombre/teléfono. Devuelve {} si no existe o no
+  // hay permisos.
+  async function legacyUser(uid: string): Promise<{ name?: string; phone?: unknown; instagram?: string }> {
+    try {
+      const legacySnap = await getDoc(doc(db, 'users', uid))
+      if (legacySnap.exists()) return legacySnap.data() as { name?: string; phone?: unknown; instagram?: string }
+    } catch {
+      // sin permisos / offline: seguimos con lo que tengamos
+    }
+    return {}
+  }
+
   // Crea el doc users/{uid} en el primer acceso (rol 'client' por defecto).
   async function ensureUserDoc(fbUser: User, extra: { name?: string; phone?: string } = {}) {
     const ref = doc(db, COL.users, fbUser.uid)
     const snap = await getDoc(ref)
     if (!snap.exists()) {
-      // Compartimos base con la app legacy (v1): un cliente de siempre ya tiene su
-      // nombre/teléfono en la colección `users` de la v1. Si aún no se ha migrado su
-      // doc a `users_v2`, lo sembramos desde el legacy para NO volver a pedirle datos
-      // que ya tiene (lo que hacía que se le mandara a /completar-perfil al entrar).
-      let legacy: { name?: string; phone?: unknown; instagram?: string } = {}
-      try {
-        const legacySnap = await getDoc(doc(db, 'users', fbUser.uid))
-        if (legacySnap.exists()) legacy = legacySnap.data() as typeof legacy
-      } catch {
-        // sin permisos / offline: seguimos con lo que tengamos
-      }
+      // Si aún no se ha migrado su doc a `users_v2`, lo sembramos desde el legacy
+      // para NO volver a pedirle datos que ya tiene (lo que hacía que se le mandara a
+      // /completar-perfil al entrar).
+      const legacy = await legacyUser(fbUser.uid)
       await setDoc(ref, {
         name: extra.name ?? fbUser.displayName ?? legacy.name ?? '',
         email: fbUser.email ?? '',
@@ -74,7 +80,17 @@ export function useAuth() {
         lastLogin: serverTimestamp(),
       })
     } else {
-      await setDoc(ref, { lastLogin: serverTimestamp() }, { merge: true })
+      // El doc v2 ya existe. Si quedó SIN teléfono (p. ej. se creó en una versión
+      // anterior con phone:'' antes de sembrar del legacy), rellenamos desde el legacy
+      // y/o el perfil de Auth para no seguir pidiéndoselo en cada entrada.
+      const data = snap.data() as { phone?: string; name?: string }
+      const patch: Record<string, unknown> = { lastLogin: serverTimestamp() }
+      if (!data.phone) {
+        const legacy = await legacyUser(fbUser.uid)
+        if (legacy.phone) patch.phone = String(legacy.phone)
+        if (!data.name && (legacy.name || fbUser.displayName)) patch.name = legacy.name ?? fbUser.displayName
+      }
+      await setDoc(ref, patch, { merge: true })
     }
     // Si hay una invitación de barbero pendiente para este email, la reclama:
     // crea barbers/{uid} y eleva el rol. Así el barbero se da de alta con Google

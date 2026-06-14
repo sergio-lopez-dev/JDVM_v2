@@ -16,10 +16,11 @@ const banned = computed(() => !!client.value?.banned)
 // no puede coger nuevas citas (enforcement a nivel de app, como el veto).
 const bookingsClosed = computed(() => settings.value?.acceptingAppointments === false)
 const toast = useToast()
-const { publicServices } = useServices()
+const { publicServices, services } = useServices()
 const { active: barbers } = useBarbers()
 const { settings } = useSettings()
 const { create, inRange } = useAppointments()
+const { fixed } = useFixedAppointments()
 const { studio, name: studioName, codePrefix } = useStudio()
 const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
@@ -93,6 +94,28 @@ const selectedBarberId = computed(() =>
 )
 const busy = useAppointments().busyFor(selectedBarberId, selectedDate)
 
+// Huecos ocupados por citas FIJAS (semanales) del barbero ese día. Las fijas se
+// materializan como citas reales solo 12 semanas; pasado ese plazo (o si la
+// materialización falló) dejarían de aparecer en `busy` y el hueco volvería a ser
+// reservable. Bloqueamos también desde la PLANTILLA (barbero + día de la semana +
+// hora) para que un hueco fijo nunca lo coja otro cliente. (Solapar con la cita
+// materializada no causa problemas: generateSlots solo necesita el intervalo.)
+function fixedBusy(barberId: string | null, day: Date): { start: Date; end: Date }[] {
+  if (!barberId) return []
+  const wd = weekdayOf(day)
+  const out: { start: Date; end: Date }[] = []
+  for (const f of fixed.value) {
+    if (f.active === false || f.barberId !== barberId || f.weekday !== wd) continue
+    const [h, m] = f.time.split(':').map(Number)
+    const start = new Date(day)
+    start.setHours(h ?? 0, m ?? 0, 0, 0)
+    const svc = services.value.find((s) => s.id === f.serviceId)
+    const dur = svc ? effectiveDuration(svc, barberId) : 30
+    out.push({ start, end: new Date(start.getTime() + dur * 60_000) })
+  }
+  return out
+}
+
 // ¿El barbero concreto está de vacaciones ese día? (vacations llegan como Timestamps).
 function barberOnVacation(b: Barber, date: Date) {
   const vacs = (b.vacations ?? []).map((v) => ({ start: toDate(v.start), end: toDate(v.end) }))
@@ -118,7 +141,10 @@ const slots = computed(() => {
     durationMinutes: effectiveDuration(svc, selectedBarberId.value ?? undefined),
     localTimetable: localTt,
     barberTimetable: barberTt,
-    busy: busy.value.map((a) => ({ start: toDate(a.startsAt), end: toDate(a.endsAt) })),
+    busy: [
+      ...busy.value.map((a) => ({ start: toDate(a.startsAt), end: toDate(a.endsAt) })),
+      ...fixedBusy(selectedBarberId.value, selectedDate.value),
+    ],
     stepMinutes: settings.value?.slotStepMinutes ?? 30,
   })
 })
@@ -171,6 +197,15 @@ async function confirm() {
     if (!barber) barber = eligibleBarbers.value[0] ?? barbers.value[0] ?? null
     if (!barber) throw new Error('No hay barberos disponibles.')
     const endsAt = new Date(slot.getTime() + effectiveDuration(svc, barber.id) * 60_000)
+    // Red de seguridad (sobre todo para "cualquiera", donde la lista de huecos no
+    // filtra por un barbero concreto): no permitir reservar sobre una cita fija.
+    const clashFixed = fixedBusy(barber.id, slot).some(
+      (b) => slot.getTime() < b.end.getTime() && b.start.getTime() < endsAt.getTime(),
+    )
+    if (clashFixed) {
+      toast.add({ title: 'Hueco no disponible', description: 'Ese hueco está reservado para una cita fija. Elige otra hora.', color: 'error', icon: 'i-lucide-calendar-x' })
+      return
+    }
     const ref = await create({
       clientId: user.value.uid,
       barberId: barber.id,
@@ -275,7 +310,10 @@ function barberHasSlots(b: Barber, d: Date): boolean {
     durationMinutes: effectiveDuration(svc, b.id),
     localTimetable: localTt,
     barberTimetable: barberTt,
-    busy: busyByBarberDay.value.get(`${b.id}|${dayKey(d)}`) ?? [],
+    busy: [
+      ...(busyByBarberDay.value.get(`${b.id}|${dayKey(d)}`) ?? []),
+      ...fixedBusy(b.id, d),
+    ],
     stepMinutes: settings.value?.slotStepMinutes ?? 30,
   })
   return free.length > 0

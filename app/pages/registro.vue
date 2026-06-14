@@ -8,7 +8,7 @@ definePageMeta({ layout: 'auth', middleware: 'guest' })
 useHead({ title: 'Crear cuenta' })
 
 const toast = useToast()
-const { signUp, signInWithGoogle } = useAuth()
+const { signUp, signInWithGoogle, destinationFor } = useAuth()
 const { name: studioName } = useStudio()
 
 const state = reactive<SignUpInput>({ name: '', email: '', phone: '', password: '' })
@@ -38,8 +38,11 @@ async function onSubmit(event: FormSubmitEvent<SignUpInput>) {
 async function google() {
   loading.value = true
   try {
-    await signInWithGoogle()
-    await navigateTo('/completar-perfil')
+    const u = await signInWithGoogle()
+    // No forzamos /completar-perfil: si es un cliente de siempre (su teléfono ya se
+    // sembró desde el legacy), va directo a su destino; si le falta el teléfono, el
+    // guard de /app lo manda a completar el perfil. Así solo se pide una vez.
+    await navigateTo(await destinationFor(u.uid))
   } catch (e) {
     toast.add({ title: 'Google', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
   } finally {
