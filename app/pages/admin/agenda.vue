@@ -16,7 +16,7 @@ import {
 } from '@schedule-x/calendar'
 import '@schedule-x/theme-default/dist/index.css'
 import { toZdt, fromTemporal, STUDIO_TZ } from '~~/lib/schedulex'
-import { fmtDate, formatPrice, initials } from '~~/lib/format'
+import { fmtDate, formatPrice, initials, dayLetterEs } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 import { isCancellable } from '~~/lib/cancellation'
 import { freeWindows, resolveDayTimetable } from '~~/lib/slots'
@@ -398,7 +398,7 @@ const weekEnd = computed(() => {
           :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'"
           @click="selectedDay = d"
         >
-          <span class="font-mono text-[0.6rem] uppercase">{{ fmtDate(d, 'EEEEE') }}</span>
+          <span class="font-mono text-[0.6rem] uppercase">{{ dayLetterEs(d) }}</span>
           <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
         </button>
       </div>

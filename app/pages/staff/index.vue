@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtDate, formatPrice, initials } from '~~/lib/format'
+import { fmtDate, formatPrice, initials, dayLetterEs } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 
 definePageMeta({ layout: 'barber', middleware: 'barber' })
@@ -42,7 +42,7 @@ const week = computed(() => {
     const val = enriched.value
       .filter((a) => a.status === 'completed' && sameDay(a.startsAt, day))
       .reduce((sum, a) => sum + a.price + (a.tip ?? 0), 0)
-    return { letter: fmtDate(day, 'EEEEE'), val }
+    return { letter: dayLetterEs(day), val }
   })
 })
 const weekTotal = computed(() => week.value.reduce((s, d) => s + d.val, 0))

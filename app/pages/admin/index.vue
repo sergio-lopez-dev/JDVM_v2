@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtDate, formatPrice, initials } from '~~/lib/format'
+import { fmtDate, formatPrice, initials, dayLetterEs } from '~~/lib/format'
 import { toDate, sameDay } from '~~/lib/datetime'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
@@ -94,12 +94,6 @@ const productRevenue = computed(() => weekSales.value.reduce((s, x) => s + x.uni
 // Total semanal = servicios hechos + productos.
 const weekRevenue = computed(() => totals.value.revenue + productRevenue.value)
 const maxRev = computed(() => Math.max(1, ...perDayTotal.value.map((d) => d.revenue)))
-
-// Inicial del día en español (date-fns da "M" para martes y miércoles): L M X J V S D.
-const WEEKDAY_LETTER = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
-function dayLetter(d: Date) {
-  return WEEKDAY_LETTER[d.getDay()]
-}
 
 // — Equipo hoy —
 const teamToday = computed(() =>
@@ -197,7 +191,7 @@ const bookingOpen = ref(false)
                     :style="{ height: `${d.revenue ? Math.max(6, (d.revenue / maxRev) * 100) : 0}%` }"
                   />
                 </div>
-                <span class="font-mono text-[0.65rem]" :class="d.revenue === maxRev ? 'text-primary' : 'text-dimmed'">{{ dayLetter(d.date) }}</span>
+                <span class="font-mono text-[0.65rem]" :class="d.revenue === maxRev ? 'text-primary' : 'text-dimmed'">{{ dayLetterEs(d.date) }}</span>
               </div>
             </div>
           </AdminCard>

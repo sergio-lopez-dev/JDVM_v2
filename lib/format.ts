@@ -29,6 +29,13 @@ export function fmtDate(d: Date, pattern: string): string {
   return format(d, pattern, { locale: es })
 }
 
+// Inicial del día en español. date-fns ('EEEEE') da "M" para martes Y miércoles;
+// aquí miércoles = X (convención ES: L M X J V S D). Índice = getDay() (0=domingo).
+const WEEKDAY_LETTERS_ES = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+export function dayLetterEs(d: Date): string {
+  return WEEKDAY_LETTERS_ES[d.getDay()] ?? ''
+}
+
 /** Tiempo relativo en español: "hace 5 minutos", "hace 2 horas", "hace 3 días". */
 export function timeAgo(d: Date): string {
   return formatDistanceToNow(d, { addSuffix: true, locale: es })

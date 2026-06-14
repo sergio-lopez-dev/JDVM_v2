@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtDate, formatPrice } from '~~/lib/format'
+import { formatPrice, dayLetterEs } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 
 definePageMeta({ layout: 'barber', middleware: 'barber' })
@@ -66,7 +66,7 @@ const week = computed(() => {
     const val =
       (dayDone.reduce((sum, a) => sum + a.price, 0) * pct.value) / 100 +
       dayDone.reduce((sum, a) => sum + (a.tip ?? 0), 0)
-    return { letter: fmtDate(day, 'EEEEE'), val }
+    return { letter: dayLetterEs(day), val }
   })
 })
 const maxVal = computed(() => Math.max(1, ...week.value.map((d) => d.val)))

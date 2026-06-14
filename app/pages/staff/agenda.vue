@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { fmtDate, formatPrice, initials } from '~~/lib/format'
+import { fmtDate, formatPrice, initials, dayLetterEs } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 import { freeWindows, resolveDayTimetable } from '~~/lib/slots'
 
@@ -64,6 +64,15 @@ const freeSlots = computed(() => {
 function blockSlot() {
   toast.add({ title: 'Bloquear hueco', description: 'Disponible próximamente.', icon: 'i-lucide-lock' })
 }
+
+// Crear cita (solo para sí mismo: el modal queda fijado a este barbero).
+const bookingOpen = ref(false)
+const bookingPreset = ref<{ date: Date; time?: string }>({ date: selectedDay.value })
+function openBooking(time?: string) {
+  if (!me.value) return
+  bookingPreset.value = { date: selectedDay.value, time }
+  bookingOpen.value = true
+}
 </script>
 
 <template>
@@ -72,11 +81,14 @@ function blockSlot() {
     <div class="flex flex-1 flex-col lg:hidden">
       <header class="flex items-center justify-between px-5 pt-5 pb-3">
         <h1 class="font-display text-3xl">Mi agenda</h1>
-        <button type="button" class="text-primary bg-primary/10 border-primary/30 flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold" @click="blockSlot"><UIcon name="i-lucide-lock" class="size-3.5" />Bloquear hueco</button>
+        <div class="flex items-center gap-2">
+          <button type="button" class="text-muted bg-muted border-default flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold" @click="blockSlot"><UIcon name="i-lucide-lock" class="size-3.5" />Bloquear</button>
+          <button type="button" :disabled="!me" class="text-inverted bg-primary flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50" @click="openBooking()"><UIcon name="i-lucide-plus" class="size-3.5" />Nueva cita</button>
+        </div>
       </header>
       <div class="grid grid-cols-6 gap-1.5 px-5 pb-3">
         <button v-for="d in weekDays" :key="d.toISOString()" type="button" class="flex flex-col items-center gap-1 rounded-xl border py-2" :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'" @click="selectedDay = d">
-          <span class="font-mono text-[0.6rem] uppercase">{{ fmtDate(d, 'EEEEE') }}</span>
+          <span class="font-mono text-[0.6rem] uppercase">{{ dayLetterEs(d) }}</span>
           <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
         </button>
       </div>
@@ -103,13 +115,15 @@ function blockSlot() {
             </div>
           </NuxtLink>
         </div>
-        <UiEmptyState v-else icon="i-lucide-calendar-x" title="Sin citas" :description="`No tienes citas el ${fmtDate(selectedDay, 'd MMM')}.`" />
+        <UiEmptyState v-else icon="i-lucide-calendar-x" title="Sin citas" :description="`No tienes citas el ${fmtDate(selectedDay, 'd MMM')}.`">
+          <UButton color="primary" icon="i-lucide-plus" :disabled="!me" @click="openBooking()">Añadir cita</UButton>
+        </UiEmptyState>
 
-        <!-- huecos libres del día -->
+        <!-- huecos libres del día (pulsa para crear cita a esa hora) -->
         <div v-if="freeSlots.length" class="mt-5">
           <p class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"><span class="bg-success size-1.5 rounded-full" />Huecos libres</p>
           <div class="flex flex-wrap gap-2">
-            <span v-for="(f, i) in freeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+            <button v-for="(f, i) in freeSlots" :key="i" type="button" class="border-success/30 bg-success/10 text-success hover:bg-success/20 flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold transition" @click="openBooking(fmtDate(f.start, 'HH:mm'))"><UIcon name="i-lucide-plus" class="size-3" />{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</button>
           </div>
         </div>
       </div>
@@ -120,6 +134,7 @@ function blockSlot() {
       <AdminHeader title="Mi agenda" :sub="`Solo tus citas · ${me?.name ?? 'Barbero'}`">
         <template #actions>
           <UButton color="neutral" variant="soft" icon="i-lucide-lock" @click="blockSlot">Bloquear hueco</UButton>
+          <UButton color="primary" icon="i-lucide-plus" :disabled="!me" @click="openBooking()">Nueva cita</UButton>
         </template>
       </AdminHeader>
 
@@ -148,7 +163,11 @@ function blockSlot() {
                 <AdminPill :kind="isNow(a) ? 'confirmed' : a.status === 'completed' ? 'done' : 'confirmed'">{{ a.status === 'completed' ? 'Hecha' : isNow(a) ? 'En curso' : 'Confirmada' }}</AdminPill>
               </NuxtLink>
             </div>
-            <div v-else class="p-8"><UiEmptyState icon="i-lucide-calendar-x" title="Sin citas" description="No tienes citas este día." /></div>
+            <div v-else class="p-8">
+              <UiEmptyState icon="i-lucide-calendar-x" title="Sin citas" description="No tienes citas este día.">
+                <UButton color="primary" icon="i-lucide-plus" :disabled="!me" @click="openBooking()">Añadir cita</UButton>
+              </UiEmptyState>
+            </div>
           </AdminCard>
 
           <!-- rail -->
@@ -163,7 +182,7 @@ function blockSlot() {
             <AdminCard v-if="freeSlots.length">
               <div class="font-display mb-3 flex items-center gap-2 text-lg"><span class="bg-success size-2 rounded-full" />Huecos libres</div>
               <div class="flex flex-wrap gap-2">
-                <span v-for="(f, i) in freeSlots" :key="i" class="border-success/30 bg-success/10 text-success rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold">{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</span>
+                <button v-for="(f, i) in freeSlots" :key="i" type="button" class="border-success/30 bg-success/10 text-success hover:bg-success/20 flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold transition" @click="openBooking(fmtDate(f.start, 'HH:mm'))"><UIcon name="i-lucide-plus" class="size-3" />{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}</button>
               </div>
             </AdminCard>
 
@@ -179,5 +198,12 @@ function blockSlot() {
         </div>
       </div>
     </div>
+
+    <AdminBookingModal
+      v-model:open="bookingOpen"
+      :locked-barber-id="me?.id"
+      :preset-date="bookingPreset.date"
+      :preset-time="bookingPreset.time"
+    />
   </div>
 </template>

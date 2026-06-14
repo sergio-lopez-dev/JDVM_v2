@@ -11,6 +11,9 @@ const props = defineProps<{
   // Al abrir desde un hueco libre de la agenda: barbero y hora ("HH:mm") prefijados.
   presetBarberId?: string
   presetTime?: string
+  // Bloquea el barbero (app del barbero): solo puede crear citas para sí mismo. Oculta
+  // el selector de barbero y limita los servicios a los que ese barbero ofrece.
+  lockedBarberId?: string
 }>()
 const emit = defineEmits<{ 'update:open': [boolean]; created: [] }>()
 
@@ -37,6 +40,11 @@ const manualPhone = ref('')
 const outOfHours = ref(false)
 const manualTime = ref('10:00')
 
+// Barbero bloqueado (app del barbero): el modal queda fijado a él.
+const lockedBarber = computed(() =>
+  props.lockedBarberId ? (barbers.value.find((b) => b.id === props.lockedBarberId) ?? null) : null,
+)
+
 function startOfToday() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -55,10 +63,10 @@ watch(
       clientId.value = props.presetClientId ?? ''
       clientQuery.value = ''
       service.value = null
-      // Si se abrió desde un hueco libre, preselecciona ese barbero.
-      barber.value = props.presetBarberId
-        ? (barbers.value.find((b) => b.id === props.presetBarberId) ?? null)
-        : null
+      // Barbero fijado (app del barbero) o preseleccionado (hueco libre).
+      barber.value =
+        lockedBarber.value ??
+        (props.presetBarberId ? (barbers.value.find((b) => b.id === props.presetBarberId) ?? null) : null)
       date.value = props.presetDate ? new Date(props.presetDate) : startOfToday()
       date.value.setHours(0, 0, 0, 0)
       slot.value = null
@@ -72,15 +80,21 @@ watch(
   },
 )
 
-// Al abrirse con barbero preseleccionado pero antes de que cargue la colección de
-// barberos, reintenta fijarlo cuando llegue.
+// Al abrirse con barbero fijado/preseleccionado pero antes de que cargue la colección
+// de barberos, lo fijamos cuando llegue.
 watch(barbers, (list) => {
-  if (props.open && props.presetBarberId && !barber.value) {
-    barber.value = list.find((b) => b.id === props.presetBarberId) ?? null
-  }
+  if (!props.open || barber.value) return
+  const wanted = props.lockedBarberId ?? props.presetBarberId
+  if (wanted) barber.value = list.find((b) => b.id === wanted) ?? null
 })
 
-const bookableServices = computed(() => services.value.filter((s) => !s.isPrivate))
+const bookableServices = computed(() => {
+  const list = services.value.filter((s) => !s.isPrivate)
+  // Si el barbero está bloqueado, solo sus servicios.
+  return lockedBarber.value
+    ? list.filter((s) => lockedBarber.value!.servicesOffered.includes(s.id))
+    : list
+})
 const eligibleBarbers = computed(() =>
   service.value
     ? barbers.value.filter((b) => b.servicesOffered.includes(service.value!.id))
@@ -92,6 +106,10 @@ const eligibleBarbers = computed(() =>
 function pickService(s: Service) {
   service.value = s
   slot.value = null
+  if (lockedBarber.value) {
+    barber.value = lockedBarber.value
+    return
+  }
   const defId = settings.value?.defaultBarberId
   barber.value = (defId && eligibleBarbers.value.find((b) => b.id === defId)) || null
 }
@@ -313,8 +331,8 @@ async function confirm() {
             </div>
           </div>
 
-          <!-- barbero -->
-          <div v-if="service">
+          <!-- barbero (oculto si está bloqueado: el barbero solo se crea citas a sí mismo) -->
+          <div v-if="service && !lockedBarberId">
             <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Barbero</label>
             <div class="flex flex-wrap gap-2">
               <button
