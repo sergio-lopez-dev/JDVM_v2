@@ -41,6 +41,8 @@ function startOfWeek(d: Date) {
 }
 const rangeStart = ref(startOfWeek(new Date()))
 const rangeEnd = ref(new Date(startOfWeek(new Date()).getTime() + 7 * 86_400_000))
+// Ignora la primera llamada de onRangeUpdate (la que dispara Schedule-X al renderizar).
+let rangeInitDone = false
 
 const appts = inRange(rangeStart, rangeEnd)
 const { enriched } = useAdminAppointments(appts)
@@ -113,10 +115,20 @@ onMounted(() => {
     events: events.value,
     callbacks: {
       onRangeUpdate(range) {
+        // Schedule-X llama a este callback UNA VEZ al renderizar (no solo al navegar).
+        // Esa primera llamada pisaba nuestro rango inicial (semana actual, ya correcto)
+        // con Dates nuevos a mitad del montaje → re-suscribía la consulta a Firestore y
+        // en MÓVIL las citas no cargaban hasta cambiar de semana y volver. La ignoramos:
+        // el rango inicial ya cubre la semana actual y el móvil navega por su cuenta.
+        if (!rangeInitDone) {
+          rangeInitDone = true
+          return
+        }
         // Solo actualizamos si el rango cambia de verdad: asignar un Date nuevo
         // en cada render dispararía un bucle reactivo (eventos → set → render).
         const s = fromTemporal(range.start)
         const e = fromTemporal(range.end)
+        if (isNaN(s.getTime()) || isNaN(e.getTime())) return
         if (s.getTime() !== rangeStart.value.getTime()) rangeStart.value = s
         if (e.getTime() !== rangeEnd.value.getTime()) rangeEnd.value = e
       },
@@ -147,10 +159,11 @@ async function markNoShow(id: string) {
   // Refleja el nuevo estado en el drawer (oculta los botones de 'booked') sin cerrarlo.
   if (selected.value?.id === id) selected.value = { ...selected.value, status: 'no_show' }
   // Ofrece vetar al cliente (no siempre se veta: solo si no paga la cita perdida).
-  if (!selectedBanned.value) banPrompt.value = true
+  // Solo para clientes REGISTRADOS (un walk-in manual no tiene cuenta que vetar).
+  if (selected.value?.clientId && !selectedBanned.value) banPrompt.value = true
 }
 async function banFromPrompt() {
-  if (!selected.value || banBusy.value) return
+  if (!selected.value?.clientId || banBusy.value) return
   banBusy.value = true
   try {
     await setBanned(selected.value.clientId, true)

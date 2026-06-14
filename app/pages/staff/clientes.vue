@@ -33,10 +33,13 @@ const clients = computed<Cli[]>(() => {
   const map = new Map<string, { id: string; name: string; phone?: string; count: number; last: Date; svc: Map<string, number> }>()
   for (const a of enriched.value) {
     if (a.status === 'cancelled') continue
-    let cur = map.get(a.clientId)
+    // Registrados: por clientId. Walk-ins manuales (sin clientId): por teléfono o
+    // nombre, para no fusionarlos todos en una sola ficha vacía.
+    const key = a.clientId || `walkin:${a.clientPhone || a.clientName}`
+    let cur = map.get(key)
     if (!cur) {
-      cur = { id: a.clientId, name: a.clientName, phone: a.clientPhone, count: 0, last: a.startsAt, svc: new Map() }
-      map.set(a.clientId, cur)
+      cur = { id: key, name: a.clientName, phone: a.clientPhone, count: 0, last: a.startsAt, svc: new Map() }
+      map.set(key, cur)
     }
     cur.count += 1
     if (a.startsAt > cur.last) cur.last = a.startsAt

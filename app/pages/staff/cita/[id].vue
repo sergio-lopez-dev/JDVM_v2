@@ -22,9 +22,10 @@ const banBusy = ref(false)
 
 const PAY: Record<string, string> = { cash: 'Efectivo', revolut: 'Revolut' }
 
-// Visitas anteriores del mismo cliente con este barbero.
+// Visitas anteriores del mismo cliente con este barbero (solo si está registrado:
+// los walk-in manuales comparten clientId '' y no se pueden agrupar con fiabilidad).
 const visits = computed(() =>
-  appt.value ? enriched.value.filter((a) => a.clientId === appt.value!.clientId) : [],
+  appt.value?.clientId ? enriched.value.filter((a) => a.clientId === appt.value!.clientId) : [],
 )
 const history = computed(() =>
   visits.value
@@ -44,8 +45,9 @@ async function markNoShow() {
   // No cuenta en la contabilidad (solo suman las 'completed').
   await setStatus(appt.value.id, 'no_show')
   toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
-  // Ofrece vetar (no siempre se veta: solo si no paga la cita perdida).
-  if (!banned.value) banPrompt.value = true
+  // Ofrece vetar (no siempre se veta: solo si no paga la cita perdida). Solo a
+  // clientes registrados (un walk-in manual no tiene cuenta que vetar).
+  if (clientUid.value && !banned.value) banPrompt.value = true
 }
 async function banFromPrompt() {
   await toggleBan()
@@ -127,8 +129,8 @@ function reschedule() {
 
         <!-- acciones sobre el cliente / la cita (barbero) -->
         <div class="grid grid-cols-2 gap-2.5">
-          <UButton v-if="appt.status === 'booked'" color="warning" variant="soft" size="lg" class="justify-center" icon="i-lucide-user-x" @click="markNoShow">No vino</UButton>
-          <UButton :color="banned ? 'success' : 'error'" variant="soft" size="lg" class="justify-center" :class="appt.status !== 'booked' ? 'col-span-2' : ''" :icon="banned ? 'i-lucide-user-check' : 'i-lucide-ban'" :loading="banBusy" @click="toggleBan">{{ banned ? 'Quitar veto' : 'Vetar cliente' }}</UButton>
+          <UButton v-if="appt.status === 'booked'" color="warning" variant="soft" size="lg" class="justify-center" :class="!clientUid ? 'col-span-2' : ''" icon="i-lucide-user-x" @click="markNoShow">No vino</UButton>
+          <UButton v-if="clientUid" :color="banned ? 'success' : 'error'" variant="soft" size="lg" class="justify-center" :class="appt.status !== 'booked' ? 'col-span-2' : ''" :icon="banned ? 'i-lucide-user-check' : 'i-lucide-ban'" :loading="banBusy" @click="toggleBan">{{ banned ? 'Quitar veto' : 'Vetar cliente' }}</UButton>
         </div>
         <p v-if="banned" class="text-error -mt-2 flex items-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado: no puede coger nuevas citas.</p>
 

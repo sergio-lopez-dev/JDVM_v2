@@ -25,6 +25,13 @@ const barber = ref<Barber | null>(null)
 const date = ref<Date>(startOfToday())
 const slot = ref<Date | null>(null)
 const submitting = ref(false)
+// Cliente NO registrado (walk-in): nombre + teléfono a mano, sin clientId.
+const manualClient = ref(false)
+const manualName = ref('')
+const manualPhone = ref('')
+// Fuera de horario: permite meter una hora libre (corte extra) saltándose los huecos.
+const outOfHours = ref(false)
+const manualTime = ref('10:00')
 
 function startOfToday() {
   const d = new Date()
@@ -44,6 +51,11 @@ watch(
       date.value = props.presetDate ? new Date(props.presetDate) : startOfToday()
       date.value.setHours(0, 0, 0, 0)
       slot.value = null
+      manualClient.value = false
+      manualName.value = ''
+      manualPhone.value = ''
+      outOfHours.value = false
+      manualTime.value = '10:00'
     }
   },
 )
@@ -92,7 +104,17 @@ const slots = computed(() => {
 const price = computed(() =>
   service.value ? effectivePrice(service.value, barberId.value ?? undefined) : 0,
 )
-const canSubmit = computed(() => !!(clientId.value && service.value && barber.value && slot.value))
+const clientOk = computed(() => (manualClient.value ? !!manualName.value.trim() : !!clientId.value))
+const timeOk = computed(() => (outOfHours.value ? /^\d{2}:\d{2}$/.test(manualTime.value) : !!slot.value))
+const canSubmit = computed(() => !!(clientOk.value && service.value && barber.value && timeOk.value))
+
+// Fecha + "HH:mm" -> Date (para la hora libre fuera de horario).
+function dateAt(d: Date, hhmm: string): Date {
+  const [h, m] = hhmm.split(':').map(Number)
+  const nd = new Date(d)
+  nd.setHours(h ?? 0, m ?? 0, 0, 0)
+  return nd
+}
 
 function setDateFromInput(v: string) {
   const [y, m, d] = v.split('-').map(Number)
@@ -106,15 +128,20 @@ function setDateFromInput(v: string) {
 const dateInputValue = computed(() => fmtDate(date.value, 'yyyy-MM-dd'))
 
 async function confirm() {
-  if (!canSubmit.value || !service.value || !barber.value || !slot.value) return
+  if (!canSubmit.value || !service.value || !barber.value) return
+  const startsAt = outOfHours.value ? dateAt(date.value, manualTime.value) : slot.value
+  if (!startsAt) return
   submitting.value = true
   try {
-    const endsAt = new Date(slot.value.getTime() + effectiveDuration(service.value, barber.value.id) * 60_000)
+    const endsAt = new Date(startsAt.getTime() + effectiveDuration(service.value, barber.value.id) * 60_000)
     await create({
-      clientId: clientId.value,
+      clientId: manualClient.value ? '' : clientId.value,
+      ...(manualClient.value
+        ? { clientName: manualName.value.trim(), ...(manualPhone.value.trim() ? { clientPhone: manualPhone.value.trim() } : {}) }
+        : {}),
       barberId: barber.value.id,
       serviceId: service.value.id,
-      startsAt: slot.value,
+      startsAt,
       endsAt,
       status: 'booked',
       priceSnapshot: price.value,
@@ -162,26 +189,38 @@ async function confirm() {
         <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <!-- cliente -->
           <div>
-            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
-            <div v-if="selectedClient" class="border-primary/30 bg-primary/5 flex items-center gap-3 rounded-xl border p-3">
-              <div class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(selectedClient.name) }}</div>
-              <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">{{ selectedClient.name }}</p><p class="text-dimmed truncate text-xs">{{ selectedClient.email }}</p></div>
-              <button type="button" class="text-primary text-xs font-semibold" @click="clientId = ''">Cambiar</button>
+            <div class="mb-1.5 flex items-center justify-between">
+              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
+              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="manualClient = !manualClient; clientId = ''">
+                {{ manualClient ? 'Buscar registrado' : 'No registrado' }}
+              </button>
+            </div>
+            <!-- cliente NO registrado: nombre + teléfono a mano -->
+            <div v-if="manualClient" class="space-y-2">
+              <UInput v-model="manualName" placeholder="Nombre del cliente" icon="i-lucide-user" size="md" class="w-full" />
+              <UInput v-model="manualPhone" type="tel" inputmode="numeric" placeholder="Teléfono (opcional)" icon="i-lucide-phone" size="md" class="w-full" />
             </div>
             <template v-else>
-              <UInput v-model="clientQuery" placeholder="Buscar cliente…" icon="i-lucide-search" size="md" class="w-full" />
-              <div v-if="filteredClients.length" class="border-default mt-2 max-h-44 overflow-y-auto rounded-xl border">
-                <button
-                  v-for="c in filteredClients"
-                  :key="c.id"
-                  type="button"
-                  class="border-default hover:bg-elevated flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-b-0"
-                  @click="clientId = c.id"
-                >
-                  <div class="bg-elevated border-default flex size-8 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(c.name) }}</div>
-                  <div class="min-w-0"><p class="truncate text-sm font-medium">{{ c.name }}</p><p class="text-dimmed truncate text-[0.7rem]">{{ c.email }}</p></div>
-                </button>
+              <div v-if="selectedClient" class="border-primary/30 bg-primary/5 flex items-center gap-3 rounded-xl border p-3">
+                <div class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(selectedClient.name) }}</div>
+                <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">{{ selectedClient.name }}</p><p class="text-dimmed truncate text-xs">{{ selectedClient.email }}</p></div>
+                <button type="button" class="text-primary text-xs font-semibold" @click="clientId = ''">Cambiar</button>
               </div>
+              <template v-else>
+                <UInput v-model="clientQuery" placeholder="Buscar cliente…" icon="i-lucide-search" size="md" class="w-full" />
+                <div v-if="filteredClients.length" class="border-default mt-2 max-h-44 overflow-y-auto rounded-xl border">
+                  <button
+                    v-for="c in filteredClients"
+                    :key="c.id"
+                    type="button"
+                    class="border-default hover:bg-elevated flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-b-0"
+                    @click="clientId = c.id"
+                  >
+                    <div class="bg-elevated border-default flex size-8 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(c.name) }}</div>
+                    <div class="min-w-0"><p class="truncate text-sm font-medium">{{ c.name }}</p><p class="text-dimmed truncate text-[0.7rem]">{{ c.email }}</p></div>
+                  </button>
+                </div>
+              </template>
             </template>
           </div>
 
@@ -223,24 +262,40 @@ async function confirm() {
 
           <!-- fecha + hueco -->
           <div v-if="service && barber">
-            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Fecha y hora</label>
+            <div class="mb-1.5 flex items-center justify-between">
+              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Fecha y hora</label>
+              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="outOfHours = !outOfHours; slot = null">
+                {{ outOfHours ? 'Ver huecos' : 'Fuera de horario' }}
+              </button>
+            </div>
             <input
               type="date"
               :value="dateInputValue"
               class="border-default bg-muted text-default mb-3 w-full rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
               @input="setDateFromInput(($event.target as HTMLInputElement).value)"
             />
-            <div v-if="slots.length" class="grid grid-cols-4 gap-2">
-              <button
-                v-for="s in slots"
-                :key="s.toISOString()"
-                type="button"
-                class="rounded-lg border py-2 text-center font-mono text-sm font-semibold"
-                :class="slot?.getTime() === s.getTime() ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'"
-                @click="slot = s"
-              >{{ fmtDate(s, 'HH:mm') }}</button>
-            </div>
-            <p v-else class="text-dimmed py-3 text-center text-sm">No hay huecos ese día.</p>
+            <!-- hora libre (corte extra fuera del horario): se salta huecos y horario -->
+            <template v-if="outOfHours">
+              <input
+                v-model="manualTime"
+                type="time"
+                class="border-default bg-muted text-default w-full rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
+              />
+              <p class="text-dimmed mt-2 text-xs">Corte extra: se ignoran el horario y los huecos. Puede solaparse con otra cita.</p>
+            </template>
+            <template v-else>
+              <div v-if="slots.length" class="grid grid-cols-4 gap-2">
+                <button
+                  v-for="s in slots"
+                  :key="s.toISOString()"
+                  type="button"
+                  class="rounded-lg border py-2 text-center font-mono text-sm font-semibold"
+                  :class="slot?.getTime() === s.getTime() ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'"
+                  @click="slot = s"
+                >{{ fmtDate(s, 'HH:mm') }}</button>
+              </div>
+              <p v-else class="text-dimmed py-3 text-center text-sm">No hay huecos ese día. Usa “Fuera de horario” para un corte extra.</p>
+            </template>
           </div>
         </div>
 

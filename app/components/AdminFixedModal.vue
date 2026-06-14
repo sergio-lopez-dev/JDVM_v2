@@ -37,6 +37,12 @@ const time = ref('10:00')
 const saving = ref(false)
 // id de la serie que se está editando (null = creando una nueva).
 const editingId = ref<string | null>(null)
+// Cliente NO registrado (walk-in): nombre + teléfono a mano, sin clientId.
+const manualClient = ref(false)
+const manualName = ref('')
+const manualPhone = ref('')
+// Fuera de horario: hora libre (corte extra fijo) saltándose los huecos.
+const outOfHours = ref(false)
 
 function resetForm() {
   clientId.value = ''
@@ -46,6 +52,10 @@ function resetForm() {
   weekday.value = 'tue'
   time.value = '10:00'
   editingId.value = null
+  manualClient.value = false
+  manualName.value = ''
+  manualPhone.value = ''
+  outOfHours.value = false
 }
 
 watch(
@@ -59,10 +69,15 @@ watch(
 function startEdit(f: FixedAppointment) {
   editingId.value = f.id
   clientId.value = f.clientId
+  manualClient.value = !f.clientId
+  manualName.value = f.clientName ?? ''
+  manualPhone.value = f.clientPhone ?? ''
   service.value = services.value.find((s) => s.id === f.serviceId) ?? null
   barber.value = barbers.value.find((b) => b.id === f.barberId) ?? null
   weekday.value = f.weekday
   time.value = f.time
+  // Si la hora guardada no es un hueco estándar, asumimos que fue "fuera de horario".
+  outOfHours.value = false
 }
 
 const filteredClients = computed(() => {
@@ -119,27 +134,50 @@ const openWeekdays = computed<Set<Weekday>>(() => {
 })
 
 // Si la hora seleccionada deja de ser un hueco válido (al cambiar día/servicio/
-// barbero), se ajusta al primer hueco disponible.
+// barbero), se ajusta al primer hueco disponible. (No cuando es "fuera de horario":
+// ahí la hora la escribe el admin a mano.)
 watch(slotTimes, (list) => {
+  if (outOfHours.value) return
   if (!list.includes(time.value)) time.value = list[0] ?? ''
 })
 
-const canSubmit = computed(
-  () => !!(clientId.value && service.value && barber.value && time.value && slotTimes.value.includes(time.value)),
+const clientOk = computed(() => (manualClient.value ? !!manualName.value.trim() : !!clientId.value))
+const timeOk = computed(() =>
+  outOfHours.value ? /^\d{2}:\d{2}$/.test(time.value) : slotTimes.value.includes(time.value),
 )
+const canSubmit = computed(() => !!(clientOk.value && service.value && barber.value && timeOk.value))
 
 function nameOf(id: string, kind: 'client' | 'barber' | 'service') {
   if (kind === 'client') return clients.value.find((c) => c.id === id)?.name ?? 'Cliente'
   if (kind === 'barber') return barbers.value.find((b) => b.id === id)?.name ?? 'Barbero'
   return services.value.find((s) => s.id === id)?.name ?? 'Servicio'
 }
+// Nombre del cliente de una serie: registrado (por clientId) o el manual guardado.
+function clientLabel(f: FixedAppointment) {
+  return (f.clientId ? clients.value.find((c) => c.id === f.clientId)?.name : f.clientName) ?? 'Cliente'
+}
+
+// Listado de citas fijas AGRUPADO por día de la semana y ordenado por hora, para que
+// el admin las organice de un vistazo (antes salían por fecha de creación).
+const groupedFixed = computed(() =>
+  WEEKDAYS.map((wd) => ({
+    weekday: wd,
+    label: DAY_LABELS[wd],
+    items: fixed.value
+      .filter((f) => f.weekday === wd)
+      .sort((a, b) => a.time.localeCompare(b.time) || clientLabel(a).localeCompare(clientLabel(b))),
+  })).filter((g) => g.items.length),
+)
 
 async function submit() {
   if (!canSubmit.value || !service.value || !barber.value) return
   saving.value = true
   try {
     const input = {
-      clientId: clientId.value,
+      clientId: manualClient.value ? '' : clientId.value,
+      ...(manualClient.value
+        ? { clientName: manualName.value.trim(), ...(manualPhone.value.trim() ? { clientPhone: manualPhone.value.trim() } : {}) }
+        : {}),
       barberId: barber.value.id,
       serviceId: service.value.id,
       weekday: weekday.value,
@@ -197,20 +235,31 @@ async function del(id: string) {
         <div class="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <!-- cliente -->
           <div>
-            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
-            <div v-if="selectedClient" class="border-primary/30 bg-primary/5 flex items-center gap-3 rounded-xl border p-3">
-              <div class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(selectedClient.name) }}</div>
-              <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">{{ selectedClient.name }}</p></div>
-              <button type="button" class="text-primary text-xs font-semibold" @click="clientId = ''">Cambiar</button>
+            <div class="mb-1.5 flex items-center justify-between">
+              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Cliente</label>
+              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="manualClient = !manualClient; clientId = ''">
+                {{ manualClient ? 'Buscar registrado' : 'No registrado' }}
+              </button>
+            </div>
+            <div v-if="manualClient" class="space-y-2">
+              <UInput v-model="manualName" placeholder="Nombre del cliente" icon="i-lucide-user" class="w-full" />
+              <UInput v-model="manualPhone" type="tel" inputmode="numeric" placeholder="Teléfono (opcional)" icon="i-lucide-phone" class="w-full" />
             </div>
             <template v-else>
-              <UInput v-model="clientQuery" placeholder="Buscar cliente…" icon="i-lucide-search" class="w-full" />
-              <div v-if="filteredClients.length" class="border-default mt-2 max-h-40 overflow-y-auto rounded-xl border">
-                <button v-for="c in filteredClients" :key="c.id" type="button" class="border-default hover:bg-elevated flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-b-0" @click="clientId = c.id">
-                  <div class="bg-elevated border-default flex size-8 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(c.name) }}</div>
-                  <span class="truncate text-sm font-medium">{{ c.name }}</span>
-                </button>
+              <div v-if="selectedClient" class="border-primary/30 bg-primary/5 flex items-center gap-3 rounded-xl border p-3">
+                <div class="bg-elevated border-default flex size-9 items-center justify-center rounded-full border text-xs font-semibold">{{ initials(selectedClient.name) }}</div>
+                <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">{{ selectedClient.name }}</p></div>
+                <button type="button" class="text-primary text-xs font-semibold" @click="clientId = ''">Cambiar</button>
               </div>
+              <template v-else>
+                <UInput v-model="clientQuery" placeholder="Buscar cliente…" icon="i-lucide-search" class="w-full" />
+                <div v-if="filteredClients.length" class="border-default mt-2 max-h-40 overflow-y-auto rounded-xl border">
+                  <button v-for="c in filteredClients" :key="c.id" type="button" class="border-default hover:bg-elevated flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-b-0" @click="clientId = c.id">
+                    <div class="bg-elevated border-default flex size-8 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(c.name) }}</div>
+                    <span class="truncate text-sm font-medium">{{ c.name }}</span>
+                  </button>
+                </div>
+              </template>
             </template>
           </div>
 
@@ -253,23 +302,38 @@ async function del(id: string) {
             </div>
           </div>
 
-          <!-- hora: huecos reales según horario + paso (no campo libre) -->
+          <!-- hora: huecos reales según horario + paso (o hora libre fuera de horario) -->
           <div>
-            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Hora</label>
-            <p v-if="!service || !barber" class="text-dimmed text-xs">Elige servicio y barbero para ver los huecos.</p>
-            <div v-else-if="slotTimes.length" class="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
-              <button
-                v-for="t in slotTimes"
-                :key="t"
-                type="button"
-                class="rounded-lg border py-1.5 text-center font-mono text-xs"
-                :class="time === t ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted text-toned'"
-                @click="time = t"
-              >
-                {{ t }}
+            <div class="mb-1.5 flex items-center justify-between">
+              <label class="text-dimmed block font-mono text-[0.6rem] tracking-widest uppercase">Hora</label>
+              <button type="button" class="text-primary text-[0.7rem] font-semibold" @click="outOfHours = !outOfHours">
+                {{ outOfHours ? 'Ver huecos' : 'Fuera de horario' }}
               </button>
             </div>
-            <p v-else class="text-dimmed text-xs">Ese día no hay horario disponible para este barbero.</p>
+            <template v-if="outOfHours">
+              <input
+                v-model="time"
+                type="time"
+                class="border-default bg-muted text-default w-full rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
+              />
+              <p class="text-dimmed mt-2 text-xs">Corte extra fijo: se ignora el horario del estudio.</p>
+            </template>
+            <template v-else>
+              <p v-if="!service || !barber" class="text-dimmed text-xs">Elige servicio y barbero para ver los huecos.</p>
+              <div v-else-if="slotTimes.length" class="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                <button
+                  v-for="t in slotTimes"
+                  :key="t"
+                  type="button"
+                  class="rounded-lg border py-1.5 text-center font-mono text-xs"
+                  :class="time === t ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted text-toned'"
+                  @click="time = t"
+                >
+                  {{ t }}
+                </button>
+              </div>
+              <p v-else class="text-dimmed text-xs">Ese día no hay horario disponible. Usa “Fuera de horario” para un corte extra.</p>
+            </template>
           </div>
 
           <div class="flex gap-2">
@@ -278,18 +342,23 @@ async function del(id: string) {
           </div>
           <p v-if="editingId" class="text-dimmed text-center text-xs">Editando una serie: se regeneran sus próximas 12 semanas (las citas pasadas se conservan).</p>
 
-          <!-- existentes -->
+          <!-- existentes: agrupadas por día de la semana y ordenadas por hora -->
           <div v-if="fixed.length">
-            <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">Activas</p>
-            <div class="space-y-2">
-              <div v-for="f in fixed" :key="f.id" class="flex items-center gap-3 rounded-xl border p-3" :class="editingId === f.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'">
-                <UIcon name="i-lucide-repeat" class="text-primary size-4 shrink-0" />
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-semibold">{{ nameOf(f.clientId, 'client') }} · {{ DAY_LABELS[f.weekday] }} {{ f.time }}</p>
-                  <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}</p>
+            <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">Activas · {{ fixed.length }}</p>
+            <div class="space-y-4">
+              <div v-for="g in groupedFixed" :key="g.weekday">
+                <p class="text-toned mb-1.5 text-xs font-semibold">{{ g.label }}</p>
+                <div class="space-y-2">
+                  <div v-for="f in g.items" :key="f.id" class="flex items-center gap-3 rounded-xl border p-3" :class="editingId === f.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted'">
+                    <span class="text-primary font-mono text-sm font-semibold tabular-nums">{{ f.time }}</span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-semibold">{{ clientLabel(f) }}<span v-if="!f.clientId" class="text-dimmed font-normal"> · sin registrar</span></p>
+                      <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}</p>
+                    </div>
+                    <button type="button" class="text-muted hover:text-primary flex size-8 items-center justify-center" aria-label="Editar" @click="startEdit(f)"><UIcon name="i-lucide-pencil" class="size-4" /></button>
+                    <button type="button" class="text-error/80 hover:text-error flex size-8 items-center justify-center" aria-label="Eliminar" @click="del(f.id)"><UIcon name="i-lucide-trash-2" class="size-4" /></button>
+                  </div>
                 </div>
-                <button type="button" class="text-muted hover:text-primary flex size-8 items-center justify-center" aria-label="Editar" @click="startEdit(f)"><UIcon name="i-lucide-pencil" class="size-4" /></button>
-                <button type="button" class="text-error/80 hover:text-error flex size-8 items-center justify-center" aria-label="Eliminar" @click="del(f.id)"><UIcon name="i-lucide-trash-2" class="size-4" /></button>
               </div>
             </div>
           </div>

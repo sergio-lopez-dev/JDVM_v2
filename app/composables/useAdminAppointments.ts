@@ -29,7 +29,10 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
     source.value.map((a) => {
       const svc = services.value.find((s) => s.id === a.serviceId)
       const bb = barbers.value.find((b) => b.id === a.barberId)
-      const cl = clients.value.find((c) => c.id === a.clientId)
+      // Cliente registrado (por clientId) o, si es un walk-in manual, los datos que
+      // se guardaron en la propia cita (clientName/clientPhone).
+      const cl = a.clientId ? clients.value.find((c) => c.id === a.clientId) : null
+      const cname = cl?.name ?? a.clientName ?? 'Cliente'
       return {
         ...a,
         // VueFire añade el id como propiedad NO enumerable → el spread `...a` la
@@ -42,10 +45,10 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
         barberName: bb?.name ?? 'Barbero',
         barberInitials: initials(bb?.name),
         barberColor: bb?.color,
-        clientName: cl?.name ?? 'Cliente',
-        clientPhone: cl?.phone,
+        clientName: cname,
+        clientPhone: cl?.phone ?? a.clientPhone,
         clientEmail: cl?.email,
-        clientInitials: initials(cl?.name),
+        clientInitials: initials(cname),
         price: a.priceSnapshot ?? (svc ? effectivePrice(svc, a.barberId) : 0),
       }
     }),

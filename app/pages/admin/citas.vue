@@ -94,13 +94,14 @@ async function noShowSel() {
     await setStatus(id, 'no_show')
     toast.add({ title: 'Marcada como “no vino”', icon: 'i-lucide-user-x', color: 'warning' })
     if (selected.value?.id === id) selected.value = { ...selected.value, status: 'no_show' }
-    if (!selectedBanned.value) banPrompt.value = true // ofrece vetar (no siempre se veta)
+    // Ofrece vetar solo a clientes registrados (un walk-in manual no tiene cuenta).
+    if (selected.value?.clientId && !selectedBanned.value) banPrompt.value = true
   } catch (e) {
     toast.add({ title: 'Error', description: (e as Error).message, color: 'error' })
   }
 }
 async function banFromPrompt() {
-  if (!selected.value || banBusy.value) return
+  if (!selected.value?.clientId || banBusy.value) return
   banBusy.value = true
   try {
     await setBanned(selected.value.clientId, true)

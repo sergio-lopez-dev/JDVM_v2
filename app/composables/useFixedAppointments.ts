@@ -78,7 +78,22 @@ export function useFixedAppointments() {
     )
     const clashes = (s: number, e: number) => busy.some((b) => s < b.e && b.s < e)
 
-    const tpl = await addDoc(col, { ...input, createdAt: serverTimestamp() })
+    // Datos de cliente NO registrado (walk-in). Se omiten si vacíos (Firestore no
+    // admite undefined). Se guardan en la plantilla y en cada cita materializada.
+    const manual: Record<string, string> = {}
+    if (input.clientName) manual.clientName = input.clientName
+    if (input.clientPhone) manual.clientPhone = input.clientPhone
+
+    const tpl = await addDoc(col, {
+      clientId: input.clientId,
+      ...manual,
+      barberId: input.barberId,
+      serviceId: input.serviceId,
+      weekday: input.weekday,
+      time: input.time,
+      active: input.active ?? true,
+      createdAt: serverTimestamp(),
+    })
 
     const skipped: Date[] = []
     const toCreate = slots.filter((sl) => {
@@ -93,6 +108,7 @@ export function useFixedAppointments() {
       toCreate.map((sl) =>
         addDoc(appts, {
           clientId: input.clientId,
+          ...manual,
           barberId: input.barberId,
           serviceId: input.serviceId,
           startsAt: sl.start,

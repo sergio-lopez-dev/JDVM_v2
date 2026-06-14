@@ -3,7 +3,11 @@ import { appointmentStatusSchema, paymentMethodSchema } from './common'
 
 export const appointmentSchema = z.object({
   id: z.string(),
+  // Vacío ('') si es un cliente NO registrado (walk-in que mete el admin/barbero a
+  // mano). En ese caso el nombre/teléfono viven en clientName/clientPhone.
   clientId: z.string(),
+  clientName: z.string().optional(),
+  clientPhone: z.string().optional(),
   barberId: z.string(), // NUEVO en v2: obligatorio (multi-barbero)
   serviceId: z.string(),
   startsAt: z.date(),

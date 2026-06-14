@@ -5,7 +5,10 @@ import { weekdaySchema, timeStringSchema } from './common'
 // concretas (appointments con isRecurring + fixedId) para las próximas semanas.
 export const fixedAppointmentSchema = z.object({
   id: z.string(),
+  // Vacío ('') si es un cliente NO registrado (nombre/teléfono a mano).
   clientId: z.string(),
+  clientName: z.string().optional(),
+  clientPhone: z.string().optional(),
   barberId: z.string(),
   serviceId: z.string(),
   weekday: weekdaySchema,
