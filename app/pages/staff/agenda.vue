@@ -17,19 +17,40 @@ function startOfWeek(d: Date) {
   return x
 }
 const selectedDay = ref(new Date(today.value))
+// Semana mostrada en la tira de días. Navegable: ya no se limita a la actual (los
+// datos de useBarber abarcan [-180d, +60d], así que basta mover la ventana en UI).
+const weekStartRef = ref(startOfWeek(today.value))
 const weekDays = computed(() =>
   Array.from({ length: 6 }, (_, i) => {
-    const d = startOfWeek(today.value)
+    const d = new Date(weekStartRef.value)
     d.setDate(d.getDate() + i)
     return d
   }),
 )
+const weekEnd = computed(() => {
+  const d = new Date(weekStartRef.value)
+  d.setDate(d.getDate() + 5)
+  return d
+})
 const list = onDay(selectedDay)
 
 function shiftDay(n: number) {
   const d = new Date(selectedDay.value)
   d.setDate(d.getDate() + n)
   selectedDay.value = d
+  weekStartRef.value = startOfWeek(d)
+}
+function shiftWeek(n: number) {
+  const ws = new Date(weekStartRef.value)
+  ws.setDate(ws.getDate() + n * 7)
+  weekStartRef.value = ws
+  const sd = new Date(selectedDay.value)
+  sd.setDate(sd.getDate() + n * 7)
+  selectedDay.value = sd
+}
+function goToday() {
+  weekStartRef.value = startOfWeek(today.value)
+  selectedDay.value = new Date(today.value)
 }
 const summary = computed(() => {
   const valid = list.value.filter((a) => a.status === 'booked' || a.status === 'completed')
@@ -86,6 +107,12 @@ function openBooking(time?: string) {
           <button type="button" :disabled="!me" class="text-inverted bg-primary flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50" @click="openBooking()"><UIcon name="i-lucide-plus" class="size-3.5" />Nueva cita</button>
         </div>
       </header>
+      <!-- navegación de semana -->
+      <div class="flex items-center justify-between gap-2 px-5 pb-2">
+        <button type="button" aria-label="Semana anterior" class="border-default bg-muted hover:bg-elevated flex size-9 items-center justify-center rounded-xl border" @click="shiftWeek(-1)"><UIcon name="i-lucide-chevron-left" class="size-4" /></button>
+        <button type="button" class="text-toned hover:text-default flex-1 text-center text-sm font-medium capitalize" @click="goToday">{{ fmtDate(weekStartRef, 'd MMM') }} – {{ fmtDate(weekEnd, 'd MMM') }}</button>
+        <button type="button" aria-label="Semana siguiente" class="border-default bg-muted hover:bg-elevated flex size-9 items-center justify-center rounded-xl border" @click="shiftWeek(1)"><UIcon name="i-lucide-chevron-right" class="size-4" /></button>
+      </div>
       <div class="grid grid-cols-6 gap-1.5 px-5 pb-3">
         <button v-for="d in weekDays" :key="d.toISOString()" type="button" class="flex flex-col items-center gap-1 rounded-xl border py-2" :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'" @click="selectedDay = d">
           <span class="font-mono text-[0.6rem] uppercase">{{ dayLetterEs(d) }}</span>
@@ -144,7 +171,7 @@ function openBooking(time?: string) {
           <button type="button" aria-label="Anterior" class="border-default bg-muted hover:bg-elevated flex size-10 items-center justify-center rounded-[10px] border" @click="shiftDay(-1)"><UIcon name="i-lucide-chevron-left" class="size-4" /></button>
           <div class="font-display text-2xl capitalize">{{ fmtDate(selectedDay, 'EEEE d MMM') }}</div>
           <button type="button" aria-label="Siguiente" class="border-default bg-muted hover:bg-elevated flex size-10 items-center justify-center rounded-[10px] border" @click="shiftDay(1)"><UIcon name="i-lucide-chevron-right" class="size-4" /></button>
-          <UButton color="neutral" variant="ghost" size="sm" @click="selectedDay = new Date(today)">Hoy</UButton>
+          <UButton color="neutral" variant="ghost" size="sm" @click="goToday">Hoy</UButton>
         </div>
 
         <div class="grid gap-4 xl:grid-cols-[1.7fr_1fr] xl:items-start">
