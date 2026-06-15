@@ -25,7 +25,12 @@ const db = getFirestore()
 const REGION = 'europe-west1'
 const TZ = 'Europe/Madrid'
 const REMINDER_MINUTES = [1440, 60] // 24 h y 1 h antes
-const TOLERANCE_MS = 3 * 60 * 1000 // el cron corre cada 5 min → ventana ±3 min
+// El cron corre cada 5 min. Ventana SOLO hacia atrás respecto al hito "X antes": el
+// recordatorio se manda cuando faltan ≤ X (justo en el hito o un pelín después, ya más
+// cerca de la cita), NUNCA cuando aún falta MÁS de X. Así el recordatorio de 24 h jamás
+// sale con más de 24 h de antelación. 6 min cubren el intervalo del cron (5 min) sin
+// dejar huecos ni mandarlo antes de tiempo.
+const REMINDER_WINDOW_MS = 6 * 60 * 1000
 
 const C = {
   users: 'users_v2',
@@ -255,8 +260,10 @@ exports.sendReminders = functions
     const nowMs = Date.now()
     for (const minutesBefore of REMINDER_MINUTES) {
       const target = nowMs + minutesBefore * 60 * 1000
-      const startTs = Timestamp.fromMillis(target - TOLERANCE_MS)
-      const endTs = Timestamp.fromMillis(target + TOLERANCE_MS)
+      // Ventana [target - 6min, target]: solo citas a las que ya les faltan ≤ X (nunca
+      // más), para no enviar el recordatorio antes del momento exacto "X antes".
+      const startTs = Timestamp.fromMillis(target - REMINDER_WINDOW_MS)
+      const endTs = Timestamp.fromMillis(target)
 
       const snap = await db
         .collection(C.appointments)
