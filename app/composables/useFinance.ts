@@ -1,6 +1,6 @@
 import { toDate } from '~~/lib/datetime'
 import { expenseAmountInRange } from '~~/lib/finance'
-import { EXPENSE_CATEGORIES } from '~~/schemas'
+import { EXPENSE_CATEGORIES, isCashPayment } from '~~/schemas'
 import type { Expense } from '~~/schemas'
 
 // Cuenta de resultados (P&L) del local en un rango [start, end):
@@ -10,7 +10,7 @@ import type { Expense } from '~~/schemas'
 //   = beneficio neto del local
 // Reutiliza useAdminStats para los ingresos por servicio y por barbero.
 export function useFinance(start: Ref<Date>, end: Ref<Date>) {
-  const { totals: apptTotals, perBarber } = useAdminStats(start, end)
+  const { totals: apptTotals, perBarber, byPaymentMethod } = useAdminStats(start, end)
   const { barbers } = useBarbers()
   const { expenses } = useExpenses()
   const { sales } = useProductSales()
@@ -62,6 +62,19 @@ export function useFinance(start: Ref<Date>, end: Ref<Date>) {
   // Ingreso total que entra en caja (servicios + venta de productos), informativo.
   const grossIncome = computed(() => serviceRevenue.value + productRevenue.value)
 
+  // Caja desglosada por método de cobro (efectivo vs tarjeta/otros), servicios +
+  // productos. Sirve para cuadrar la facturación / el arqueo de caja.
+  const collectedByMethod = computed(() => {
+    const svc = byPaymentMethod.value
+    const acc = { cash: svc.cash, card: svc.card }
+    for (const s of salesInRange.value) {
+      const amount = s.unitPrice * s.qty
+      if (isCashPayment(s.paymentMethod)) acc.cash += amount
+      else acc.card += amount
+    }
+    return acc
+  })
+
   return {
     serviceRevenue,
     barberCommissions,
@@ -74,6 +87,7 @@ export function useFinance(start: Ref<Date>, end: Ref<Date>) {
     expensesInRange,
     netProfit,
     grossIncome,
+    collectedByMethod,
     salesInRange,
   }
 }

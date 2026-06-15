@@ -177,9 +177,12 @@ watch(calendars, (cals) => {
 })
 
 async function markCompleted(id: string) {
-  await setStatus(id, 'completed')
+  // Por defecto se cobra en efectivo. Mantenemos el drawer abierto reflejando el
+  // nuevo estado para poder cambiar a tarjeta sin reabrir.
+  const pay = selected.value?.paymentMethod === 'card' ? 'card' : 'cash'
+  await setStatus(id, 'completed', { paymentMethod: pay })
   toast.add({ title: 'Cita completada', icon: 'i-lucide-check', color: 'success' })
-  selected.value = null
+  if (selected.value?.id === id) selected.value = { ...selected.value, status: 'completed', paymentMethod: pay }
 }
 async function markNoShow(id: string) {
   await setStatus(id, 'no_show')
@@ -601,6 +604,12 @@ const weekEnd = computed(() => {
               <div class="flex items-center gap-3"><UIcon name="i-lucide-scissors" class="text-primary size-4" /><span class="text-sm">{{ selected.serviceName }}</span></div>
               <div class="flex items-center gap-3"><span class="size-3 rounded-full" :style="{ background: selected.barberColor }" /><span class="text-sm">{{ selected.barberName }}</span></div>
               <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija (semanal)</span></div>
+            </div>
+
+            <!-- cobro: efectivo / tarjeta (cita ya cobrada) -->
+            <div v-if="selected.status === 'completed'" class="mt-4 flex items-center justify-between gap-3">
+              <span class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</span>
+              <PaymentToggle :id="selected.id" :method="selected.paymentMethod" />
             </div>
 
             <div class="mt-4 grid grid-cols-2 gap-2.5">

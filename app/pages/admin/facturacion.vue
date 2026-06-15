@@ -281,6 +281,25 @@ async function undoSale(id: string) {
           </div>
         </AdminCard>
 
+        <!-- cobros por método (arqueo de caja) -->
+        <AdminCard :pad="false">
+          <div class="border-default font-display border-b px-5 py-4 text-lg">Cobros por método</div>
+          <div class="divide-default divide-y px-5">
+            <div class="flex items-center justify-between py-3 text-sm">
+              <span class="flex items-center gap-2"><UIcon name="i-lucide-banknote" class="text-primary size-4" />Efectivo</span>
+              <span class="font-mono">{{ formatPrice(Math.round(fin.collectedByMethod.value.cash)) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-3 text-sm">
+              <span class="flex items-center gap-2"><UIcon name="i-lucide-credit-card" class="text-primary size-4" />Tarjeta / Revolut</span>
+              <span class="font-mono">{{ formatPrice(Math.round(fin.collectedByMethod.value.card)) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-3.5">
+              <span class="font-semibold">Total en caja</span>
+              <span class="font-display text-xl">{{ formatPrice(Math.round(fin.grossIncome.value)) }}</span>
+            </div>
+          </div>
+        </AdminCard>
+
         <!-- gastos por categoría -->
         <AdminCard v-if="fin.expensesByCategory.value.length">
           <h3 class="font-display mb-3 text-lg">Gastos por categoría</h3>

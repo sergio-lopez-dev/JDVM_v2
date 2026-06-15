@@ -270,9 +270,14 @@ vector, sustituir.)
 - **B) Cancelación = 4 h antes** (no 24h). El cliente puede cancelar/reprogramar
   hasta 4 h antes del inicio de la cita; admin siempre puede. (El copy del diseño
   "hasta 4 h antes" es el canónico.)
-- **C) Pagos: SIN pasarela online.** Pago **en el local** o vía **QR a Revolut**
-  (link/QR estático que el dueño pasará; no integración, no Stripe). `paymentMethod`
-  refleja esto (p. ej. `cash | revolut`); no se cobra dentro de la app.
+- **C) Pagos: SIN pasarela online.** Pago **en el local** (efectivo o tarjeta/datáfono)
+  o vía **QR a Revolut** (link/QR estático que el dueño pasará; no integración, no Stripe).
+  No se cobra dentro de la app. `PAYMENT_METHODS = cash | card | revolut`. Al **completar**
+  una cita, el barbero/admin marca cómo se cobró (**por defecto efectivo**; conmutable a
+  tarjeta con `PaymentToggle` en `/staff/cita/[id]` y los drawers de agenda/citas). Para
+  facturación lo que cuenta es efectivo vs no-efectivo (`isCashPayment`): `useFinance.collectedByMethod`
+  (servicios `byPaymentMethod` de `useAdminStats` + productos) alimenta el arqueo de caja en
+  **`/admin/facturacion`** (tarjeta "Cobros por método").
 - **D) Fidelización "Socio": IMPLEMENTADA y configurable** (antes aplazada). Niveles
   Bronce/Plata/Oro, recompensas canjeables (corte gratis, camiseta, cerveza…),
   caducidad de puntos y activar/desactivar — todo desde admin. Ver §13. (Referidos

@@ -13,6 +13,12 @@ const { today, enriched, me, rating, onDay, isNow, now } = useBarber()
 const list = onDay(today)
 const firstName = computed(() => (me.value?.name || user.value?.displayName || 'barbero').split(' ')[0])
 
+// Tu parte = servicios·comisión + propinas (100%). El barbero NUNCA ve el bruto
+// de la barbería: solo lo que le toca a él (igual que /staff/ingresos).
+const pct = computed(() => me.value?.commissionPercent ?? 50)
+const myShare = (a: { price: number; tip?: number }) =>
+  (a.price * pct.value) / 100 + (a.tip ?? 0)
+
 const current = computed(() => list.value.find((a) => isNow(a)) ?? null)
 const remaining = computed(() =>
   current.value ? Math.max(0, Math.ceil((current.value.endsAt.getTime() - now.value.getTime()) / 60_000)) : 0,
@@ -22,7 +28,7 @@ const stats = computed(() => {
   return {
     count: list.value.length,
     done: done.length,
-    earned: done.reduce((s, a) => s + a.price + (a.tip ?? 0), 0),
+    earned: done.reduce((s, a) => s + myShare(a), 0),
     rating: rating.value ? rating.value.toFixed(1).replace('.', ',') : '—',
   }
 })
@@ -41,7 +47,7 @@ const week = computed(() => {
     day.setDate(day.getDate() + i)
     const val = enriched.value
       .filter((a) => a.status === 'completed' && sameDay(a.startsAt, day))
-      .reduce((sum, a) => sum + a.price + (a.tip ?? 0), 0)
+      .reduce((sum, a) => sum + myShare(a), 0)
     return { letter: dayLetterEs(day), val }
   })
 })
@@ -52,7 +58,8 @@ function pillKind(s: string) {
   return s === 'completed' ? 'done' : s === 'no_show' ? 'cancelled' : 'confirmed'
 }
 async function markDone(id: string) {
-  await setStatus(id, 'completed')
+  // Por defecto se cobra en efectivo; el método se ajusta luego en el detalle.
+  await setStatus(id, 'completed', { paymentMethod: 'cash' })
   toast.add({ title: 'Cita marcada como hecha', icon: 'i-lucide-check', color: 'success' })
 }
 </script>

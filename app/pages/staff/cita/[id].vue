@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fmtDate, formatPrice, formatDuration, initials } from '~~/lib/format'
+import { PAYMENT_METHOD_LABELS } from '~~/schemas'
 
 definePageMeta({ layout: 'barber', middleware: 'barber' })
 useHead({ title: 'Cita · Barbero' })
@@ -20,7 +21,7 @@ const clientDoc = clientById(clientUid)
 const banned = computed(() => !!clientDoc.value?.banned)
 const banBusy = ref(false)
 
-const PAY: Record<string, string> = { cash: 'Efectivo', revolut: 'Revolut' }
+const PAY = PAYMENT_METHOD_LABELS
 
 // Visitas anteriores del mismo cliente con este barbero (solo si está registrado:
 // los walk-in manuales comparten clientId '' y no se pueden agrupar con fiabilidad).
@@ -36,7 +37,10 @@ const history = computed(() =>
 
 async function markDone() {
   if (!appt.value) return
-  await setStatus(appt.value.id, 'completed')
+  // Al cobrar, el método por defecto es efectivo (se puede cambiar a tarjeta luego).
+  await setStatus(appt.value.id, 'completed', {
+    paymentMethod: appt.value.paymentMethod === 'card' ? 'card' : 'cash',
+  })
   toast.add({ title: 'Cita marcada como hecha', icon: 'i-lucide-check', color: 'success' })
 }
 const banPrompt = ref(false)
@@ -118,6 +122,12 @@ function reschedule() {
             <div class="flex-1"><div class="text-dimmed text-[0.7rem]">Importe</div><div class="text-sm font-semibold">{{ formatPrice(appt.price) }}<span v-if="appt.paymentMethod"> · {{ PAY[appt.paymentMethod] }}</span></div></div>
             <AdminPill :kind="appt.status === 'completed' ? 'done' : 'pending'">{{ appt.status === 'completed' ? 'Pagado' : 'Pendiente' }}</AdminPill>
           </div>
+        </div>
+
+        <!-- cobro: efectivo / tarjeta (solo cuando la cita ya está cobrada) -->
+        <div v-if="appt.status === 'completed'" class="border-default bg-muted flex items-center justify-between gap-3 rounded-2xl border p-4">
+          <div class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</div>
+          <PaymentToggle :id="appt.id" :method="appt.paymentMethod" />
         </div>
 
         <!-- contacto -->

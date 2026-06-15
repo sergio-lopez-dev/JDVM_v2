@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatPrice } from '~~/lib/format'
-import { PAYMENT_METHODS, type Barber, type PaymentMethod } from '~~/schemas'
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, type Barber, type PaymentMethod } from '~~/schemas'
 
 const props = defineProps<{
   open: boolean
@@ -21,7 +21,7 @@ const payment = ref<PaymentMethod>('cash')
 const sellerId = ref('')
 const saving = ref(false)
 
-const PAYMENT_LABEL: Record<PaymentMethod, string> = { cash: 'Efectivo', revolut: 'Revolut' }
+const PAYMENT_LABEL = PAYMENT_METHOD_LABELS
 
 const product = computed(() => products.value.find((p) => p.id === productId.value) ?? null)
 const maxQty = computed(() => Math.max(1, product.value?.stock ?? 1))

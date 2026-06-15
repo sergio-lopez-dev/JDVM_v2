@@ -1,6 +1,6 @@
 import { toDate, weekdayOf } from '~~/lib/datetime'
 import { fmtDate } from '~~/lib/format'
-import { effectivePrice } from '~~/schemas'
+import { effectivePrice, isCashPayment } from '~~/schemas'
 import type { Appointment } from '~~/schemas'
 
 export interface DayCount {
@@ -42,6 +42,18 @@ export function useAdminStats(start: Ref<Date>, end: Ref<Date>) {
     cancelled: appts.value.filter((a) => a.status === 'cancelled').length,
     noShow: appts.value.filter((a) => a.status === 'no_show').length,
   }))
+
+  // Facturación de servicios desglosada por método de cobro (efectivo vs no-efectivo).
+  const byPaymentMethod = computed(() =>
+    valid.value.reduce(
+      (acc, a) => {
+        if (isCashPayment(a.paymentMethod)) acc.cash += priceOf(a)
+        else acc.card += priceOf(a)
+        return acc
+      },
+      { cash: 0, card: 0 },
+    ),
+  )
 
   // Serie por día dentro del rango (para el gráfico de líneas/barras).
   const perDay = computed<DayCount[]>(() => {
@@ -109,5 +121,5 @@ export function useAdminStats(start: Ref<Date>, end: Ref<Date>) {
     return counts
   })
 
-  return { appts, valid, totals, perDay, topServices, perBarber, perWeekday }
+  return { appts, valid, totals, byPaymentMethod, perDay, topServices, perBarber, perWeekday }
 }

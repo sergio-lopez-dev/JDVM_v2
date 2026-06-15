@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { formatDuration, formatPrice } from '~~/lib/format'
+import { WEEKDAYS } from '~~/schemas'
+import type { Weekday } from '~~/schemas'
 
 definePageMeta({ layout: 'inner', middleware: 'auth' })
 useHead({ title: 'Lista de espera' })
@@ -8,6 +10,7 @@ const route = useRoute()
 const user = useCurrentUser()
 const toast = useToast()
 const { publicServices } = useServices()
+const { active: barbers } = useBarbers()
 const { mine, alreadyOnList, join, leave } = useWaitlist()
 
 const serviceId = ref<string>((route.query.service as string) || '')
@@ -16,8 +19,48 @@ watchEffect(() => {
 })
 const service = computed(() => publicServices.value.find((s) => s.id === serviceId.value) ?? null)
 
-const prefs = reactive({ anyBarber: true, afternoonOnly: true, weekdaysOnly: false })
+// Barberos que ofrecen el servicio elegido (si el servicio no acota, todos los activos).
+const eligibleBarbers = computed(() =>
+  service.value
+    ? barbers.value.filter((b) => b.servicesOffered.includes(service.value!.id))
+    : barbers.value,
+)
+// '' = cualquier barbero. Si el barbero seleccionado deja de ofrecer el servicio, se resetea.
+const barberId = ref<string>((route.query.barber as string) || '')
+watchEffect(() => {
+  if (barberId.value && !eligibleBarbers.value.some((b) => b.id === barberId.value)) {
+    barberId.value = ''
+  }
+})
+const barberItems = computed(() => [
+  { label: 'Cualquier barbero', value: '' },
+  ...eligibleBarbers.value.map((b) => ({ label: b.name, value: b.id })),
+])
+
+// Días de la semana (vacío = cualquiera). Lun→Dom para mostrar.
+const DAY_LABELS: Record<Weekday, string> = {
+  mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom',
+}
+const days = ref<Weekday[]>([])
+function toggleDay(d: Weekday) {
+  days.value = days.value.includes(d) ? days.value.filter((x) => x !== d) : [...days.value, d]
+}
+
+const prefs = reactive({ afternoonOnly: true })
 const busy = ref(false)
+
+// Resumen legible de la entrada activa (cuando ya está en la lista).
+const myEntry = computed(() => mine.value[0] ?? null)
+const myEntryBarber = computed(() => {
+  const id = myEntry.value?.preferredBarberId
+  if (!id) return 'Cualquiera'
+  return barbers.value.find((b) => b.id === id)?.name ?? 'Cualquiera'
+})
+const myEntryDays = computed(() => {
+  const ds = myEntry.value?.preferredWeekdays ?? []
+  if (!ds.length) return 'Cualquiera'
+  return WEEKDAYS.filter((d) => ds.includes(d)).map((d) => DAY_LABELS[d]).join(', ')
+})
 
 async function joinList() {
   if (!user.value || !service.value) return
@@ -30,9 +73,11 @@ async function joinList() {
     await join({
       clientId: user.value.uid,
       serviceId: service.value.id,
-      preferredBarberId: prefs.anyBarber ? null : null,
+      preferredBarberId: barberId.value || null,
       timeRange: prefs.afternoonOnly ? { start: '16:00', end: '22:00' } : { start: '10:00', end: '22:00' },
       preferredDates: { start, end },
+      // Orden canónico Lun→Dom (WEEKDAYS) sin depender del orden de selección.
+      preferredWeekdays: WEEKDAYS.filter((d) => days.value.includes(d)),
       notified: false,
     })
     toast.add({ title: 'Estás en la lista', description: 'Te avisaremos cuando se libere un hueco.', icon: 'i-lucide-bell', color: 'primary' })
@@ -98,14 +143,56 @@ async function leaveList() {
         </div>
       </div>
 
+      <!-- barbero preferido -->
+      <div v-if="!alreadyOnList" class="border-default bg-muted rounded-2xl border p-4">
+        <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Con quién</p>
+        <div class="flex items-center gap-3">
+          <div class="bg-primary/15 flex size-9 items-center justify-center rounded-lg">
+            <UIcon name="i-lucide-user" class="text-primary size-4" />
+          </div>
+          <USelect v-model="barberId" :items="barberItems" class="w-full" />
+        </div>
+      </div>
+
+      <!-- días que le vienen bien -->
+      <div v-if="!alreadyOnList">
+        <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Qué días te van bien</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="d in WEEKDAYS"
+            :key="d"
+            type="button"
+            class="border-default rounded-xl border px-3.5 py-2 text-sm font-semibold transition"
+            :class="days.includes(d) ? 'bg-primary text-inverted border-primary' : 'bg-muted text-toned'"
+            @click="toggleDay(d)"
+          >
+            {{ DAY_LABELS[d] }}
+          </button>
+        </div>
+        <p class="text-dimmed mt-2 text-xs">Sin marcar ninguno = cualquier día.</p>
+      </div>
+
       <!-- preferencias -->
       <div v-if="!alreadyOnList">
         <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Avísame si…</p>
         <div class="border-default overflow-hidden rounded-2xl border">
-          <div class="flex items-center px-4 py-3.5"><span class="flex-1 text-sm font-medium">Cualquier barbero</span><USwitch v-model="prefs.anyBarber" /></div>
-          <div class="border-default flex items-center border-t px-4 py-3.5"><span class="flex-1 text-sm font-medium">Solo tardes</span><USwitch v-model="prefs.afternoonOnly" /></div>
-          <div class="border-default flex items-center border-t px-4 py-3.5"><span class="flex-1 text-sm font-medium">Lun a vie</span><USwitch v-model="prefs.weekdaysOnly" /></div>
+          <div class="flex items-center px-4 py-3.5"><span class="flex-1 text-sm font-medium">Solo tardes</span><USwitch v-model="prefs.afternoonOnly" /></div>
         </div>
+      </div>
+
+      <!-- resumen cuando ya está en la lista -->
+      <div v-else class="border-default bg-muted rounded-2xl border p-4">
+        <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Tus preferencias</p>
+        <dl class="space-y-2 text-sm">
+          <div class="flex justify-between gap-3">
+            <dt class="text-toned">Barbero</dt>
+            <dd class="font-medium">{{ myEntryBarber }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-toned">Días</dt>
+            <dd class="font-medium">{{ myEntryDays }}</dd>
+          </div>
+        </dl>
       </div>
     </div>
 

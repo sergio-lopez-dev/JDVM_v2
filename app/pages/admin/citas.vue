@@ -137,6 +137,21 @@ async function cancelSel() {
   })
 }
 
+// Completar: por defecto se cobra en efectivo; el drawer queda abierto reflejando el
+// estado para poder cambiar a tarjeta sin reabrir.
+async function markCompleted() {
+  if (!selected.value) return
+  const id = selected.value.id
+  const pay = selected.value.paymentMethod === 'card' ? 'card' : 'cash'
+  try {
+    await setStatus(id, 'completed', { paymentMethod: pay })
+    toast.add({ title: 'Cita completada', icon: 'i-lucide-check', color: 'success' })
+    if (selected.value?.id === id) selected.value = { ...selected.value, status: 'completed', paymentMethod: pay }
+  } catch (e) {
+    toast.add({ title: 'Error', description: (e as Error).message, color: 'error' })
+  }
+}
+
 async function act(fn: () => Promise<unknown>, msg: string) {
   try {
     await fn()
@@ -275,8 +290,15 @@ const bookingOpen = ref(false)
             </div>
             <span class="font-display text-2xl">{{ formatPrice(selected.price) }}</span>
           </div>
+
+          <!-- cobro: efectivo / tarjeta (cita ya cobrada) -->
+          <div v-if="selected.status === 'completed'" class="mt-4 flex items-center justify-between gap-3">
+            <span class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</span>
+            <PaymentToggle :id="selected.id" :method="selected.paymentMethod" />
+          </div>
+
           <div class="mt-5 grid grid-cols-2 gap-2.5">
-            <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="act(() => setStatus(selected!.id, 'completed'), 'Cita completada')">Completar</UButton>
+            <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="markCompleted">Completar</UButton>
             <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="noShowSel">No vino</UButton>
             <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="act(() => cancelSel(), 'Cita cancelada')">Cancelar</UButton>
             <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked">Deshacer “no vino”</UButton>

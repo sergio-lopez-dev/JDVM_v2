@@ -15,10 +15,21 @@ export const APPOINTMENT_STATUSES = ['booked', 'completed', 'cancelled', 'no_sho
 export const appointmentStatusSchema = z.enum(APPOINTMENT_STATUSES)
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>
 
-// Pagos: SIN pasarela online (decisión C). En el local o QR a Revolut.
-export const PAYMENT_METHODS = ['cash', 'revolut'] as const
+// Pagos: SIN pasarela online (decisión C). Cobro en el local: efectivo o tarjeta
+// (datáfono), o QR a Revolut. Para la facturación lo que importa es efectivo vs
+// el resto (tarjeta/Revolut = no-efectivo).
+export const PAYMENT_METHODS = ['cash', 'card', 'revolut'] as const
 export const paymentMethodSchema = z.enum(PAYMENT_METHODS)
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Efectivo',
+  card: 'Tarjeta',
+  revolut: 'Revolut',
+}
+// Cubo de facturación: efectivo vs no-efectivo (tarjeta/Revolut). undefined = efectivo
+// (es el método por defecto al cobrar una cita).
+export const isCashPayment = (m?: PaymentMethod | null) => m == null || m === 'cash'
 
 // Teléfono España: exactamente 9 dígitos numéricos.
 export const phoneEsSchema = z.string().regex(/^\d{9}$/, 'El teléfono debe tener 9 dígitos')
