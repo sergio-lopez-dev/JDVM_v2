@@ -7,7 +7,9 @@
  * 1) inviteBarber  (callable)  — email de invitación de barbero (Resend).
  * 2) onAppointmentCreated      — push + aviso in-app al barbero y al admin (cita nueva).
  * 3) onAppointmentUpdated      — al pasar a 'cancelled': push a barbero + admin.
- * 4) sendReminders (cron 5m)   — recordatorio al cliente 24 h y 1 h antes.
+ * 4) onAlertCreated            — noticia destacada con push:true → difusión push a clientes.
+ * 5) broadcastToClients (call) — aviso push + buzón a TODOS los clientes (sin banner).
+ * 6) sendReminders (cron 5m)   — recordatorio al cliente 24 h y 1 h antes.
  *
  * Tokens FCM en users_v2/{uid}/fcmTokens/{token}. Avisos in-app en notifications_v2.
  * Secreto: RESEND_API_KEY (Secret Manager). Var: FROM_EMAIL (functions/.env).
@@ -38,6 +40,7 @@ const C = {
   services: 'services_v2',
   appointments: 'appointments_v2',
   notifications: 'notifications_v2',
+  alerts: 'alerts_v2',
   invites: 'barber_invites_v2',
   settings: 'settings_v2',
 }
@@ -71,6 +74,11 @@ async function getBarberName(barberId) {
 
 async function getAdminUids() {
   const snap = await db.collection(C.users).where('role', '==', 'admin').get()
+  return snap.docs.map((d) => d.id)
+}
+
+async function getClientUids() {
+  const snap = await db.collection(C.users).where('role', '==', 'client').get()
   return snap.docs.map((d) => d.id)
 }
 
@@ -263,7 +271,47 @@ exports.onAppointmentUpdated = functions
     await pushAdmins({ title, body, data: { appointmentId, link: '/admin/agenda' } })
   })
 
-// ───────────── 4) recordatorios programados (24 h y 1 h) ─────────────
+// ─────────── 4) noticia destacada con push → difusión a clientes ───────────
+// Una "noticia destacada" (alerts_v2) es un banner persistente en la app del cliente.
+// Si además se marca `push: true`, hacemos difusión a TODOS los clientes (solo push;
+// el banner ya es el registro persistente, también visible en /avisos).
+exports.onAlertCreated = functions
+  .region(REGION)
+  .firestore.document(`${C.alerts}/{id}`)
+  .onCreate(async (snap) => {
+    const alert = snap.data()
+    if (!alert || alert.push !== true || alert.active === false) return
+    const title = alert.title || 'Novedad'
+    const body = alert.body || ''
+    const uids = await getClientUids()
+    await Promise.all(uids.map((uid) => pushUser(uid, { title, body, data: { link: '/avisos' } })))
+  })
+
+// ───────────── 5) aviso en difusión (callable, admin) ─────────────
+// Notificación push + buzón a TODOS los clientes, SIN crear banner. Distinto de la
+// noticia destacada (que sí se fija en la portada). Se llama desde /admin/notificaciones.
+exports.broadcastToClients = functions
+  .region(REGION)
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.')
+    const caller = await db.doc(`${C.users}/${context.auth.uid}`).get()
+    if (!caller.exists || caller.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Solo el admin puede enviar avisos.')
+    }
+    const title = String(data?.title || '').trim()
+    const body = String(data?.body || '').trim()
+    if (!title) throw new functions.https.HttpsError('invalid-argument', 'Falta el título.')
+
+    const uids = await getClientUids()
+    await Promise.all(
+      uids.map((uid) =>
+        notifyUser(uid, { type: 'aviso', title, body, audience: 'client', link: '/avisos' }),
+      ),
+    )
+    return { count: uids.length }
+  })
+
+// ───────────── 6) recordatorios programados (24 h y 1 h) ─────────────
 
 exports.sendReminders = functions
   .region(REGION)

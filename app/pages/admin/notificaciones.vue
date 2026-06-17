@@ -7,7 +7,7 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Avisos · Admin' })
 
 const { alerts, create, update, remove } = useAlerts()
-const { adminFeed, remove: removeNotif, campaign } = useNotifications()
+const { adminFeed, remove: removeNotif, campaign, broadcast } = useNotifications()
 const { inRange } = useAppointments()
 const { name: studioName } = useStudio()
 const toast = useToast()
@@ -23,7 +23,7 @@ const FEED_META: Record<string, FeedMeta> = {
   cita_nueva: { icon: 'i-lucide-calendar-plus', class: 'text-success' },
   recordatorio: { icon: 'i-lucide-clock', class: 'text-primary' },
   campania: { icon: 'i-lucide-megaphone', class: 'text-primary' },
-  aviso: { icon: 'i-lucide-info', class: 'text-info' },
+  aviso: { icon: 'i-lucide-bell-ring', class: 'text-primary' },
 }
 function feedMeta(type: string): FeedMeta {
   return FEED_META[type] ?? FEED_FALLBACK
@@ -78,6 +78,7 @@ const LEVEL_META: Record<AlertLevel, { label: string; icon: string; class: strin
   warning: { label: 'Aviso', icon: 'i-lucide-triangle-alert', class: 'text-warning bg-warning/10 border-warning/30', dot: 'bg-warning' },
 }
 
+// — Noticia destacada (banner persistente en la portada del cliente) —
 const form = reactive({
   title: '',
   body: '',
@@ -109,7 +110,7 @@ async function publish() {
       push: form.push,
     })
     toast.add({
-      title: form.push ? 'Aviso publicado (push se enviará en Fase 5)' : 'Aviso publicado',
+      title: form.push ? 'Noticia publicada y avisada por push' : 'Noticia publicada',
       icon: 'i-lucide-check',
       color: 'success',
     })
@@ -126,20 +127,47 @@ async function publish() {
 
 const toggleActive = (id: string, active: boolean) => update(id, { active: !active })
 async function del(id: string) {
-  if (!confirm('¿Eliminar este aviso?')) return
+  if (!confirm('¿Eliminar esta noticia?')) return
   await remove(id)
-  toast.add({ title: 'Aviso eliminado', icon: 'i-lucide-trash-2' })
+  toast.add({ title: 'Noticia eliminada', icon: 'i-lucide-trash-2' })
+}
+
+// — Aviso en difusión (push + buzón a TODOS los clientes, sin banner) —
+const bcast = reactive({ title: '', body: '' })
+const bcastSending = ref(false)
+async function sendBroadcast() {
+  if (!bcast.title.trim()) {
+    toast.add({ title: 'El título es obligatorio', color: 'error', icon: 'i-lucide-triangle-alert' })
+    return
+  }
+  if (!confirm('¿Enviar este aviso push a TODOS los clientes?')) return
+  bcastSending.value = true
+  try {
+    const n = await broadcast(bcast.title.trim(), bcast.body.trim())
+    toast.add({ title: `Aviso enviado a ${n} cliente(s)`, icon: 'i-lucide-check', color: 'success' })
+    bcast.title = ''
+    bcast.body = ''
+  } catch (e) {
+    toast.add({ title: 'No se pudo enviar', description: (e as Error).message, color: 'error' })
+  } finally {
+    bcastSending.value = false
+  }
 }
 </script>
 
 <template>
   <div>
-    <AdminHeader title="Avisos" sub="Banners y notificaciones" />
+    <AdminHeader title="Avisos y noticias" sub="Banners de portada y avisos push a clientes" />
 
-    <div class="grid gap-6 px-5 py-6 pb-24 lg:grid-cols-[1fr_1.3fr] lg:px-7 lg:pb-6">
-      <!-- composer -->
+    <!-- los dos canales, claramente separados -->
+    <div class="grid gap-6 px-5 py-6 lg:grid-cols-2 lg:px-7">
+      <!-- 1) NOTICIA DESTACADA (banner persistente) -->
       <section class="border-default bg-muted h-fit rounded-2xl border p-5">
-        <h2 class="font-display mb-4 text-xl">Nuevo aviso</h2>
+        <div class="flex items-center gap-2.5">
+          <UIcon name="i-lucide-megaphone" class="text-primary size-5" />
+          <h2 class="font-display text-xl">Noticia destacada</h2>
+        </div>
+        <p class="text-muted mt-1 mb-4 text-sm">Se fija como <strong>banner en la portada</strong> del cliente (y en sus avisos) hasta que la desactives.</p>
         <div class="space-y-4">
           <UFormField label="Título"><UInput v-model="form.title" placeholder="Cerrado por festivo" class="w-full" /></UFormField>
           <UFormField label="Mensaje"><UTextarea v-model="form.body" :rows="3" placeholder="El estudio permanecerá cerrado el…" class="w-full" /></UFormField>
@@ -164,20 +192,40 @@ async function del(id: string) {
             <div class="flex items-center gap-2.5">
               <UIcon name="i-lucide-bell-ring" class="text-primary size-4" />
               <div>
-                <p class="text-sm font-semibold">Enviar push</p>
-                <p class="text-dimmed text-xs">Se integrará con FCM en la Fase 5</p>
+                <p class="text-sm font-semibold">Avisar también por push</p>
+                <p class="text-dimmed text-xs">Manda una notificación push a todos los clientes al publicarla</p>
               </div>
             </div>
             <USwitch v-model="form.push" />
           </div>
 
-          <UButton color="primary" size="lg" block :loading="sending" icon="i-lucide-send" @click="publish">Publicar aviso</UButton>
+          <UButton color="primary" size="lg" block :loading="sending" icon="i-lucide-pin" @click="publish">Publicar noticia</UButton>
         </div>
       </section>
 
-      <!-- listado -->
+      <!-- 2) AVISO EN DIFUSIÓN (push + buzón, sin banner) -->
+      <section class="border-primary/30 bg-primary/5 h-fit rounded-2xl border p-5">
+        <div class="flex items-center gap-2.5">
+          <UIcon name="i-lucide-send" class="text-primary size-5" />
+          <h2 class="font-display text-xl">Aviso en difusión</h2>
+        </div>
+        <p class="text-muted mt-1 mb-4 text-sm">Notificación <strong>push + buzón a todos los clientes</strong>. No se fija en la portada: es un aviso puntual.</p>
+        <div class="space-y-4">
+          <UFormField label="Título"><UInput v-model="bcast.title" placeholder="¡Huecos libres hoy a las 18:00!" class="w-full" /></UFormField>
+          <UFormField label="Mensaje"><UTextarea v-model="bcast.body" :rows="3" placeholder="Tenemos hueco esta tarde. Reserva desde la app." class="w-full" /></UFormField>
+          <div class="border-default bg-default flex items-start gap-2.5 rounded-xl border p-3">
+            <UIcon name="i-lucide-users" class="text-primary mt-0.5 size-4 shrink-0" />
+            <p class="text-dimmed text-xs">Se enviará a <strong class="text-toned">todos los clientes</strong>. Llega como push al móvil y queda en su buzón de avisos.</p>
+          </div>
+          <UButton color="primary" size="lg" block :loading="bcastSending" icon="i-lucide-send" @click="sendBroadcast">Enviar a todos</UButton>
+        </div>
+      </section>
+    </div>
+
+    <!-- noticias publicadas + campaña -->
+    <div class="grid gap-6 px-5 pb-6 lg:grid-cols-[1.3fr_1fr] lg:px-7">
       <section>
-        <h2 class="font-display mb-4 text-xl">Avisos publicados</h2>
+        <h2 class="font-display mb-4 text-xl">Noticias publicadas</h2>
         <div v-if="sorted.length" class="space-y-3">
           <div
             v-for="a in sorted"
@@ -191,8 +239,10 @@ async function del(id: string) {
                 <p class="text-sm font-semibold">{{ a.title }}</p>
                 <p v-if="a.body" class="text-muted mt-0.5 text-sm">{{ a.body }}</p>
                 <div class="mt-2 flex flex-wrap items-center gap-2">
-                  <span v-if="a.createdAt" class="text-dimmed font-mono text-[0.6rem]">{{ fmtDate(toDate(a.createdAt), 'd MMM · HH:mm') }}</span>
+                  <span v-if="a.active" class="text-success bg-success/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.55rem] uppercase"><UIcon name="i-lucide-pin" class="size-3" />en portada</span>
+                  <span v-else class="text-dimmed bg-default inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.55rem] uppercase">oculta</span>
                   <span v-if="a.push" class="text-primary bg-primary/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[0.55rem] uppercase"><UIcon name="i-lucide-bell-ring" class="size-3" />push</span>
+                  <span v-if="a.createdAt" class="text-dimmed font-mono text-[0.6rem]">{{ fmtDate(toDate(a.createdAt), 'd MMM · HH:mm') }}</span>
                 </div>
               </div>
               <div class="flex shrink-0 items-center gap-1">
@@ -202,12 +252,9 @@ async function del(id: string) {
             </div>
           </div>
         </div>
-        <UiEmptyState v-else icon="i-lucide-bell-off" title="Sin avisos" description="Publica un aviso para mostrarlo como banner en la app." />
+        <UiEmptyState v-else icon="i-lucide-bell-off" title="Sin noticias" description="Publica una noticia para mostrarla como banner en la app." />
       </section>
-    </div>
 
-    <!-- campaña + feed -->
-    <div class="grid gap-6 px-5 pb-24 lg:grid-cols-[1fr_1.3fr] lg:px-7 lg:pb-6">
       <!-- campaña reserva más -->
       <section class="border-primary/30 bg-primary/5 h-fit rounded-2xl border p-5">
         <div class="flex items-center gap-2.5">
@@ -225,8 +272,10 @@ async function del(id: string) {
           <UButton color="primary" :loading="campaignSending" :disabled="!reEngage.length" icon="i-lucide-send" class="flex-1 justify-center" @click="sendCampaign">Enviar aviso</UButton>
         </div>
       </section>
+    </div>
 
-      <!-- feed de actividad -->
+    <!-- feed de actividad -->
+    <div class="px-5 pb-24 lg:px-7 lg:pb-6">
       <section>
         <h2 class="font-display mb-4 text-xl">Actividad reciente</h2>
         <div v-if="adminFeed.length" class="space-y-2.5">
