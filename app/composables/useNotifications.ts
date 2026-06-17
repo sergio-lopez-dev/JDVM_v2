@@ -8,7 +8,6 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import { getFunctions, httpsCallable } from 'firebase/functions'
 import { toDate } from '~~/lib/datetime'
 import type { Notification, NotificationInput } from '~~/schemas'
 
@@ -16,7 +15,6 @@ const createdMs = (n: Notification) => (n.createdAt ? toDate(n.createdAt).getTim
 
 export function useNotifications() {
   const db = useFirestore()
-  const app = useFirebaseApp()
   const user = useCurrentUser()
   const col = collection(db, COL.notifications)
 
@@ -64,15 +62,16 @@ export function useNotifications() {
     )
   }
 
-  // Aviso en difusión: push + buzón a TODOS los clientes (Cloud Function callable).
-  // Distinto de una noticia destacada (banner): esto no se fija en la portada.
+  // Aviso en difusión: push + buzón a TODOS los clientes. Crea un doc en broadcasts_v2;
+  // la Cloud Function onBroadcastCreated lo reparte (server-side). Distinto de una
+  // noticia destacada (banner): esto no se fija en la portada.
   async function broadcast(title: string, body: string) {
-    const fns = getFunctions(app, 'europe-west1')
-    const res = await httpsCallable<{ title: string; body: string }, { count: number }>(
-      fns,
-      'broadcastToClients',
-    )({ title, body })
-    return res.data.count
+    await addDoc(collection(db, COL.broadcasts), {
+      title,
+      body,
+      createdBy: user.value?.uid ?? null,
+      createdAt: serverTimestamp(),
+    })
   }
 
   const markRead = (id: string) => updateDoc(doc(db, COL.notifications, id), { read: true })

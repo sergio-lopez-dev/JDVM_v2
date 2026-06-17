@@ -19,6 +19,7 @@ export const COL = {
   images: 'images_v2',
   notifications: 'notifications_v2',
   alerts: 'alerts_v2',
+  broadcasts: 'broadcasts_v2',
   settings: 'settings_v2',
   fixed_appointments: 'fixed_appointments_v2',
   rewards: 'rewards_v2',

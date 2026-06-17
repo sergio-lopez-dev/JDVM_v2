@@ -8,7 +8,7 @@
  * 2) onAppointmentCreated      — push + aviso in-app al barbero y al admin (cita nueva).
  * 3) onAppointmentUpdated      — al pasar a 'cancelled': push a barbero + admin.
  * 4) onAlertCreated            — noticia destacada con push:true → difusión push a clientes.
- * 5) broadcastToClients (call) — aviso push + buzón a TODOS los clientes (sin banner).
+ * 5) onBroadcastCreated        — aviso push + buzón a TODOS los clientes (sin banner).
  * 6) sendReminders (cron 5m)   — recordatorio al cliente 24 h y 1 h antes.
  *
  * Tokens FCM en users_v2/{uid}/fcmTokens/{token}. Avisos in-app en notifications_v2.
@@ -41,6 +41,7 @@ const C = {
   appointments: 'appointments_v2',
   notifications: 'notifications_v2',
   alerts: 'alerts_v2',
+  broadcasts: 'broadcasts_v2',
   invites: 'barber_invites_v2',
   settings: 'settings_v2',
 }
@@ -287,28 +288,35 @@ exports.onAlertCreated = functions
     await Promise.all(uids.map((uid) => pushUser(uid, { title, body, data: { link: '/avisos' } })))
   })
 
-// ───────────── 5) aviso en difusión (callable, admin) ─────────────
+// ───────────── 5) aviso en difusión (trigger) ─────────────
 // Notificación push + buzón a TODOS los clientes, SIN crear banner. Distinto de la
-// noticia destacada (que sí se fija en la portada). Se llama desde /admin/notificaciones.
-exports.broadcastToClients = functions
+// noticia destacada (que sí se fija en la portada). El admin crea un doc en
+// broadcasts_v2 desde /admin/notificaciones y este trigger lo reparte. (Se usa un
+// trigger y no un callable porque desplegar HTTPS/callable requiere fijar el IAM de
+// invocador, permiso que la cuenta de deploy no tiene.)
+exports.onBroadcastCreated = functions
   .region(REGION)
-  .https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.')
-    const caller = await db.doc(`${C.users}/${context.auth.uid}`).get()
-    if (!caller.exists || caller.data()?.role !== 'admin') {
-      throw new functions.https.HttpsError('permission-denied', 'Solo el admin puede enviar avisos.')
+  .firestore.document(`${C.broadcasts}/{id}`)
+  .onCreate(async (snap) => {
+    const b = snap.data()
+    if (!b) return
+    const title = String(b.title || '').trim()
+    const body = String(b.body || '').trim()
+    if (!title) return
+    // Defensa (la BD es permisiva): solo difunde si lo creó un admin.
+    if (b.createdBy) {
+      const caller = await db.doc(`${C.users}/${b.createdBy}`).get()
+      if (!caller.exists || caller.data()?.role !== 'admin') return
     }
-    const title = String(data?.title || '').trim()
-    const body = String(data?.body || '').trim()
-    if (!title) throw new functions.https.HttpsError('invalid-argument', 'Falta el título.')
-
     const uids = await getClientUids()
     await Promise.all(
       uids.map((uid) =>
         notifyUser(uid, { type: 'aviso', title, body, audience: 'client', link: '/avisos' }),
       ),
     )
-    return { count: uids.length }
+    await snap.ref
+      .update({ sentCount: uids.length, sentAt: FieldValue.serverTimestamp() })
+      .catch(() => {})
   })
 
 // ───────────── 6) recordatorios programados (24 h y 1 h) ─────────────

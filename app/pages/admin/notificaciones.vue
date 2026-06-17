@@ -143,8 +143,8 @@ async function sendBroadcast() {
   if (!confirm('¿Enviar este aviso push a TODOS los clientes?')) return
   bcastSending.value = true
   try {
-    const n = await broadcast(bcast.title.trim(), bcast.body.trim())
-    toast.add({ title: `Aviso enviado a ${n} cliente(s)`, icon: 'i-lucide-check', color: 'success' })
+    await broadcast(bcast.title.trim(), bcast.body.trim())
+    toast.add({ title: 'Aviso enviado a los clientes', description: 'Llegará por push y a su buzón.', icon: 'i-lucide-check', color: 'success' })
     bcast.title = ''
     bcast.body = ''
   } catch (e) {
