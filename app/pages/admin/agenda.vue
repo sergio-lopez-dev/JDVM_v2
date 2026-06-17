@@ -213,6 +213,12 @@ async function revertToBooked(id: string) {
   if (selected.value?.id === id) selected.value = { ...selected.value, status: 'booked' }
   banPrompt.value = false
 }
+// Cambió el servicio de la cita (ApptServiceEditor): refleja precio/duración/fin en el
+// drawer sin reabrirlo (la lista enriquecida es reactiva, pero `selected` es un snapshot).
+function onServiceChanged(p: { serviceId: string; price: number; endsAt: Date; serviceName: string; serviceDuration: number }) {
+  if (!selected.value) return
+  selected.value = { ...selected.value, ...p }
+}
 async function cancelAppt() {
   if (!selected.value) return
   try {
@@ -605,6 +611,17 @@ const weekEnd = computed(() => {
               <div class="flex items-center gap-3"><span class="size-3 rounded-full" :style="{ background: selected.barberColor }" /><span class="text-sm">{{ selected.barberName }}</span></div>
               <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija (semanal)</span></div>
             </div>
+
+            <!-- cambiar el servicio realizado -->
+            <ApptServiceEditor
+              v-if="selected.status !== 'cancelled'"
+              class="mt-4"
+              :appointment-id="selected.id"
+              :barber-id="selected.barberId"
+              :service-id="selected.serviceId"
+              :starts-at="selected.startsAt"
+              @changed="onServiceChanged"
+            />
 
             <!-- cobro: efectivo / tarjeta (cita ya cobrada) -->
             <div v-if="selected.status === 'completed'" class="mt-4 flex items-center justify-between gap-3">

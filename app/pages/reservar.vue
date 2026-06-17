@@ -4,6 +4,7 @@ import { effectivePrice, effectiveDuration, type Service, type Barber } from '~~
 import { generateSlots, resolveDayTimetable, isOnVacation } from '~~/lib/slots'
 import { toDate, weekdayOf } from '~~/lib/datetime'
 import { fmtDate, formatPrice, formatDuration, initials } from '~~/lib/format'
+import { isCancellable } from '~~/lib/cancellation'
 
 definePageMeta({ layout: 'booking', middleware: 'auth' })
 useHead({ title: 'Reservar' })
@@ -19,11 +20,24 @@ const toast = useToast()
 const { publicServices, services } = useServices()
 const { active: barbers } = useBarbers()
 const { settings } = useSettings()
-const { create, inRange } = useAppointments()
+const { create, reschedule, inRange } = useAppointments()
+const { byDocId } = useMyAppointments()
 const { fixed } = useFixedAppointments()
 const { studio, name: studioName, codePrefix } = useStudio()
 const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
+
+// ----- Modo "reprogramar" (?reschedule=<id>) -----
+// Reprograma una cita EXISTENTE en vez de crear una nueva (antes el botón
+// "Reprogramar" navegaba aquí y creaba una cita duplicada dejando huérfana la vieja).
+// Se mantienen servicio y barbero (solo cambia fecha/hora) y se respeta la misma
+// ventana que la cancelación (no se puede reprogramar < X h antes).
+const rescheduleId = (route.query.reschedule as string) || ''
+const isReschedule = !!rescheduleId
+const { appt: reschedAppt } = isReschedule ? byDocId(rescheduleId) : { appt: ref(null) }
+const rescheduleCancellable = computed(() =>
+  reschedAppt.value ? isCancellable(reschedAppt.value.startsAt, { hours: cancelHours.value }) : true,
+)
 
 type Step = 0 | 1 | 2 | 'done'
 const step = ref<Step>(0)
@@ -76,6 +90,38 @@ watch(
   },
   { immediate: true },
 )
+
+// Reprogramar: preselecciona (una vez) el servicio y barbero de la cita original y
+// salta directo a elegir fecha/hora. Servicio y barbero quedan fijados.
+let reschedPreselected = false
+watch(
+  [reschedAppt, services, barbers],
+  ([a, svcs, bbs]) => {
+    if (!isReschedule || reschedPreselected || !a) return
+    const svc = svcs.find((s) => s.id === a.serviceId)
+    const bb = bbs.find((b) => b.id === a.barberId)
+    if (!svc) return
+    selectedService.value = svc
+    if (bb) {
+      selectedBarber.value = bb
+      anyBarber.value = false
+    }
+    if (step.value === 0) step.value = 1
+    reschedPreselected = true
+  },
+  { immediate: true },
+)
+
+// Selección de barbero (con guardas para el modo reprogramar, donde queda fijado).
+function chooseAny() {
+  if (isReschedule) return
+  anyBarber.value = true
+}
+function chooseBarber(b: Barber) {
+  if (isReschedule) return
+  anyBarber.value = false
+  selectedBarber.value = b
+}
 
 // Servicios agrupados (populares = primeros / premium).
 const populares = computed(() => publicServices.value.filter((s) => s.category !== 'premium'))
@@ -168,6 +214,7 @@ const duration = computed(() =>
 )
 
 function pickService(s: Service) {
+  if (isReschedule) return // servicio fijado al reprogramar
   selectedService.value = s
   selectedSlot.value = null
 }
@@ -182,10 +229,35 @@ function goConfirmar() {
   if (selectedSlot.value) step.value = 2
 }
 
+async function confirmReschedule(svc: Service, slot: Date) {
+  const original = reschedAppt.value
+  if (!original) return
+  if (!rescheduleCancellable.value) {
+    toast.add({ title: 'No puedes reprogramar', description: `Solo hasta ${cancelHours.value} h antes de la cita.`, color: 'error', icon: 'i-lucide-clock-alert' })
+    return
+  }
+  submitting.value = true
+  try {
+    const barber = selectedBarber.value ?? barbers.value.find((b) => b.id === original.barberId) ?? null
+    if (!barber) throw new Error('No se encontró el barbero de la cita.')
+    const endsAt = new Date(slot.getTime() + effectiveDuration(svc, barber.id) * 60_000)
+    await reschedule(original.id, { startsAt: slot, endsAt }, original.startsAt)
+    bookingCode.value = `${codePrefix.value}-${original.id.slice(-4).toUpperCase()}`
+    selectedBarber.value = barber
+    void confetti({ particleCount: 120, spread: 70, origin: { y: 0.3 }, colors: ['#C2A24E', '#DCC07A', '#6FA98A'] })
+    step.value = 'done'
+  } catch (e) {
+    toast.add({ title: 'No se pudo reprogramar', description: (e as Error).message, color: 'error', icon: 'i-lucide-triangle-alert' })
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function confirm() {
   const svc = selectedService.value
   const slot = selectedSlot.value
   if (!svc || !slot || !user.value) return
+  if (isReschedule) return confirmReschedule(svc, slot)
   if (banned.value) {
     toast.add({ title: 'No puedes reservar', description: 'Tu cuenta está bloqueada para nuevas reservas. Contacta con el estudio.', color: 'error', icon: 'i-lucide-ban' })
     return
@@ -387,6 +459,16 @@ const gcalUrl = computed(() => {
     <UIcon name="i-lucide-calendar-off" class="size-5 shrink-0" />
     <p class="text-sm">El estudio no está aceptando nuevas reservas en este momento. Inténtalo más tarde o contacta con el estudio.</p>
   </div>
+  <!-- reprogramar: fuera de la ventana permitida -->
+  <div v-else-if="isReschedule && !rescheduleCancellable && step !== 'done'" class="border-error/40 bg-error/10 text-error fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur">
+    <UIcon name="i-lucide-clock-alert" class="size-5 shrink-0" />
+    <p class="text-sm">Ya no puedes reprogramar esta cita (faltan menos de {{ cancelHours }} h). Contacta con el estudio.</p>
+  </div>
+  <!-- reprogramar: nota de servicio/barbero fijados -->
+  <div v-else-if="isReschedule && step !== 'done'" class="border-primary/40 bg-primary/10 text-primary fixed inset-x-3 top-3 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur">
+    <UIcon name="i-lucide-refresh-cw" class="size-5 shrink-0" />
+    <p class="text-sm">Reprogramando tu cita: elige nueva fecha y hora (se mantienen el servicio y el barbero).</p>
+  </div>
   <!-- ====================== MÓVIL ====================== -->
   <div class="flex flex-1 flex-col lg:hidden">
     <!-- ÉXITO -->
@@ -397,7 +479,7 @@ const gcalUrl = computed(() => {
             <UIcon name="i-lucide-check" class="text-inverted size-9" />
           </div>
         </div>
-        <h1 class="font-display text-4xl leading-tight">¡Cita confirmada!</h1>
+        <h1 class="font-display text-4xl leading-tight">{{ isReschedule ? '¡Cita reprogramada!' : '¡Cita confirmada!' }}</h1>
         <p class="text-muted mt-2.5 max-w-xs text-sm leading-relaxed">
           Te esperamos el
           <span class="text-primary font-semibold">{{ fmtDate(selectedSlot!, "EEEE d 'a las' HH:mm") }}</span>.
@@ -433,7 +515,7 @@ const gcalUrl = computed(() => {
           type="button"
           aria-label="Atrás"
           class="border-default bg-elevated flex size-9 items-center justify-center rounded-xl border"
-          @click="step === 0 ? $router.back() : (step = (step - 1) as Step)"
+          @click="step === 0 || (isReschedule && step === 1) ? $router.back() : (step = (step - 1) as Step)"
         >
           <UIcon name="i-lucide-chevron-left" class="size-5" />
         </button>
@@ -510,7 +592,7 @@ const gcalUrl = computed(() => {
             <p class="text-sm font-semibold">{{ selectedService?.name }}</p>
             <p class="text-dimmed font-mono text-[0.65rem]">{{ formatDuration(duration) }} · {{ formatPrice(price) }}</p>
           </div>
-          <button type="button" class="text-primary text-xs font-semibold" @click="step = 0">Cambiar</button>
+          <button v-if="!isReschedule" type="button" class="text-primary text-xs font-semibold" @click="step = 0">Cambiar</button>
         </div>
 
         <!-- barbero (selección directa, como en la web) -->
@@ -519,7 +601,7 @@ const gcalUrl = computed(() => {
           <!-- py-2: el anillo del seleccionado (ring + ring-offset) sobresale ~4px y
                overflow-x-auto recorta también el eje vertical → necesita aire arriba/abajo -->
           <div class="-mx-1 flex gap-3 overflow-x-auto px-1 py-2">
-            <button type="button" class="flex shrink-0 flex-col items-center gap-1.5" @click="anyBarber = true">
+            <button type="button" class="flex shrink-0 flex-col items-center gap-1.5" @click="chooseAny()">
               <span
                 class="flex size-12 items-center justify-center rounded-full border"
                 :class="anyBarber ? 'border-primary bg-primary/15 text-primary ring-primary ring-2' : 'border-default bg-elevated text-muted'"
@@ -533,7 +615,7 @@ const gcalUrl = computed(() => {
               :key="b.id"
               type="button"
               class="flex shrink-0 flex-col items-center gap-1.5"
-              @click="anyBarber = false; selectedBarber = b"
+              @click="chooseBarber(b)"
             >
               <span class="rounded-full" :class="!anyBarber && selectedBarber?.id === b.id ? 'ring-primary ring-2 ring-offset-2 ring-offset-[var(--jdvm-bg-1)]' : ''">
                 <UiAvatar :name="b.name" :src="b.photoUrl || null" :size="48" :ring="b.color" />
@@ -674,7 +756,7 @@ const gcalUrl = computed(() => {
           <UButton :disabled="!selectedSlot" color="primary" size="lg" class="flex-1 justify-center" trailing-icon="i-lucide-arrow-right" @click="goConfirmar">Continuar</UButton>
         </template>
 
-        <UButton v-else color="primary" size="lg" block :loading="submitting" icon="i-lucide-check" @click="confirm">Confirmar reserva</UButton>
+        <UButton v-else color="primary" size="lg" block :loading="submitting" :disabled="isReschedule && !rescheduleCancellable" icon="i-lucide-check" @click="confirm">{{ isReschedule ? 'Reprogramar cita' : 'Confirmar reserva' }}</UButton>
       </div>
     </template>
   </div>
@@ -688,7 +770,7 @@ const gcalUrl = computed(() => {
           <UIcon name="i-lucide-check" class="text-inverted size-9" />
         </div>
       </div>
-      <h1 class="font-display text-5xl leading-none">¡Cita confirmada!</h1>
+      <h1 class="font-display text-5xl leading-none">{{ isReschedule ? '¡Cita reprogramada!' : '¡Cita confirmada!' }}</h1>
       <p class="text-muted mt-3.5 max-w-lg text-base leading-relaxed">
         Te esperamos el
         <span class="text-primary font-semibold">{{ fmtDate(selectedSlot!, "EEEE d 'a las' HH:mm") }}</span>.
@@ -785,7 +867,7 @@ const gcalUrl = computed(() => {
             <span class="text-sm font-semibold">Total</span>
             <span class="font-display text-3xl">{{ formatPrice(price) }}</span>
           </div>
-          <UButton class="mt-5 justify-center" color="primary" size="lg" block :loading="submitting" icon="i-lucide-check" @click="confirm">Confirmar reserva</UButton>
+          <UButton class="mt-5 justify-center" color="primary" size="lg" block :loading="submitting" :disabled="isReschedule && !rescheduleCancellable" icon="i-lucide-check" @click="confirm">{{ isReschedule ? 'Reprogramar cita' : 'Confirmar reserva' }}</UButton>
           <div class="border-default mt-3.5 flex gap-2.5 rounded-xl border border-dashed p-3.5">
             <UIcon name="i-lucide-lock" class="text-dimmed size-3.5 shrink-0" />
             <span class="text-dimmed text-[0.72rem] leading-relaxed">Cancela gratis hasta {{ cancelHours }} h antes. Te recordaremos la cita el día anterior.</span>
@@ -847,7 +929,7 @@ const gcalUrl = computed(() => {
           <div>
             <h2 class="font-display mb-3.5 text-xl">2 · Elige barbero</h2>
             <div class="flex flex-wrap gap-4">
-              <button type="button" class="flex flex-col items-center gap-2" @click="anyBarber = true">
+              <button type="button" class="flex flex-col items-center gap-2" @click="chooseAny()">
                 <span
                   class="flex size-15 items-center justify-center rounded-full border"
                   :class="anyBarber ? 'border-primary bg-primary/15' : 'border-default bg-muted'"
@@ -861,7 +943,7 @@ const gcalUrl = computed(() => {
                 :key="b.id"
                 type="button"
                 class="flex flex-col items-center gap-2"
-                @click="anyBarber = false; selectedBarber = b"
+                @click="chooseBarber(b)"
               >
                 <span class="rounded-full" :class="!anyBarber && selectedBarber?.id === b.id ? 'ring-primary ring-2 ring-offset-2 ring-offset-[var(--jdvm-bg-1)]' : ''">
                   <UiAvatar :name="b.name" :src="b.photoUrl || null" :size="60" :ring="b.color" />

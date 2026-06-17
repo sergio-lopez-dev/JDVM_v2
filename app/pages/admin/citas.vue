@@ -152,6 +152,12 @@ async function markCompleted() {
   }
 }
 
+// Cambió el servicio de la cita: refleja precio/duración/fin en el drawer (snapshot).
+function onServiceChanged(p: { serviceId: string; price: number; endsAt: Date; serviceName: string; serviceDuration: number }) {
+  if (!selected.value) return
+  selected.value = { ...selected.value, ...p }
+}
+
 async function act(fn: () => Promise<unknown>, msg: string) {
   try {
     await fn()
@@ -290,6 +296,17 @@ const bookingOpen = ref(false)
             </div>
             <span class="font-display text-2xl">{{ formatPrice(selected.price) }}</span>
           </div>
+
+          <!-- cambiar el servicio realizado -->
+          <ApptServiceEditor
+            v-if="selected.status !== 'cancelled'"
+            class="mt-4"
+            :appointment-id="selected.id"
+            :barber-id="selected.barberId"
+            :service-id="selected.serviceId"
+            :starts-at="selected.startsAt"
+            @changed="onServiceChanged"
+          />
 
           <!-- cobro: efectivo / tarjeta (cita ya cobrada) -->
           <div v-if="selected.status === 'completed'" class="mt-4 flex items-center justify-between gap-3">

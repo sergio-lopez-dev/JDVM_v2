@@ -63,6 +63,12 @@ async function getServiceName(serviceId) {
   return s.exists ? s.data()?.name || 'servicio' : 'servicio'
 }
 
+async function getBarberName(barberId) {
+  if (!barberId) return ''
+  const s = await db.doc(`${C.barbers}/${barberId}`).get()
+  return s.exists ? s.data()?.name || '' : ''
+}
+
 async function getAdminUids() {
   const snap = await db.collection(C.users).where('role', '==', 'admin').get()
   return snap.docs.map((d) => d.id)
@@ -209,18 +215,25 @@ exports.onAppointmentCreated = functions
     if (!appt) return
     if (appt.status && !['booked', 'completed'].includes(appt.status)) return
 
-    const [clientName, serviceName] = await Promise.all([
+    const [clientName, serviceName, barberName] = await Promise.all([
       getUserName(appt.clientId),
       getServiceName(appt.serviceId),
+      getBarberName(appt.barberId),
     ])
     const when = fmtWhen(appt.startsAt)
     const appointmentId = context.params.id
+    // El barbero ya sabe que es para él → no repetimos su nombre. El admin necesita
+    // distinguir a QUÉ barbero se le ha reservado → su cuerpo incluye "con <barbero>".
     const body = `${clientName || 'Un cliente'} · ${serviceName} · ${when}.`
+    const adminBody = barberName
+      ? `${clientName || 'Un cliente'} · ${serviceName} con ${barberName} · ${when}.`
+      : body
 
+    // La cita SOLO la notifica al barbero en cuestión (su targetUid), no a los demás.
     if (appt.barberId) {
       await notifyUser(appt.barberId, { type: 'cita_nueva', title: '💈 Nueva cita', body, appointmentId, audience: 'barber', link: '/staff/agenda' })
     }
-    await notifyAdmins({ type: 'cita_nueva', title: '💈 Nueva cita', body, appointmentId, link: '/admin/agenda' })
+    await notifyAdmins({ type: 'cita_nueva', title: '💈 Nueva cita', body: adminBody, appointmentId, link: '/admin/agenda' })
   })
 
 // ───────────── 3) cita cancelada → push a barbero + admin ─────────────

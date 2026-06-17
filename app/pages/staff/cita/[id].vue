@@ -124,6 +124,15 @@ function reschedule() {
           </div>
         </div>
 
+        <!-- cambiar el servicio realizado (recalcula precio y fin) -->
+        <ApptServiceEditor
+          v-if="appt.status !== 'cancelled'"
+          :appointment-id="appt.id"
+          :barber-id="appt.barberId"
+          :service-id="appt.serviceId"
+          :starts-at="appt.startsAt"
+        />
+
         <!-- cobro: efectivo / tarjeta (solo cuando la cita ya está cobrada) -->
         <div v-if="appt.status === 'completed'" class="border-default bg-muted flex items-center justify-between gap-3 rounded-2xl border p-4">
           <div class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</div>

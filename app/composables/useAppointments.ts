@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   orderBy,
   query,
   serverTimestamp,
@@ -163,6 +164,13 @@ export function useAppointments() {
 
   const remove = (id: string) => deleteDoc(doc(db, COL.appointments, id))
 
+  // Nº de citas (de cualquier estado) que usan un servicio. Consulta puntual (no
+  // reactiva): la usa el admin antes de borrar un servicio para avisar del impacto.
+  async function countForService(serviceId: string) {
+    const snap = await getCountFromServer(query(col, where('serviceId', '==', serviceId)))
+    return snap.data().count
+  }
+
   return {
     mine,
     forBarberOnDay,
@@ -177,5 +185,6 @@ export function useAppointments() {
     setStatus,
     update,
     remove,
+    countForService,
   }
 }

@@ -46,7 +46,19 @@ function toggleDay(d: Weekday) {
   days.value = days.value.includes(d) ? days.value.filter((x) => x !== d) : [...days.value, d]
 }
 
-const prefs = reactive({ afternoonOnly: true })
+// Franja preferida: mañana / tarde / ambas (decide el rango horario que se guarda).
+type SlotPref = 'morning' | 'afternoon' | 'both'
+const TIME_RANGES: Record<SlotPref, { start: string; end: string; label: string }> = {
+  morning: { start: '10:00', end: '14:00', label: 'Mañanas' },
+  afternoon: { start: '16:00', end: '22:00', label: 'Tardes' },
+  both: { start: '10:00', end: '22:00', label: 'Mañana y tarde' },
+}
+const SLOT_OPTIONS: { value: SlotPref; label: string }[] = [
+  { value: 'morning', label: 'Mañana' },
+  { value: 'afternoon', label: 'Tarde' },
+  { value: 'both', label: 'Ambas' },
+]
+const slotPref = ref<SlotPref>('afternoon')
 const busy = ref(false)
 
 // Resumen legible de la entrada activa (cuando ya está en la lista).
@@ -61,6 +73,14 @@ const myEntryDays = computed(() => {
   if (!ds.length) return 'Cualquiera'
   return WEEKDAYS.filter((d) => ds.includes(d)).map((d) => DAY_LABELS[d]).join(', ')
 })
+const myEntryTime = computed(() => {
+  const r = myEntry.value?.timeRange
+  if (!r) return 'Cualquiera'
+  const match = (Object.values(TIME_RANGES) as { start: string; end: string; label: string }[]).find(
+    (t) => t.start === r.start && t.end === r.end,
+  )
+  return match ? `${match.label} (${r.start}–${r.end})` : `${r.start}–${r.end}`
+})
 
 async function joinList() {
   if (!user.value || !service.value) return
@@ -74,7 +94,7 @@ async function joinList() {
       clientId: user.value.uid,
       serviceId: service.value.id,
       preferredBarberId: barberId.value || null,
-      timeRange: prefs.afternoonOnly ? { start: '16:00', end: '22:00' } : { start: '10:00', end: '22:00' },
+      timeRange: { start: TIME_RANGES[slotPref.value].start, end: TIME_RANGES[slotPref.value].end },
       preferredDates: { start, end },
       // Orden canónico Lun→Dom (WEEKDAYS) sin depender del orden de selección.
       preferredWeekdays: WEEKDAYS.filter((d) => days.value.includes(d)),
@@ -172,12 +192,22 @@ async function leaveList() {
         <p class="text-dimmed mt-2 text-xs">Sin marcar ninguno = cualquier día.</p>
       </div>
 
-      <!-- preferencias -->
+      <!-- franja horaria preferida -->
       <div v-if="!alreadyOnList">
-        <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Avísame si…</p>
-        <div class="border-default overflow-hidden rounded-2xl border">
-          <div class="flex items-center px-4 py-3.5"><span class="flex-1 text-sm font-medium">Solo tardes</span><USwitch v-model="prefs.afternoonOnly" /></div>
+        <p class="text-dimmed mb-3 font-mono text-[0.6rem] tracking-widest uppercase">Qué franja prefieres</p>
+        <div class="border-default bg-muted grid grid-cols-3 gap-1 rounded-xl border p-1">
+          <button
+            v-for="o in SLOT_OPTIONS"
+            :key="o.value"
+            type="button"
+            class="rounded-lg py-2.5 text-sm font-semibold transition"
+            :class="slotPref === o.value ? 'bg-primary text-inverted shadow-sm' : 'text-muted hover:text-default'"
+            @click="slotPref = o.value"
+          >
+            {{ o.label }}
+          </button>
         </div>
+        <p class="text-dimmed mt-2 text-xs">{{ TIME_RANGES[slotPref].label }}: {{ TIME_RANGES[slotPref].start }}–{{ TIME_RANGES[slotPref].end }}</p>
       </div>
 
       <!-- resumen cuando ya está en la lista -->
@@ -191,6 +221,10 @@ async function leaveList() {
           <div class="flex justify-between gap-3">
             <dt class="text-toned">Días</dt>
             <dd class="font-medium">{{ myEntryDays }}</dd>
+          </div>
+          <div class="flex justify-between gap-3">
+            <dt class="text-toned">Horario</dt>
+            <dd class="font-medium">{{ myEntryTime }}</dd>
           </div>
         </dl>
       </div>

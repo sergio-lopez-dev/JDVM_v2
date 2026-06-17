@@ -102,7 +102,7 @@ async function doCancel() {
     <div class="border-default bg-default sticky bottom-0 flex gap-2.5 border-t px-5 py-3">
       <template v-if="appt.status === 'booked'">
         <UButton color="error" variant="outline" size="lg" class="flex-1 justify-center" :loading="cancelling" :disabled="!cancellable" @click="doCancel">Cancelar</UButton>
-        <UButton to="/reservar" color="primary" size="lg" class="flex-[1.4] justify-center" icon="i-lucide-refresh-cw">Reprogramar</UButton>
+        <UButton :to="`/reservar?reschedule=${appt.id}`" color="primary" size="lg" class="flex-[1.4] justify-center" :disabled="!cancellable" icon="i-lucide-refresh-cw">Reprogramar</UButton>
       </template>
       <UButton v-else-if="appt.status === 'completed'" :to="`/valorar/${appt.id}`" color="primary" size="lg" block icon="i-lucide-star">Valorar visita</UButton>
       <UButton v-else to="/reservar" color="primary" size="lg" block icon="i-lucide-scissors">Reservar de nuevo</UButton>

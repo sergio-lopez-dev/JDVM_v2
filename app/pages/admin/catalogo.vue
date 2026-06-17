@@ -6,14 +6,16 @@ definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Servicios · Admin' })
 
 const { services, create, update, remove } = useServices()
+const { countForService } = useAppointments()
 const { barbers, update: updateBarber } = useBarbers()
 const { categories, add: addCategory, rename: renameCategory, remove: removeCategory } =
   useServiceCategories()
 const toast = useToast()
 
 // Servicios agrupados en el ORDEN de las categorías + un grupo "Sin categoría".
+// Dentro de cada grupo se respeta el orden de `services` (ya ordenado por sortOrder).
 const grouped = computed(() => {
-  const sorted = [...services.value].sort((a, b) => a.name.localeCompare(b.name))
+  const sorted = services.value
   const groups = categories.value.map((c) => ({
     id: c.id,
     name: c.name,
@@ -24,6 +26,30 @@ const grouped = computed(() => {
   if (orphans.length) groups.push({ id: '', name: 'Sin categoría', list: orphans })
   return groups.filter((g) => g.list.length)
 })
+
+// Reordenar un servicio dentro de su grupo (flechas ↑/↓). Tras mover, reescribe el
+// sortOrder de TODOS los servicios según el orden de pantalla (categorías + posición)
+// → así el cliente ve la carta en ese orden (decisión: orden global estable).
+const reordering = ref(false)
+async function move(s: Service, groupId: string, dir: -1 | 1) {
+  if (reordering.value) return
+  const group = grouped.value.find((g) => g.id === groupId)
+  if (!group) return
+  const list = [...group.list]
+  const i = list.findIndex((x) => x.id === s.id)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= list.length) return
+  ;[list[i], list[j]] = [list[j]!, list[i]!]
+  const order = grouped.value.flatMap((g) => (g.id === groupId ? list : g.list))
+  reordering.value = true
+  try {
+    await Promise.all(
+      order.flatMap((x, idx) => (x.sortOrder === idx ? [] : [update(x.id, { sortOrder: idx })])),
+    )
+  } finally {
+    reordering.value = false
+  }
+}
 
 const countIn = (id: string) => services.value.filter((s) => (s.category ?? '') === id).length
 
@@ -57,6 +83,7 @@ interface FormState {
   category: string
   color: string
   isPrivate: boolean
+  sortOrder: number
   barberIds: string[]
   priceOverrides: Record<string, number | undefined>
   durationOverrides: Record<string, number | undefined>
@@ -72,6 +99,8 @@ function blank(): FormState {
     category: categories.value[0]?.id ?? '',
     color: '#C2A24E',
     isPrivate: false,
+    // Nuevo servicio: al final de la carta (se puede reordenar luego con ↑/↓).
+    sortOrder: services.value.length,
     barberIds: barbers.value.map((b) => b.id),
     priceOverrides: {},
     durationOverrides: {},
@@ -95,6 +124,7 @@ function startEdit(s: Service) {
     category: s.category ?? categories.value[0]?.id ?? '',
     color: s.color ?? '#C2A24E',
     isPrivate: s.isPrivate ?? false,
+    sortOrder: s.sortOrder ?? 0,
     barberIds: barbers.value.filter((b) => b.servicesOffered?.includes(s.id)).map((b) => b.id),
     priceOverrides: { ...(s.priceOverrides ?? {}) },
     durationOverrides: { ...(s.durationOverrides ?? {}) },
@@ -147,6 +177,7 @@ async function save() {
       category: f.category,
       color: f.color,
       isPrivate: f.isPrivate,
+      sortOrder: f.sortOrder,
       priceOverrides: overrides,
       durationOverrides: durOverrides,
     }
@@ -165,7 +196,14 @@ async function save() {
 
 async function confirmRemove() {
   if (!form.value?.id) return
-  if (!confirm(`¿Eliminar "${form.value.name}"?`)) return
+  // Aviso si hay citas que usan este servicio: al borrarlo perderían nombre/duración/
+  // precio (las citas guardan solo el serviceId + priceSnapshot). El admin decide.
+  const n = await countForService(form.value.id)
+  const msg =
+    n > 0
+      ? `"${form.value.name}" tiene ${n} cita(s) asociadas. Si lo eliminas, esas citas se quedarán sin la información del servicio (nombre y duración). ¿Eliminar igualmente?`
+      : `¿Eliminar "${form.value.name}"?`
+  if (!confirm(msg)) return
   await remove(form.value.id)
   toast.add({ title: 'Servicio eliminado', icon: 'i-lucide-trash-2' })
   form.value = null
@@ -220,35 +258,44 @@ async function confirmRemove() {
               <span class="bg-accented text-dimmed rounded-md px-1.5 py-0.5 font-mono text-[0.6rem]">{{ g.list.length }}</span>
             </div>
           </div>
-          <button
-            v-for="s in g.list"
+          <div
+            v-for="(s, idx) in g.list"
             :key="s.id"
-            type="button"
-            class="border-default flex w-full items-center gap-3.5 border-b border-l-[3px] px-5 py-3.5 text-left transition-colors last:border-b-0"
-            :class="form?.id === s.id ? 'border-l-primary bg-primary/10' : 'hover:bg-elevated border-l-transparent'"
-            @click="startEdit(s)"
+            class="border-default flex w-full items-center border-b border-l-[3px] transition-colors last:border-b-0"
+            :class="form?.id === s.id ? 'border-l-primary bg-primary/10' : 'border-l-transparent'"
           >
-            <span
-              class="flex size-9 shrink-0 items-center justify-center rounded-[9px]"
-              :style="s.color && !s.isPrivate ? { backgroundColor: `${s.color}22` } : undefined"
-              :class="!s.color || s.isPrivate ? 'bg-accented' : ''"
-            >
-              <UIcon
-                name="i-lucide-scissors"
-                class="size-4"
-                :style="s.color && !s.isPrivate ? { color: s.color } : undefined"
-                :class="s.isPrivate ? 'text-dimmed' : !s.color ? 'text-primary' : ''"
-              />
-            </span>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-semibold" :class="s.isPrivate ? 'text-dimmed' : ''">{{ s.name }}</div>
-              <div class="text-dimmed truncate text-xs">{{ s.description || '—' }}</div>
+            <!-- orden en la carta (lo que ve el cliente) -->
+            <div class="flex flex-col pl-2.5">
+              <button type="button" aria-label="Subir" :disabled="reordering || idx === 0" class="text-dimmed hover:text-default flex disabled:opacity-25" @click="move(s, g.id, -1)"><UIcon name="i-lucide-chevron-up" class="size-4" /></button>
+              <button type="button" aria-label="Bajar" :disabled="reordering || idx === g.list.length - 1" class="text-dimmed hover:text-default flex disabled:opacity-25" @click="move(s, g.id, 1)"><UIcon name="i-lucide-chevron-down" class="size-4" /></button>
             </div>
-            <span class="text-dimmed w-16 text-right font-mono text-xs">{{ formatDuration(s.durationMinutes) }}</span>
-            <span class="font-display w-14 text-right text-xl" :class="s.isPrivate ? 'text-dimmed' : ''">{{ formatPrice(s.basePrice) }}</span>
-            <UIcon v-if="s.isPrivate" name="i-lucide-lock" class="text-dimmed size-4 shrink-0" />
-            <UIcon v-else name="i-lucide-eye" class="text-success/70 size-4 shrink-0" />
-          </button>
+            <button
+              type="button"
+              class="hover:bg-elevated flex flex-1 items-center gap-3.5 px-3.5 py-3.5 text-left"
+              @click="startEdit(s)"
+            >
+              <span
+                class="flex size-9 shrink-0 items-center justify-center rounded-[9px]"
+                :style="s.color && !s.isPrivate ? { backgroundColor: `${s.color}22` } : undefined"
+                :class="!s.color || s.isPrivate ? 'bg-accented' : ''"
+              >
+                <UIcon
+                  name="i-lucide-scissors"
+                  class="size-4"
+                  :style="s.color && !s.isPrivate ? { color: s.color } : undefined"
+                  :class="s.isPrivate ? 'text-dimmed' : !s.color ? 'text-primary' : ''"
+                />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold" :class="s.isPrivate ? 'text-dimmed' : ''">{{ s.name }}</div>
+                <div class="text-dimmed truncate text-xs">{{ s.description || '—' }}</div>
+              </div>
+              <span class="text-dimmed w-16 text-right font-mono text-xs">{{ formatDuration(s.durationMinutes) }}</span>
+              <span class="font-display w-14 text-right text-xl" :class="s.isPrivate ? 'text-dimmed' : ''">{{ formatPrice(s.basePrice) }}</span>
+              <UIcon v-if="s.isPrivate" name="i-lucide-lock" class="text-dimmed size-4 shrink-0" />
+              <UIcon v-else name="i-lucide-eye" class="text-success/70 size-4 shrink-0" />
+            </button>
+          </div>
         </AdminCard>
       </div>
 

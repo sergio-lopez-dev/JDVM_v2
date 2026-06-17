@@ -4,7 +4,13 @@ import type { Service, ServiceInput } from '~~/schemas'
 export function useServices() {
   const db = useFirestore()
   const col = collection(db, COL.services)
-  const services = useCollection<Service>(col)
+  const raw = useCollection<Service>(col)
+
+  // Orden de la carta configurable por el admin (sortOrder asc, desempate por nombre).
+  // Al ordenar aquí, TODA la app (carta, reserva, catálogo) hereda el mismo orden.
+  const byOrder = (a: Service, b: Service) =>
+    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, 'es')
+  const services = computed(() => [...raw.value].sort(byOrder))
 
   // Los privados no salen en lista pública ni en reserva.
   const publicServices = computed(() => services.value.filter((s) => !s.isPrivate))

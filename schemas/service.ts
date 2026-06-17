@@ -28,6 +28,8 @@ export const serviceSchema = z.object({
   color: hexColorSchema.optional(),
   // id de una categoría configurable (settings.serviceCategories). Texto libre.
   category: z.string().optional(),
+  // Orden en la carta (lo fija el admin con las flechas ↑/↓). Asc; desempate por nombre.
+  sortOrder: z.number().int().default(0),
   isPrivate: z.boolean().default(false),
 })
 export type Service = z.infer<typeof serviceSchema>
