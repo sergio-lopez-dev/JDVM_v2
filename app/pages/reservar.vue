@@ -2,7 +2,7 @@
 import confetti from 'canvas-confetti'
 import { effectivePrice, effectiveDuration, type Service, type Barber } from '~~/schemas'
 import { generateSlots, resolveDayTimetable, isOnVacation } from '~~/lib/slots'
-import { toDate, weekdayOf } from '~~/lib/datetime'
+import { toDate, weekdayOf, fixedOccursOn } from '~~/lib/datetime'
 import { fmtDate, formatPrice, formatDuration, initials } from '~~/lib/format'
 import { isCancellable } from '~~/lib/cancellation'
 
@@ -155,6 +155,8 @@ function fixedBusy(barberId: string | null, day: Date): { start: Date; end: Date
   for (const f of fixed.value) {
     if (f.active === false || f.barberId !== barberId || f.weekday !== wd) continue
     if (f.exceptions?.includes(dk)) continue
+    // Periodicidad: una serie "cada 2/3 semanas" no bloquea las semanas que no tocan.
+    if (!fixedOccursOn(day, f.anchorDate ? toDate(f.anchorDate) : null, f.intervalWeeks)) continue
     const [h, m] = f.time.split(':').map(Number)
     const start = new Date(day)
     start.setHours(h ?? 0, m ?? 0, 0, 0)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { initials } from '~~/lib/format'
+import { waLink } from '~~/lib/phone'
 
 // Chip de cliente para las agendas del día (barbero/admin). Muestra el teléfono
 // junto al nombre y, al pulsar, abre un modal con toda la info del cliente (sin
@@ -14,6 +15,7 @@ const props = defineProps<{
 
 const open = ref(false)
 const toast = useToast()
+const whatsapp = computed(() => waLink(props.phone))
 
 function call() {
   if (props.phone && import.meta.client) window.location.href = `tel:${props.phone}`
@@ -84,6 +86,24 @@ async function copy(value?: string | null) {
               <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-copy" aria-label="Copiar" @click="copy(phone)" />
               <UButton color="primary" size="sm" icon="i-lucide-phone" @click="call">Llamar</UButton>
             </div>
+
+            <!-- WhatsApp -->
+            <a
+              v-if="whatsapp"
+              :href="whatsapp"
+              target="_blank"
+              rel="noopener"
+              class="border-default bg-muted hover:border-success/40 flex items-center gap-3 rounded-2xl border p-3.5 transition"
+            >
+              <div class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#25D366]/15">
+                <UIcon name="i-lucide-message-circle" class="size-4 text-[#25D366]" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-dimmed text-[0.7rem]">WhatsApp</p>
+                <p class="truncate text-sm font-semibold">Abrir chat</p>
+              </div>
+              <UIcon name="i-lucide-external-link" class="text-dimmed size-4" />
+            </a>
 
             <!-- email -->
             <div v-if="email" class="border-default bg-muted flex items-center gap-3 rounded-2xl border p-3.5">

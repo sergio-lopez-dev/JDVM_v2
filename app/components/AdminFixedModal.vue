@@ -34,6 +34,14 @@ const service = ref<Service | null>(null)
 const barber = ref<Barber | null>(null)
 const weekday = ref<Weekday>('tue')
 const time = ref('10:00')
+// Periodicidad: cada 1/2/3/4 semanas.
+const intervalWeeks = ref(1)
+const INTERVAL_OPTIONS = [
+  { value: 1, label: 'Cada semana' },
+  { value: 2, label: 'Cada 2 semanas' },
+  { value: 3, label: 'Cada 3 semanas' },
+  { value: 4, label: 'Cada 4 semanas' },
+]
 const saving = ref(false)
 // id de la serie que se está editando (null = creando una nueva).
 const editingId = ref<string | null>(null)
@@ -51,6 +59,7 @@ function resetForm() {
   barber.value = null
   weekday.value = 'tue'
   time.value = '10:00'
+  intervalWeeks.value = 1
   editingId.value = null
   manualClient.value = false
   manualName.value = ''
@@ -76,6 +85,7 @@ function startEdit(f: FixedAppointment) {
   barber.value = barbers.value.find((b) => b.id === f.barberId) ?? null
   weekday.value = f.weekday
   time.value = f.time
+  intervalWeeks.value = f.intervalWeeks ?? 1
   // Si la hora guardada NO es un hueco estándar (se creó "fuera de horario", o cambió
   // el horario/paso desde entonces), activamos ese modo para conservar la hora y no
   // dejar el botón de guardar deshabilitado.
@@ -160,7 +170,7 @@ const groupedFixed = computed(() =>
 )
 
 async function submit() {
-  if (!canSubmit.value || !service.value || !barber.value) return
+  if (saving.value || !canSubmit.value || !service.value || !barber.value) return
   saving.value = true
   try {
     const input = {
@@ -172,6 +182,7 @@ async function submit() {
       serviceId: service.value.id,
       weekday: weekday.value,
       time: time.value,
+      intervalWeeks: intervalWeeks.value,
       active: true,
     }
     const res = editingId.value ? await update(editingId.value, input) : await create(input)
@@ -189,7 +200,7 @@ async function submit() {
     } else {
       toast.add({
         title: `Cita fija ${verb}`,
-        description: `Se han generado ${res.created} citas (próximas 12 semanas).`,
+        description: `Se han generado ${res.created} citas (${INTERVAL_OPTIONS.find((o) => o.value === intervalWeeks.value)?.label.toLowerCase() ?? 'cada semana'}).`,
         icon: 'i-lucide-check',
         color: 'success',
       })
@@ -288,9 +299,26 @@ async function del(id: string) {
             </div>
           </div>
 
+          <!-- periodicidad: cada 1/2/3/4 semanas -->
+          <div>
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Periodicidad</label>
+            <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <button
+                v-for="o in INTERVAL_OPTIONS"
+                :key="o.value"
+                type="button"
+                class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold"
+                :class="intervalWeeks === o.value ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted text-toned'"
+                @click="intervalWeeks = o.value"
+              >
+                {{ o.label }}
+              </button>
+            </div>
+          </div>
+
           <!-- día (solo los abiertos para ese barbero/servicio) -->
           <div>
-            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Cada</label>
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Día</label>
             <div class="flex flex-wrap gap-1.5">
               <button
                 v-for="d in WEEKDAYS"
@@ -371,7 +399,7 @@ async function del(id: string) {
                     <span class="text-primary font-mono text-sm font-semibold tabular-nums">{{ f.time }}</span>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold">{{ clientLabel(f) }}<span v-if="!f.clientId" class="text-dimmed font-normal"> · sin registrar</span></p>
-                      <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}</p>
+                      <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}<span v-if="(f.intervalWeeks ?? 1) > 1"> · cada {{ f.intervalWeeks }} sem</span></p>
                     </div>
                     <button type="button" class="text-muted hover:text-primary flex size-8 items-center justify-center" aria-label="Editar" @click="startEdit(f)"><UIcon name="i-lucide-pencil" class="size-4" /></button>
                     <button type="button" class="text-error/80 hover:text-error flex size-8 items-center justify-center" aria-label="Eliminar" @click="del(f.id)"><UIcon name="i-lucide-trash-2" class="size-4" /></button>

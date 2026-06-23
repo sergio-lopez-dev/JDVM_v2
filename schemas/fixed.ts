@@ -13,6 +13,13 @@ export const fixedAppointmentSchema = z.object({
   serviceId: z.string(),
   weekday: weekdaySchema,
   time: timeStringSchema, // "HH:mm"
+  // Periodicidad en semanas: 1 = cada semana, 2 = cada dos semanas, 3, 4…
+  // Ausente (undefined) = 1 (compatibilidad con series ya creadas).
+  intervalWeeks: z.number().int().min(1).max(4).optional(),
+  // Fecha (medianoche local) de la PRIMERA ocurrencia de la serie. Ancla el cálculo
+  // de qué semanas "tocan" cuando intervalWeeks > 1 (para bloquear la reserva más allá
+  // de las 12 semanas materializadas). Se fija al crear la serie.
+  anchorDate: z.date().optional(),
   active: z.boolean().default(true),
   // Fechas (yyyy-MM-dd) en las que la serie NO aplica: el admin "liberó" ese día
   // concreto (p. ej. el cliente avisó que falla). El hueco queda libre para reservas

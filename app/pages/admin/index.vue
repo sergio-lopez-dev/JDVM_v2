@@ -37,12 +37,13 @@ function useClientNow() {
 
 const live = computed(() =>
   enriched.value
-    .filter((a) => a.status !== 'cancelled')
+    // Los bloqueos de hueco no son citas: fuera del panel de negocio (KPIs, timeline).
+    .filter((a) => a.status !== 'cancelled' && a.type !== 'block')
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
 )
 const valid = computed(() => live.value.filter((a) => a.status === 'booked' || a.status === 'completed'))
 
-const yCount = computed(() => yesterdayRaw.value.filter((a) => a.status !== 'cancelled').length)
+const yCount = computed(() => yesterdayRaw.value.filter((a) => a.status !== 'cancelled' && a.type !== 'block').length)
 
 const kpis = computed(() => {
   const revenue = valid.value.reduce((s, a) => s + a.price, 0)

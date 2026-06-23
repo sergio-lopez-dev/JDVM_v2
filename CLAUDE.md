@@ -618,3 +618,34 @@ recompensas (catálogo) y los canjes.
   [`lib/format`](lib/format.ts)); contador "N en línea" en la cabecera; orden **A–Z / Recientes**
   (`sortBy`). Pensado para detectar quién está entrando y avisarle de huecos / animar a reservar
   (campañas en [`/admin/notificaciones`](app/pages/admin/notificaciones.vue)).
+
+### 15.4 Agenda: hoy, WhatsApp, citas fijas cada N semanas y bloqueo de huecos
+
+- **Día actual señalado:** las tiras de días de [`/admin/agenda`](app/pages/admin/agenda.vue) y
+  [`/staff/agenda`](app/pages/staff/agenda.vue) resaltan **hoy** (borde dorado + punto), distinto
+  del día seleccionado; la vista Equipo (escritorio) muestra un chip "Hoy". El board sigue pintando
+  la línea roja de "ahora".
+- **Contactar por WhatsApp:** helpers `waLink`/`telLink`/`intlPhone` en [`lib/phone.ts`](lib/phone.ts)
+  (España → prefijo 34). Botón de WhatsApp en [`ClientInfoButton`](app/components/ClientInfoButton.vue)
+  (chip de las agendas), en el drawer de [`/admin/agenda`](app/pages/admin/agenda.vue) y en el detalle
+  [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue) (junto a "Llamar").
+- **Citas fijas cada N semanas:** `fixed.intervalWeeks` (1–4) + `fixed.anchorDate` (schema). El
+  generador de ocurrencias salta `intervalWeeks` semanas (horizonte ~12 sem). El bloqueo de reserva
+  desde la plantilla (`fixedBusy` en `reservar.vue` y `AdminBookingModal`) usa `fixedOccursOn`
+  ([`lib/datetime.ts`](lib/datetime.ts)) para NO bloquear las semanas que no tocan. Selector
+  "Periodicidad" en [`AdminFixedModal`](app/components/AdminFixedModal.vue).
+- **Citas fijas a no-clientes y citas extra fuera de horario:** ya existían (toggles "Sin registrar"
+  y "Fuera de horario" en los modales). Sin cambios; verificados.
+- **Crash al crear citas fijas (blindado, decisión del dueño):** `useFixedAppointments.create` es
+  ahora **idempotente** (rechaza una serie activa idéntica → no duplica; `update` la salta con
+  `allowDuplicate`) y el render de Schedule-X va envuelto (`safeSetEvents`) para que un dato raro no
+  tumbe la agenda. `dayBoundaries` ampliado a 07–23.
+- **Bloqueo de huecos (staff/admin):** una "cita" con `appointment.type: 'block'` (sin cliente ni
+  servicio, `note` opcional). Ocupa el hueco automáticamente (es `status: 'booked'` → ya cuenta como
+  `busy` en slots/reserva) pero **no factura** (la contabilidad solo suma `completed`).
+  [`BlockModal`](app/components/BlockModal.vue) lo crea (barbero fijado en staff, seleccionable en
+  admin). Se pinta en gris ("No disponible") en agendas y board; se excluye de los paneles "Hoy"
+  (admin/staff) y de los contadores. Enriquecido en [`useAdminAppointments`](app/composables/useAdminAppointments.ts).
+- **Comisión del dueño (sin cambio de código):** si el dueño hace cortes, debe ponerse **0%** de
+  comisión en Equipo; así su facturación entra íntegra como beneficio del local (la comisión se resta
+  como coste en [`useFinance`](app/composables/useFinance.ts), por diseño).

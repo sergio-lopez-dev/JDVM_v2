@@ -10,7 +10,9 @@ const toast = useToast()
 const { setStatus } = useAppointments()
 const { today, enriched, me, rating, onDay, isNow, now } = useBarber()
 
-const list = onDay(today)
+// Los bloqueos de hueco no son citas: fuera de "Mi día" (stats, "en curso", lista).
+const dayItems = onDay(today)
+const list = computed(() => dayItems.value.filter((a) => a.type !== 'block'))
 const firstName = computed(() => (me.value?.name || user.value?.displayName || 'barbero').split(' ')[0])
 
 // Tu parte = servicios·comisión + propinas (100%). El barbero NUNCA ve el bruto

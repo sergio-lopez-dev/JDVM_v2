@@ -20,6 +20,7 @@ import { fmtDate, formatPrice, initials, dayLetterEs } from '~~/lib/format'
 import { sameDay } from '~~/lib/datetime'
 import { isCancellable } from '~~/lib/cancellation'
 import { freeWindows, resolveDayTimetable } from '~~/lib/slots'
+import { waLink, telLink } from '~~/lib/phone'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Agenda · Admin' })
@@ -129,7 +130,9 @@ onMounted(() => {
     firstDayOfWeek: 1,
     timezone: STUDIO_TZ,
     isDark: true,
-    dayBoundaries: { start: '09:00', end: '23:00' },
+    // Margen amplio (07–23) para que citas tempranas / "fuera de horario" entren dentro
+    // de los límites del día y Schedule-X no las recorte ni se queje.
+    dayBoundaries: { start: '07:00', end: '23:00' },
     weekOptions: { gridHeight: 720 },
     monthGridOptions: { nEventsPerDay: 4 },
     calendars: calendars.value,
@@ -160,9 +163,21 @@ onMounted(() => {
   })
 })
 
+// Sincroniza los eventos con Schedule-X de forma DEFENSIVA: si una cita trae un dato
+// raro (fecha inválida, etc.), Schedule-X lanza al validar y, sin protección, el error
+// tumbaba toda la página de la agenda (el admin se quedaba "fuera"). Capturamos: la
+// agenda conserva los eventos previos en vez de romperse.
+function safeSetEvents(list: CalendarEvent[]) {
+  try {
+    calendarApp.value?.events?.set(list)
+  } catch (e) {
+    console.error('[agenda] no se pudieron actualizar los eventos del calendario:', e)
+  }
+}
+
 // Mantener los eventos sincronizados con Firestore.
 watch(events, (list) => {
-  calendarApp.value?.events?.set(list)
+  safeSetEvents(list)
 })
 // Schedule-X fija los calendarios (colores) al crearse, pero los servicios/series
 // pueden cargar DESPUÉS del montaje. Actualizamos el signal interno de calendarios
@@ -173,7 +188,7 @@ watch(calendars, (cals) => {
   if (!calendarApp.value) return
   const internal = calendarApp.value as unknown as SxInternal
   if (internal.$app?.config?.calendars) internal.$app.config.calendars.value = cals
-  calendarApp.value.events.set(events.value)
+  safeSetEvents(events.value)
 })
 
 async function markCompleted(id: string) {
@@ -261,6 +276,13 @@ async function freeFixedDay() {
   }
 }
 
+// Medianoche de hoy (para resaltar el día actual en la tira de días / navegación).
+const today = (() => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+})()
+
 // — Vista móvil (timeline) —
 const selectedDay = ref(startOfWeek(new Date()))
 selectedDay.value = (() => {
@@ -323,6 +345,18 @@ function mobileStatusLabel(s: string) {
 
 const bookingOpen = ref(false)
 const fixedOpen = ref(false)
+// Bloquear hueco (no disponible) desde la agenda admin (barbero seleccionable).
+const blockOpen = ref(false)
+const blockPreset = ref<{ barberId?: string; date: Date; time?: string }>({ date: rangeStart.value })
+function openBlock() {
+  blockPreset.value = { barberId: barberFilter.value ?? undefined, date: selectedDay.value }
+  blockOpen.value = true
+}
+async function removeBlock(id: string) {
+  await remove(id)
+  toast.add({ title: 'Bloqueo quitado', icon: 'i-lucide-lock-open', color: 'success' })
+  if (selected.value?.id === id) selected.value = null
+}
 // Preselección de la "Nueva cita" cuando se abre desde un hueco libre de la agenda.
 const bookingPreset = ref<{ barberId?: string; date: Date; time?: string }>({ date: rangeStart.value })
 
@@ -382,6 +416,7 @@ const weekEnd = computed(() => {
   <div>
     <AdminHeader title="Agenda" sub="Calendario del estudio">
       <template #actions>
+        <UButton color="neutral" variant="soft" icon="i-lucide-lock" @click="openBlock"><span class="hidden sm:inline">Bloquear</span></UButton>
         <UButton color="neutral" variant="soft" icon="i-lucide-repeat" @click="fixedOpen = true"><span class="hidden sm:inline">Citas fijas</span></UButton>
         <UButton color="primary" icon="i-lucide-plus" @click="openNewBooking"><span class="hidden sm:inline">Nueva cita</span></UButton>
       </template>
@@ -403,12 +438,13 @@ const weekEnd = computed(() => {
           v-for="d in weekDays"
           :key="d.toISOString()"
           type="button"
-          class="flex flex-col items-center gap-1 rounded-xl border py-2"
-          :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : 'border-default bg-muted'"
+          class="relative flex flex-col items-center gap-1 rounded-xl border py-2"
+          :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : sameDay(d, today) ? 'border-primary/50 bg-primary/10' : 'border-default bg-muted'"
           @click="selectedDay = d"
         >
           <span class="font-mono text-[0.6rem] uppercase">{{ dayLetterEs(d) }}</span>
           <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
+          <span v-if="sameDay(d, today)" class="absolute bottom-1 size-1 rounded-full" :class="sameDay(d, selectedDay) ? 'bg-inverted' : 'bg-primary'" />
         </button>
       </div>
 
@@ -457,8 +493,9 @@ const weekEnd = computed(() => {
         <!-- navegación de día (solo vista equipo) -->
         <div v-if="desktopView === 'team'" class="flex items-center gap-1.5">
           <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-left" aria-label="Día anterior" @click="shiftDay(-1)" />
-          <button type="button" class="border-default bg-muted hover:text-default text-toned min-w-44 rounded-lg border px-3 py-1.5 text-center text-sm font-medium capitalize" @click="goToday">
+          <button type="button" class="border-default bg-muted hover:text-default text-toned flex min-w-44 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-center text-sm font-medium capitalize" @click="goToday">
             {{ fmtDate(selectedDay, "EEEE d 'de' MMMM") }}
+            <span v-if="sameDay(selectedDay, today)" class="bg-primary/15 text-primary rounded px-1.5 py-0.5 font-mono text-[0.6rem] tracking-wide uppercase">Hoy</span>
           </button>
           <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-right" aria-label="Día siguiente" @click="shiftDay(1)" />
         </div>
@@ -553,12 +590,15 @@ const weekEnd = computed(() => {
               @click="selected = a"
             >
               <div class="flex items-center gap-3">
-                <div class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold">{{ initials(a.clientName) }}</div>
+                <div class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold">
+                  <UIcon v-if="a.type === 'block'" name="i-lucide-lock" class="text-dimmed size-3.5" /><template v-else>{{ initials(a.clientName) }}</template>
+                </div>
                 <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div>
+                  <div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton v-if="a.type !== 'block'" :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div>
                   <div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ a.barberName }}</div>
                 </div>
-                <AdminPill :kind="mobileStatusKind(a.status)">{{ mobileStatusLabel(a.status) }}</AdminPill>
+                <AdminPill v-if="a.type === 'block'" kind="neutral">Bloqueado</AdminPill>
+                <AdminPill v-else :kind="mobileStatusKind(a.status)">{{ mobileStatusLabel(a.status) }}</AdminPill>
               </div>
             </button>
           </div>
@@ -606,15 +646,30 @@ const weekEnd = computed(() => {
             </div>
 
             <div class="border-default bg-muted mt-4 space-y-2.5 rounded-2xl border p-4">
-              <div class="flex items-center gap-3"><UIcon name="i-lucide-user" class="text-primary size-4" /><span class="text-sm font-semibold">{{ selected.clientName }}</span><span v-if="selected.clientPhone" class="text-dimmed ml-auto font-mono text-xs">{{ selected.clientPhone }}</span></div>
-              <div class="flex items-center gap-3"><UIcon name="i-lucide-scissors" class="text-primary size-4" /><span class="text-sm">{{ selected.serviceName }}</span></div>
+              <div class="flex items-center gap-3">
+                <UIcon :name="selected.type === 'block' ? 'i-lucide-lock' : 'i-lucide-user'" class="text-primary size-4" />
+                <span class="text-sm font-semibold">{{ selected.type === 'block' ? 'Hueco bloqueado' : selected.clientName }}</span>
+                <span v-if="selected.clientPhone" class="text-dimmed ml-auto font-mono text-xs">{{ selected.clientPhone }}</span>
+              </div>
+              <div v-if="selected.type === 'block'" class="flex items-center gap-3"><UIcon name="i-lucide-pencil" class="text-primary size-4" /><span class="text-sm">{{ selected.note || 'No disponible' }}</span></div>
+              <div v-else class="flex items-center gap-3"><UIcon name="i-lucide-scissors" class="text-primary size-4" /><span class="text-sm">{{ selected.serviceName }}</span></div>
               <div class="flex items-center gap-3"><span class="size-3 rounded-full" :style="{ background: selected.barberColor }" /><span class="text-sm">{{ selected.barberName }}</span></div>
-              <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija (semanal)</span></div>
+              <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija</span></div>
+            </div>
+
+            <!-- contactar al cliente: WhatsApp / llamar -->
+            <div v-if="selected.clientPhone" class="mt-3 grid grid-cols-2 gap-2.5">
+              <a :href="waLink(selected.clientPhone)" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366]/20">
+                <UIcon name="i-lucide-message-circle" class="size-4" />WhatsApp
+              </a>
+              <a :href="telLink(selected.clientPhone)" class="border-default bg-muted text-toned hover:bg-elevated flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition">
+                <UIcon name="i-lucide-phone" class="size-4" />Llamar
+              </a>
             </div>
 
             <!-- cambiar el servicio realizado -->
             <ApptServiceEditor
-              v-if="selected.status !== 'cancelled'"
+              v-if="selected.status !== 'cancelled' && selected.type !== 'block'"
               class="mt-4"
               :appointment-id="selected.id"
               :barber-id="selected.barberId"
@@ -629,7 +684,9 @@ const weekEnd = computed(() => {
               <PaymentToggle :id="selected.id" :method="selected.paymentMethod" />
             </div>
 
-            <div class="mt-4 grid grid-cols-2 gap-2.5">
+            <!-- bloqueo: solo se puede quitar -->
+            <UButton v-if="selected.type === 'block'" color="error" variant="soft" block class="mt-4" icon="i-lucide-lock-open" @click="removeBlock(selected.id)">Quitar bloqueo</UButton>
+            <div v-else class="mt-4 grid grid-cols-2 gap-2.5">
               <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="markCompleted(selected.id)">Completar</UButton>
               <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="markNoShow(selected.id)">No vino</UButton>
               <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="cancelAppt">Cancelar</UButton>
@@ -647,7 +704,7 @@ const weekEnd = computed(() => {
               icon="i-lucide-calendar-minus"
               @click="freeFixedDay"
             >Liberar solo este día (cita fija)</UButton>
-            <p v-if="selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
+            <p v-if="selected.type !== 'block' && selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
               Fuera de la ventana de 4 h del cliente · como admin puedes igualmente.
             </p>
 
@@ -672,6 +729,12 @@ const weekEnd = computed(() => {
       :preset-time="bookingPreset.time"
     />
     <AdminFixedModal v-model:open="fixedOpen" />
+    <BlockModal
+      v-model:open="blockOpen"
+      :preset-date="blockPreset.date"
+      :preset-barber-id="blockPreset.barberId"
+      :preset-time="blockPreset.time"
+    />
   </div>
 </template>
 

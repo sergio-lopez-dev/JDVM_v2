@@ -27,6 +27,8 @@ export interface AdminAppointment extends Omit<Appointment, 'startsAt' | 'endsAt
 // Color de respaldo (acento dorado) si ni la serie, ni el servicio, ni el barbero
 // tienen color asignado.
 const FALLBACK_EVENT_COLOR = '#C2A24E'
+// Color (gris neutro) para los bloqueos de hueco (no son citas).
+const BLOCK_COLOR = '#6B7280'
 
 // Enriquece una lista reactiva de citas (cualquier cliente/barbero) con
 // servicio, barbero y cliente. Para las pantallas admin (Hoy, Agenda, fichas).
@@ -47,6 +49,9 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
       // se guardaron en la propia cita (clientName/clientPhone).
       const cl = a.clientId ? clients.value.find((c) => c.id === a.clientId) : null
       const cname = cl?.name ?? a.clientName ?? 'Cliente'
+      // Un bloqueo no es una cita: sin cliente ni servicio. Se muestra como "Bloqueado"
+      // (con el motivo) y se pinta en gris, para distinguirlo de un vistazo.
+      const isBlock = a.type === 'block'
       return {
         ...a,
         // VueFire añade el id como propiedad NO enumerable → el spread `...a` la
@@ -54,18 +59,18 @@ export function useAdminAppointments(source: Ref<Appointment[]>) {
         id: a.id,
         startsAt: toDate(a.startsAt),
         endsAt: toDate(a.endsAt),
-        serviceName: svc?.name ?? 'Servicio',
+        serviceName: isBlock ? (a.note || 'No disponible') : (svc?.name ?? 'Servicio'),
         serviceDuration: svc ? effectiveDuration(svc, a.barberId) : 0,
         barberName: bb?.name ?? 'Barbero',
         barberInitials: initials(bb?.name),
         barberColor: bb?.color,
         serviceColor: svc?.color,
-        eventColor: fixedColor ?? svc?.color ?? bb?.color ?? FALLBACK_EVENT_COLOR,
-        clientName: cname,
-        clientPhone: cl?.phone ?? a.clientPhone,
-        clientEmail: cl?.email,
-        clientInitials: initials(cname),
-        price: a.priceSnapshot ?? (svc ? effectivePrice(svc, a.barberId) : 0),
+        eventColor: isBlock ? BLOCK_COLOR : (fixedColor ?? svc?.color ?? bb?.color ?? FALLBACK_EVENT_COLOR),
+        clientName: isBlock ? 'Bloqueado' : cname,
+        clientPhone: isBlock ? undefined : (cl?.phone ?? a.clientPhone),
+        clientEmail: isBlock ? undefined : cl?.email,
+        clientInitials: isBlock ? '🔒' : initials(cname),
+        price: isBlock ? 0 : (a.priceSnapshot ?? (svc ? effectivePrice(svc, a.barberId) : 0)),
       }
     }),
   )

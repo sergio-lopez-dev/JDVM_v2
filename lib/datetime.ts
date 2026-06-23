@@ -35,3 +35,20 @@ export function sameDay(a: Date, b: Date): boolean {
 export function isWithinRange(date: Date, range: { start: Date; end: Date }): boolean {
   return date.getTime() >= range.start.getTime() && date.getTime() <= range.end.getTime()
 }
+
+/**
+ * ¿`day` es una ocurrencia de una cita fija periódica? Para `intervalWeeks > 1` solo
+ * "tocan" las semanas alineadas con el ancla (primera ocurrencia). Sin ancla o
+ * intervalo 1 → siempre toca (comportamiento semanal de siempre). Asume que `day` ya
+ * cae en el weekday correcto de la serie (se comprueba aparte).
+ */
+export function fixedOccursOn(day: Date, anchor?: Date | null, intervalWeeks?: number | null): boolean {
+  const interval = Math.max(1, intervalWeeks ?? 1)
+  if (interval === 1 || !anchor) return true
+  const a = new Date(anchor)
+  a.setHours(0, 0, 0, 0)
+  const d = new Date(day)
+  d.setHours(0, 0, 0, 0)
+  const weeks = Math.round((d.getTime() - a.getTime()) / (7 * 86_400_000))
+  return weeks >= 0 && weeks % interval === 0
+}
