@@ -37,14 +37,15 @@ export function isWithinRange(date: Date, range: { start: Date; end: Date }): bo
 }
 
 /**
- * ¿`day` es una ocurrencia de una cita fija periódica? Para `intervalWeeks > 1` solo
- * "tocan" las semanas alineadas con el ancla (primera ocurrencia). Sin ancla o
- * intervalo 1 → siempre toca (comportamiento semanal de siempre). Asume que `day` ya
- * cae en el weekday correcto de la serie (se comprueba aparte).
+ * ¿`day` es una ocurrencia de una cita fija periódica? La serie arranca en su `anchor`
+ * (primera ocurrencia / fecha de inicio): los días ANTERIORES no tocan. Para
+ * `intervalWeeks > 1` solo tocan las semanas alineadas con el ancla. Sin ancla (series
+ * antiguas) → siempre toca (comportamiento semanal de siempre). Asume que `day` ya cae
+ * en el weekday correcto de la serie (se comprueba aparte).
  */
 export function fixedOccursOn(day: Date, anchor?: Date | null, intervalWeeks?: number | null): boolean {
   const interval = Math.max(1, intervalWeeks ?? 1)
-  if (interval === 1 || !anchor) return true
+  if (!anchor) return true
   const a = new Date(anchor)
   a.setHours(0, 0, 0, 0)
   const d = new Date(day)

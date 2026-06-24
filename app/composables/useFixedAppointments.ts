@@ -48,14 +48,23 @@ export function useFixedAppointments() {
 
   // Genera las ocurrencias (con hora) dentro del horizonte para un weekday/hora,
   // saltando `intervalWeeks` semanas entre cada una (1 = cada semana, 2 = cada dos…).
-  function occurrences(weekday: string, time: string, intervalWeeks = 1): { start: Date; end: Date }[] {
+  // `startDate` (opcional) = a partir de qué día empieza la serie; nunca antes de hoy
+  // (no se materializan citas en el pasado).
+  function occurrences(weekday: string, time: string, intervalWeeks = 1, startDate?: Date): { start: Date; end: Date }[] {
     const [h, m] = time.split(':').map(Number)
     const target = WEEKDAY_TO_JS[weekday] ?? 1
     const step = Math.max(1, intervalWeeks)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    // Primer día >= hoy que cae en ese weekday.
-    const first = new Date(today)
+    // Suelo = hoy, o la fecha de inicio elegida si es futura.
+    let from = today
+    if (startDate) {
+      const s = new Date(startDate)
+      s.setHours(0, 0, 0, 0)
+      if (s.getTime() > today.getTime()) from = s
+    }
+    // Primer día >= `from` que cae en ese weekday.
+    const first = new Date(from)
     first.setDate(first.getDate() + ((target - first.getDay() + 7) % 7))
     const out: { start: Date; end: Date }[] = []
     // Mantiene el horizonte ~constante (WEEKS_AHEAD): menos ocurrencias si el intervalo
@@ -74,7 +83,11 @@ export function useFixedAppointments() {
   // devuelven en `skipped` para avisar al admin). La serie se crea igualmente.
   // `allowDuplicate` lo usa update() (borra la serie y la recrea: no debe chocar
   // contra la plantilla que acaba de borrar, que aún puede seguir en la caché reactiva).
-  async function create(input: FixedAppointmentInput, opts: { allowDuplicate?: boolean } = {}): Promise<FixedResult> {
+  // `startDate` = a partir de qué día empieza la serie (opcional).
+  async function create(
+    input: FixedAppointmentInput,
+    opts: { allowDuplicate?: boolean; startDate?: Date } = {},
+  ): Promise<FixedResult> {
     const svc = services.value.find((s) => s.id === input.serviceId)
     const dur = svc ? effectiveDuration(svc, input.barberId) : 30
     const price = svc ? effectivePrice(svc, input.barberId) : 0
@@ -99,7 +112,7 @@ export function useFixedAppointments() {
       }
     }
 
-    const slots = occurrences(input.weekday, input.time, interval).map(({ start }) => ({
+    const slots = occurrences(input.weekday, input.time, interval, opts.startDate).map(({ start }) => ({
       start,
       end: new Date(start.getTime() + dur * 60_000),
     }))
@@ -196,11 +209,14 @@ export function useFixedAppointments() {
   // Editar = borrar la serie (plantilla + citas futuras) y volver a materializarla
   // con los nuevos datos. Las citas pasadas de la serie anterior quedan como histórico.
   // Se conservan las excepciones (días liberados) de la serie anterior.
-  async function update(id: string, input: FixedAppointmentInput) {
+  async function update(id: string, input: FixedAppointmentInput, opts: { startDate?: Date } = {}) {
     const prev = await getDoc(doc(db, COL.fixed_appointments, id))
     const prevExc = ((prev.data()?.exceptions as string[] | undefined) ?? []).filter(Boolean)
     await removeSeries(id)
-    return create({ ...input, exceptions: [...new Set([...(input.exceptions ?? []), ...prevExc])] }, { allowDuplicate: true })
+    return create(
+      { ...input, exceptions: [...new Set([...(input.exceptions ?? []), ...prevExc])] },
+      { allowDuplicate: true, startDate: opts.startDate },
+    )
   }
 
   // Libera UN día concreto de la serie sin borrarla: marca la excepción en la

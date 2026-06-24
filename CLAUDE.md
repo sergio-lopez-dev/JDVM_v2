@@ -629,11 +629,14 @@ recompensas (catálogo) y los canjes.
   (España → prefijo 34). Botón de WhatsApp en [`ClientInfoButton`](app/components/ClientInfoButton.vue)
   (chip de las agendas), en el drawer de [`/admin/agenda`](app/pages/admin/agenda.vue) y en el detalle
   [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue) (junto a "Llamar").
-- **Citas fijas cada N semanas:** `fixed.intervalWeeks` (1–4) + `fixed.anchorDate` (schema). El
-  generador de ocurrencias salta `intervalWeeks` semanas (horizonte ~12 sem). El bloqueo de reserva
-  desde la plantilla (`fixedBusy` en `reservar.vue` y `AdminBookingModal`) usa `fixedOccursOn`
-  ([`lib/datetime.ts`](lib/datetime.ts)) para NO bloquear las semanas que no tocan. Selector
-  "Periodicidad" en [`AdminFixedModal`](app/components/AdminFixedModal.vue).
+- **Citas fijas cada N semanas + fecha de inicio:** `fixed.intervalWeeks` (1–4) + `fixed.anchorDate`
+  (schema). El generador de ocurrencias salta `intervalWeeks` semanas (horizonte ~12 sem) y puede
+  **empezar a partir de un día concreto** (`occurrences(..., startDate)`; nunca antes de hoy). El
+  ancla = primera ocurrencia real. El bloqueo de reserva desde la plantilla (`fixedBusy` en
+  `reservar.vue` y `AdminBookingModal`) usa `fixedOccursOn` ([`lib/datetime.ts`](lib/datetime.ts)):
+  respeta el ancla como **suelo** (los días anteriores al inicio NO se bloquean, también en series
+  semanales) y, con intervalo > 1, solo bloquea las semanas que tocan. Selectores "Periodicidad" y
+  "Empieza el (opcional)" en [`AdminFixedModal`](app/components/AdminFixedModal.vue).
 - **Citas fijas a no-clientes y citas extra fuera de horario:** ya existían (toggles "Sin registrar"
   y "Fuera de horario" en los modales). Sin cambios; verificados.
 - **Crash al crear citas fijas (blindado, decisión del dueño):** `useFixedAppointments.create` es

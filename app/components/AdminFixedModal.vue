@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { initials, formatDuration, formatPrice, fmtDate } from '~~/lib/format'
+import { toDate } from '~~/lib/datetime'
 import { generateSlots, resolveDayTimetable, isOnVacation } from '~~/lib/slots'
 import { WEEKDAYS, effectiveDuration, type Weekday, type Service, type Barber, type FixedAppointment } from '~~/schemas'
 
@@ -43,6 +44,22 @@ const INTERVAL_OPTIONS = [
   { value: 4, label: 'Cada 4 semanas' },
 ]
 const saving = ref(false)
+// A partir de qué día empieza la serie (null = cuanto antes / desde hoy).
+const startDate = ref<Date | null>(null)
+const todayStr = fmtDate(new Date(), 'yyyy-MM-dd')
+const startDateValue = computed(() => (startDate.value ? fmtDate(startDate.value, 'yyyy-MM-dd') : ''))
+function setStartDate(v: string) {
+  if (!v) {
+    startDate.value = null
+    return
+  }
+  const [y, m, d] = v.split('-').map(Number)
+  if (y && m && d) {
+    const nd = new Date(y, m - 1, d)
+    nd.setHours(0, 0, 0, 0)
+    startDate.value = nd
+  }
+}
 // id de la serie que se está editando (null = creando una nueva).
 const editingId = ref<string | null>(null)
 // Cliente NO registrado (walk-in): nombre + teléfono a mano, sin clientId.
@@ -60,6 +77,7 @@ function resetForm() {
   weekday.value = 'tue'
   time.value = '10:00'
   intervalWeeks.value = 1
+  startDate.value = null
   editingId.value = null
   manualClient.value = false
   manualName.value = ''
@@ -86,6 +104,12 @@ function startEdit(f: FixedAppointment) {
   weekday.value = f.weekday
   time.value = f.time
   intervalWeeks.value = f.intervalWeeks ?? 1
+  // Prefijar la fecha de inicio con el ancla de la serie (primera ocurrencia), si es
+  // futura; si ya empezó, se deja vacío ("cuanto antes").
+  {
+    const anchor = f.anchorDate ? toDate(f.anchorDate) : null
+    startDate.value = anchor && anchor.getTime() > Date.now() ? anchor : null
+  }
   // Si la hora guardada NO es un hueco estándar (se creó "fuera de horario", o cambió
   // el horario/paso desde entonces), activamos ese modo para conservar la hora y no
   // dejar el botón de guardar deshabilitado.
@@ -156,6 +180,12 @@ function nameOf(id: string, kind: 'client' | 'barber' | 'service') {
 function clientLabel(f: FixedAppointment) {
   return (f.clientId ? clients.value.find((c) => c.id === f.clientId)?.name : f.clientName) ?? 'Cliente'
 }
+// Etiqueta "desde d MMM" si la serie aún no ha empezado (ancla en el futuro).
+function futureStart(f: FixedAppointment): string {
+  if (!f.anchorDate) return ''
+  const a = toDate(f.anchorDate)
+  return a.getTime() > Date.now() ? fmtDate(a, 'd MMM') : ''
+}
 
 // Listado de citas fijas AGRUPADO por día de la semana y ordenado por hora, para que
 // el admin las organice de un vistazo (antes salían por fecha de creación).
@@ -185,7 +215,10 @@ async function submit() {
       intervalWeeks: intervalWeeks.value,
       active: true,
     }
-    const res = editingId.value ? await update(editingId.value, input) : await create(input)
+    const startOpt = { startDate: startDate.value ?? undefined }
+    const res = editingId.value
+      ? await update(editingId.value, input, startOpt)
+      : await create(input, startOpt)
     const verb = editingId.value ? 'actualizada' : 'creada'
     if (res.skipped.length) {
       // Algún día ya tenía una cita: se crea la serie igualmente, omitiendo esos días.
@@ -334,6 +367,23 @@ async function del(id: string) {
             </div>
           </div>
 
+          <!-- empieza a partir de (opcional) -->
+          <div>
+            <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Empieza el (opcional)</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="date"
+                :value="startDateValue"
+                :min="todayStr"
+                class="border-default bg-muted text-default flex-1 rounded-xl border px-3 py-2.5 text-sm [color-scheme:dark]"
+                @input="setStartDate(($event.target as HTMLInputElement).value)"
+              />
+              <UButton v-if="startDate" color="neutral" variant="soft" icon="i-lucide-x" aria-label="Quitar fecha de inicio" @click="startDate = null" />
+            </div>
+            <p v-if="startDate" class="text-dimmed mt-1.5 text-xs">La serie empezará en el primer {{ DAY_LABELS[weekday].toLowerCase() }} a partir del {{ fmtDate(startDate, "d 'de' MMMM") }}.</p>
+            <p v-else class="text-dimmed mt-1.5 text-xs">Sin fecha: empieza cuanto antes (próximo {{ DAY_LABELS[weekday].toLowerCase() }}).</p>
+          </div>
+
           <!-- hora: huecos reales según horario + paso (o hora libre fuera de horario) -->
           <div>
             <label class="text-dimmed mb-1.5 block font-mono text-[0.6rem] tracking-widest uppercase">Hora</label>
@@ -399,7 +449,7 @@ async function del(id: string) {
                     <span class="text-primary font-mono text-sm font-semibold tabular-nums">{{ f.time }}</span>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-semibold">{{ clientLabel(f) }}<span v-if="!f.clientId" class="text-dimmed font-normal"> · sin registrar</span></p>
-                      <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}<span v-if="(f.intervalWeeks ?? 1) > 1"> · cada {{ f.intervalWeeks }} sem</span></p>
+                      <p class="text-dimmed truncate text-xs">{{ nameOf(f.serviceId, 'service') }} · {{ nameOf(f.barberId, 'barber') }}<span v-if="(f.intervalWeeks ?? 1) > 1"> · cada {{ f.intervalWeeks }} sem</span><span v-if="futureStart(f)" class="text-primary"> · desde {{ futureStart(f) }}</span></p>
                     </div>
                     <button type="button" class="text-muted hover:text-primary flex size-8 items-center justify-center" aria-label="Editar" @click="startEdit(f)"><UIcon name="i-lucide-pencil" class="size-4" /></button>
                     <button type="button" class="text-error/80 hover:text-error flex size-8 items-center justify-center" aria-label="Eliminar" @click="del(f.id)"><UIcon name="i-lucide-trash-2" class="size-4" /></button>
