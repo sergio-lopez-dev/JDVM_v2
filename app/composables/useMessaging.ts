@@ -35,6 +35,13 @@ export function useMessaging() {
   const iosNeedsInstall = ref(false)
   let lastToken = ''
 
+  // Preferencia GUARDADA del usuario (users_v2/{uid}.allowPush). El permiso del
+  // navegador no se puede revocar por código, así que el estado on/off de la app NO
+  // puede depender solo de `permission`: lo lleva `allowPush`. `enabled` = el usuario
+  // quiere push aquí Y el navegador lo permite.
+  const storedAllowPush = ref(false)
+  const enabled = computed(() => storedAllowPush.value && permission.value === 'granted')
+
   async function check() {
     if (!import.meta.client) return
     supported.value = (await isSupported().catch(() => false)) && 'Notification' in window
@@ -111,6 +118,7 @@ export function useMessaging() {
       }
       const ok = await registerToken()
       if (!ok) throw new Error('No se pudo obtener el token')
+      storedAllowPush.value = true
       toast.add({ title: 'Notificaciones activadas', icon: 'i-lucide-bell-ring', color: 'success' })
     } catch (e) {
       toast.add({ title: 'No se pudieron activar', description: (e as Error).message, color: 'error' })
@@ -119,13 +127,35 @@ export function useMessaging() {
     }
   }
 
-  // Desactiva en este dispositivo (borra su token).
+  // Desactiva en este dispositivo (borra su token). Refleja el estado al instante
+  // (`storedAllowPush = false` → `enabled` pasa a false aunque el permiso del navegador
+  // siga concedido).
   async function disable() {
     if (!user.value) return
+    storedAllowPush.value = false
     await setDoc(doc(db, COL.users, user.value.uid), { allowPush: false }, { merge: true })
     if (lastToken) await deleteDoc(doc(db, COL.users, user.value.uid, 'fcmTokens', lastToken)).catch(() => {})
     toast.add({ title: 'Notificaciones desactivadas', icon: 'i-lucide-bell-off' })
   }
+
+  // Lee la preferencia guardada (allowPush) al cargar / cambiar de usuario, para que el
+  // toggle del perfil refleje el estado real (y no quede "Activadas" tras desactivar).
+  watch(
+    user,
+    async (u) => {
+      if (!u) {
+        storedAllowPush.value = false
+        return
+      }
+      try {
+        const snap = await getDoc(doc(db, COL.users, u.uid))
+        storedAllowPush.value = snap.data()?.allowPush === true
+      } catch {
+        /* no crítico */
+      }
+    },
+    { immediate: true },
+  )
 
   // Auto-saneo silencioso: si el usuario YA tiene push activado y el permiso sigue
   // concedido, al abrir la app re-registra el token y limpia los antiguos del mismo
@@ -133,13 +163,12 @@ export function useMessaging() {
   // solo sin hacer nada. NO se re-activa a quien lo tiene desactivado (allowPush).
   let healed = false
   watch(
-    [user, permission],
-    async ([u, p]) => {
-      if (healed || !u || p !== 'granted') return
+    [user, permission, storedAllowPush],
+    async ([u, p, ap]) => {
+      if (healed || !u || p !== 'granted' || !ap) return
       healed = true
       try {
-        const snap = await getDoc(doc(db, COL.users, u.uid))
-        if (snap.data()?.allowPush === true) await registerToken()
+        await registerToken()
       } catch {
         /* no crítico */
       }
@@ -165,5 +194,5 @@ export function useMessaging() {
   })
   onUnmounted(() => unsub?.())
 
-  return { supported, permission, enabling, iosNeedsInstall, enable, disable }
+  return { supported, permission, enabled, enabling, iosNeedsInstall, enable, disable }
 }

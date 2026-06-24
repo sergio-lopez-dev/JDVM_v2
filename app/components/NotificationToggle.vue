@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tarjeta para activar las notificaciones push (recordatorios y avisos de citas).
 // Se usa en los perfiles de cliente, barbero y admin.
-const { supported, permission, enabling, iosNeedsInstall, enable, disable } = useMessaging()
+const { supported, permission, enabled, enabling, iosNeedsInstall, enable, disable } = useMessaging()
 </script>
 
 <template>
@@ -32,7 +32,7 @@ const { supported, permission, enabling, iosNeedsInstall, enable, disable } = us
 
         <div v-if="supported && permission !== 'denied'" class="mt-3 flex items-center gap-2">
           <UButton
-            v-if="permission !== 'granted'"
+            v-if="!enabled"
             color="primary"
             size="sm"
             icon="i-lucide-bell"
