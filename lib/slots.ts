@@ -1,6 +1,6 @@
 import type { DayTimetable, WeekTimetable } from '../schemas/barber'
 import type { DateRange } from '../schemas/common'
-import { sameDay, weekdayOf, isWithinRange } from './datetime'
+import { sameDay, weekdayOf, isWithinRange, toDate } from './datetime'
 
 export interface Interval {
   start: Date
@@ -70,9 +70,14 @@ export function openStatus(
   return { open: false }
 }
 
-/** ¿El barbero está de vacaciones ese día? */
+/**
+ * ¿El barbero está de vacaciones ese día? Tolerante a rangos cuyas fechas llegan como
+ * Timestamp de Firestore (sin convertir): `toDate` normaliza Date | Timestamp. Antes,
+ * pasar vacaciones "crudas" reventaba con "start.getTime is not a function" (p. ej. al
+ * elegir barbero en el modal de citas fijas).
+ */
 export function isOnVacation(date: Date, vacations: DateRange[]): boolean {
-  return vacations.some((r) => isWithinRange(date, r))
+  return vacations.some((r) => isWithinRange(date, { start: toDate(r.start), end: toDate(r.end) }))
 }
 
 /**
