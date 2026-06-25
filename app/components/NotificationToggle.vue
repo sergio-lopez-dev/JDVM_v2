@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Tarjeta para activar las notificaciones push (recordatorios y avisos de citas).
 // Se usa en los perfiles de cliente, barbero y admin.
-const { supported, permission, enabled, enabling, iosNeedsInstall, enable, disable } = useMessaging()
+const { supported, permission, enabled, enabling, iosNeedsInstall, enable, disable } =
+  useMessaging()
 </script>
 
 <template>
@@ -18,8 +19,8 @@ const { supported, permission, enabled, enabling, iosNeedsInstall, enable, disab
 
         <!-- iOS sin instalar -->
         <p v-if="iosNeedsInstall" class="text-warning mt-2 text-xs">
-          En iPhone: añade primero la app a tu pantalla de inicio (Compartir →
-          «Añadir a inicio») y vuelve aquí para activarlas.
+          En iPhone: añade primero la app a tu pantalla de inicio (Compartir → «Añadir a inicio») y
+          vuelve aquí para activarlas.
         </p>
         <!-- no soportado -->
         <p v-else-if="!supported" class="text-dimmed mt-2 text-xs">

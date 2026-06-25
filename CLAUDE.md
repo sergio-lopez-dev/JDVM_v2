@@ -652,3 +652,17 @@ recompensas (catálogo) y los canjes.
 - **Comisión del dueño (sin cambio de código):** si el dueño hace cortes, debe ponerse **0%** de
   comisión en Equipo; así su facturación entra íntegra como beneficio del local (la comisión se resta
   como coste en [`useFinance`](app/composables/useFinance.ts), por diseño).
+
+### 15.5 Propinas (staff/admin) + fix push en Android
+
+- **Propinas:** `appointment.tip` ya existía en el schema pero **nadie lo escribía** (el tip del
+  cliente en `/valorar` era solo un ref local). Nuevo componente [`TipEditor`](app/components/TipEditor.vue)
+  (chips 0/1/2/3/5 € + importe libre) que persiste `tip` con `useAppointments.update`. Disponible al
+  **completar** una cita en [`/staff/cita/[id]`](app/pages/staff/cita/[id].vue), el drawer de
+  [`/admin/agenda`](app/pages/admin/agenda.vue) y el de [`/admin/citas`](app/pages/admin/citas.vue).
+  La propina va **100% al barbero** y ya suma en "Mis ingresos" ([`/staff/ingresos`](app/pages/staff/ingresos.vue),
+  `useBarber`); NO entra en el beneficio del local (`useFinance` no la cuenta, por diseño).
+- **Push en Android (fix):** el botón "Activar notificaciones" no hacía nada en algunos Android porque
+  `getToken` auto-registraba el SW y fallaba. Ahora [`useMessaging`](app/composables/useMessaging.ts)
+  registra explícitamente `/firebase-messaging-sw.js`, espera a `serviceWorker.ready` y se lo pasa a
+  `getToken` (`serviceWorkerRegistration`). El error real se muestra en el toast para diagnosticar.

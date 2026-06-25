@@ -57,7 +57,9 @@ const loading = computed(() => appts.pending.value)
 // Filtro por barbero (chips). null = todos.
 const barberFilter = ref<string | null>(null)
 const visible = computed(() =>
-  barberFilter.value ? enriched.value.filter((a) => a.barberId === barberFilter.value) : enriched.value,
+  barberFilter.value
+    ? enriched.value.filter((a) => a.barberId === barberFilter.value)
+    : enriched.value,
 )
 
 // Schedule-X colorea por `calendarId`. Para pintar cada cita con su color resuelto
@@ -119,7 +121,10 @@ const banPrompt = ref(false)
 const banBusy = ref(false)
 // Resetea el prompt al cambiar DE cita (por id): así reflejar el nuevo estado de la
 // misma cita (spread con status no_show) no lo cierra.
-watch(() => selected.value?.id, () => (banPrompt.value = false))
+watch(
+  () => selected.value?.id,
+  () => (banPrompt.value = false),
+)
 
 onMounted(() => {
   calendarApp.value = createCalendar({
@@ -197,7 +202,8 @@ async function markCompleted(id: string) {
   const pay = selected.value?.paymentMethod === 'card' ? 'card' : 'cash'
   await setStatus(id, 'completed', { paymentMethod: pay })
   toast.add({ title: 'Cita completada', icon: 'i-lucide-check', color: 'success' })
-  if (selected.value?.id === id) selected.value = { ...selected.value, status: 'completed', paymentMethod: pay }
+  if (selected.value?.id === id)
+    selected.value = { ...selected.value, status: 'completed', paymentMethod: pay }
 }
 async function markNoShow(id: string) {
   await setStatus(id, 'no_show')
@@ -213,7 +219,12 @@ async function banFromPrompt() {
   banBusy.value = true
   try {
     await setBanned(selected.value.clientId, true)
-    toast.add({ title: 'Cliente vetado', description: 'No podrá coger nuevas citas.', icon: 'i-lucide-ban', color: 'warning' })
+    toast.add({
+      title: 'Cliente vetado',
+      description: 'No podrá coger nuevas citas.',
+      icon: 'i-lucide-ban',
+      color: 'warning',
+    })
     banPrompt.value = false
   } catch (e) {
     toast.add({ title: 'No se pudo vetar', description: (e as Error).message, color: 'error' })
@@ -224,13 +235,24 @@ async function banFromPrompt() {
 // Deshace "no vino" o "hecha": la cita vuelve a 'booked' (confirmada).
 async function revertToBooked(id: string) {
   await setStatus(id, 'booked')
-  toast.add({ title: 'Cita reactivada', description: 'Vuelve a “confirmada”.', icon: 'i-lucide-undo-2', color: 'success' })
+  toast.add({
+    title: 'Cita reactivada',
+    description: 'Vuelve a “confirmada”.',
+    icon: 'i-lucide-undo-2',
+    color: 'success',
+  })
   if (selected.value?.id === id) selected.value = { ...selected.value, status: 'booked' }
   banPrompt.value = false
 }
 // Cambió el servicio de la cita (ApptServiceEditor): refleja precio/duración/fin en el
 // drawer sin reabrirlo (la lista enriquecida es reactiva, pero `selected` es un snapshot).
-function onServiceChanged(p: { serviceId: string; price: number; endsAt: Date; serviceName: string; serviceDuration: number }) {
+function onServiceChanged(p: {
+  serviceId: string
+  price: number
+  endsAt: Date
+  serviceName: string
+  serviceDuration: number
+}) {
   if (!selected.value) return
   selected.value = { ...selected.value, ...p }
 }
@@ -265,7 +287,8 @@ async function freeFixedDay() {
     await cancelOccurrence(selected.value.fixedId, selected.value.startsAt)
     toast.add({
       title: 'Día liberado',
-      description: 'El hueco queda libre para reservas. La cita fija sigue activa el resto de días.',
+      description:
+        'El hueco queda libre para reservas. La cita fija sigue activa el resto de días.',
       icon: 'i-lucide-calendar-check',
       color: 'success',
       duration: 6000,
@@ -308,12 +331,20 @@ const dayAppts = computed(() =>
 const dayFreeSlots = computed(() => {
   const b = barberFilter.value ? barbers.value.find((x) => x.id === barberFilter.value) : null
   if (!b) return []
-  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, selectedDay.value) : undefined
+  const localTt = settings.value
+    ? resolveDayTimetable(settings.value.timetable, selectedDay.value)
+    : undefined
   const barberTt = resolveDayTimetable(b.timetable, selectedDay.value)
   const busy = dayAppts.value
     .filter((a) => a.status === 'booked' || a.status === 'completed')
     .map((a) => ({ start: a.startsAt, end: a.endsAt }))
-  return freeWindows({ day: selectedDay.value, localTimetable: localTt, barberTimetable: barberTt, busy, minMinutes: 10 })
+  return freeWindows({
+    day: selectedDay.value,
+    localTimetable: localTt,
+    barberTimetable: barberTt,
+    busy,
+    minMinutes: 10,
+  })
 })
 // Barberos a mostrar en el board de columnas: el filtrado (si hay) o todos.
 const boardBarbers = computed(() =>
@@ -322,13 +353,21 @@ const boardBarbers = computed(() =>
 // Huecos libres por barbero para el día seleccionado (se pintan en cada columna).
 const freeByBarber = computed(() => {
   const map: Record<string, { start: Date; end: Date }[]> = {}
-  const localTt = settings.value ? resolveDayTimetable(settings.value.timetable, selectedDay.value) : undefined
+  const localTt = settings.value
+    ? resolveDayTimetable(settings.value.timetable, selectedDay.value)
+    : undefined
   for (const b of boardBarbers.value) {
     const barberTt = resolveDayTimetable(b.timetable, selectedDay.value)
     const busy = dayAppts.value
       .filter((a) => a.barberId === b.id && (a.status === 'booked' || a.status === 'completed'))
       .map((a) => ({ start: a.startsAt, end: a.endsAt }))
-    map[b.id] = freeWindows({ day: selectedDay.value, localTimetable: localTt, barberTimetable: barberTt, busy, minMinutes: 10 })
+    map[b.id] = freeWindows({
+      day: selectedDay.value,
+      localTimetable: localTt,
+      barberTimetable: barberTt,
+      busy,
+      minMinutes: 10,
+    })
   }
   return map
 })
@@ -347,7 +386,9 @@ const bookingOpen = ref(false)
 const fixedOpen = ref(false)
 // Bloquear hueco (no disponible) desde la agenda admin (barbero seleccionable).
 const blockOpen = ref(false)
-const blockPreset = ref<{ barberId?: string; date: Date; time?: string }>({ date: rangeStart.value })
+const blockPreset = ref<{ barberId?: string; date: Date; time?: string }>({
+  date: rangeStart.value,
+})
 function openBlock() {
   blockPreset.value = { barberId: barberFilter.value ?? undefined, date: selectedDay.value }
   blockOpen.value = true
@@ -358,7 +399,9 @@ async function removeBlock(id: string) {
   if (selected.value?.id === id) selected.value = null
 }
 // Preselección de la "Nueva cita" cuando se abre desde un hueco libre de la agenda.
-const bookingPreset = ref<{ barberId?: string; date: Date; time?: string }>({ date: rangeStart.value })
+const bookingPreset = ref<{ barberId?: string; date: Date; time?: string }>({
+  date: rangeStart.value,
+})
 
 // Abre el modal de nueva cita prefijando barbero, día y hora del hueco pinchado.
 function bookFreeSlot(p: { barberId: string; start: Date }) {
@@ -416,20 +459,44 @@ const weekEnd = computed(() => {
   <div>
     <AdminHeader title="Agenda" sub="Calendario del estudio">
       <template #actions>
-        <UButton color="neutral" variant="soft" icon="i-lucide-lock" @click="openBlock"><span class="hidden sm:inline">Bloquear</span></UButton>
-        <UButton color="neutral" variant="soft" icon="i-lucide-repeat" @click="fixedOpen = true"><span class="hidden sm:inline">Citas fijas</span></UButton>
-        <UButton color="primary" icon="i-lucide-plus" @click="openNewBooking"><span class="hidden sm:inline">Nueva cita</span></UButton>
+        <UButton color="neutral" variant="soft" icon="i-lucide-lock" @click="openBlock"
+          ><span class="hidden sm:inline">Bloquear</span></UButton
+        >
+        <UButton color="neutral" variant="soft" icon="i-lucide-repeat" @click="fixedOpen = true"
+          ><span class="hidden sm:inline">Citas fijas</span></UButton
+        >
+        <UButton color="primary" icon="i-lucide-plus" @click="openNewBooking"
+          ><span class="hidden sm:inline">Nueva cita</span></UButton
+        >
       </template>
     </AdminHeader>
 
     <div class="space-y-4 px-5 py-5 pb-24 lg:px-7 lg:pb-5">
       <!-- navegación de semana (solo móvil) -->
       <div class="flex items-center justify-between gap-2 lg:hidden">
-        <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-chevron-left" aria-label="Semana anterior" @click="shiftWeek(-1)" />
-        <button type="button" class="text-toned hover:text-default flex-1 text-center text-sm font-medium capitalize" @click="goToday">
+        <UButton
+          color="neutral"
+          variant="soft"
+          size="sm"
+          icon="i-lucide-chevron-left"
+          aria-label="Semana anterior"
+          @click="shiftWeek(-1)"
+        />
+        <button
+          type="button"
+          class="text-toned hover:text-default flex-1 text-center text-sm font-medium capitalize"
+          @click="goToday"
+        >
           {{ fmtDate(rangeStart, 'd MMM') }} – {{ fmtDate(weekEnd, 'd MMM') }}
         </button>
-        <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-chevron-right" aria-label="Semana siguiente" @click="shiftWeek(1)" />
+        <UButton
+          color="neutral"
+          variant="soft"
+          size="sm"
+          icon="i-lucide-chevron-right"
+          aria-label="Semana siguiente"
+          @click="shiftWeek(1)"
+        />
       </div>
 
       <!-- tira de días (solo móvil) -->
@@ -439,12 +506,22 @@ const weekEnd = computed(() => {
           :key="d.toISOString()"
           type="button"
           class="relative flex flex-col items-center gap-1 rounded-xl border py-2"
-          :class="sameDay(d, selectedDay) ? 'border-primary bg-primary text-inverted' : sameDay(d, today) ? 'border-primary/50 bg-primary/10' : 'border-default bg-muted'"
+          :class="
+            sameDay(d, selectedDay)
+              ? 'border-primary bg-primary text-inverted'
+              : sameDay(d, today)
+                ? 'border-primary/50 bg-primary/10'
+                : 'border-default bg-muted'
+          "
           @click="selectedDay = d"
         >
           <span class="font-mono text-[0.6rem] uppercase">{{ dayLetterEs(d) }}</span>
           <span class="font-display text-lg leading-none">{{ fmtDate(d, 'd') }}</span>
-          <span v-if="sameDay(d, today)" class="absolute bottom-1 size-1 rounded-full" :class="sameDay(d, selectedDay) ? 'bg-inverted' : 'bg-primary'" />
+          <span
+            v-if="sameDay(d, today)"
+            class="absolute bottom-1 size-1 rounded-full"
+            :class="sameDay(d, selectedDay) ? 'bg-inverted' : 'bg-primary'"
+          />
         </button>
       </div>
 
@@ -453,7 +530,11 @@ const weekEnd = computed(() => {
         <button
           type="button"
           class="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
-          :class="!barberFilter ? 'border-primary/40 bg-primary/10 text-primary' : 'border-default bg-muted text-muted'"
+          :class="
+            !barberFilter
+              ? 'border-primary/40 bg-primary/10 text-primary'
+              : 'border-default bg-muted text-muted'
+          "
           @click="barberFilter = null"
         >
           Todos
@@ -463,10 +544,16 @@ const weekEnd = computed(() => {
           :key="b.id"
           type="button"
           class="flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium"
-          :class="barberFilter === b.id ? 'border-primary/40 bg-primary/10' : 'border-default bg-muted text-muted'"
+          :class="
+            barberFilter === b.id
+              ? 'border-primary/40 bg-primary/10'
+              : 'border-default bg-muted text-muted'
+          "
           @click="barberFilter = b.id"
         >
-          <span class="size-2.5 rounded-full" :style="{ background: b.color }" />{{ b.name.split(' ')[0] }}
+          <span class="size-2.5 rounded-full" :style="{ background: b.color }" />{{
+            b.name.split(' ')[0]
+          }}
         </button>
       </div>
 
@@ -476,15 +563,24 @@ const weekEnd = computed(() => {
           <button
             type="button"
             class="rounded-md px-3 py-1.5 text-sm font-medium transition"
-            :class="desktopView === 'calendar' ? 'bg-primary text-inverted' : 'text-muted hover:text-default'"
+            :class="
+              desktopView === 'calendar'
+                ? 'bg-primary text-inverted'
+                : 'text-muted hover:text-default'
+            "
             @click="desktopView = 'calendar'"
           >
-            <UIcon name="i-lucide-calendar-days" class="mr-1 inline size-4 align-[-2px]" />Calendario
+            <UIcon
+              name="i-lucide-calendar-days"
+              class="mr-1 inline size-4 align-[-2px]"
+            />Calendario
           </button>
           <button
             type="button"
             class="rounded-md px-3 py-1.5 text-sm font-medium transition"
-            :class="desktopView === 'team' ? 'bg-primary text-inverted' : 'text-muted hover:text-default'"
+            :class="
+              desktopView === 'team' ? 'bg-primary text-inverted' : 'text-muted hover:text-default'
+            "
             @click="desktopView = 'team'"
           >
             <UIcon name="i-lucide-columns-3" class="mr-1 inline size-4 align-[-2px]" />Equipo
@@ -492,21 +588,63 @@ const weekEnd = computed(() => {
         </div>
         <!-- navegación de día (solo vista equipo) -->
         <div v-if="desktopView === 'team'" class="flex items-center gap-1.5">
-          <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-left" aria-label="Día anterior" @click="shiftDay(-1)" />
-          <button type="button" class="border-default bg-muted hover:text-default text-toned flex min-w-44 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-center text-sm font-medium capitalize" @click="goToday">
+          <UButton
+            size="sm"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide-chevron-left"
+            aria-label="Día anterior"
+            @click="shiftDay(-1)"
+          />
+          <button
+            type="button"
+            class="border-default bg-muted hover:text-default text-toned flex min-w-44 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-center text-sm font-medium capitalize"
+            @click="goToday"
+          >
             {{ fmtDate(selectedDay, "EEEE d 'de' MMMM") }}
-            <span v-if="sameDay(selectedDay, today)" class="bg-primary/15 text-primary rounded px-1.5 py-0.5 font-mono text-[0.6rem] tracking-wide uppercase">Hoy</span>
+            <span
+              v-if="sameDay(selectedDay, today)"
+              class="bg-primary/15 text-primary rounded px-1.5 py-0.5 font-mono text-[0.6rem] tracking-wide uppercase"
+              >Hoy</span
+            >
           </button>
-          <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-chevron-right" aria-label="Día siguiente" @click="shiftDay(1)" />
+          <UButton
+            size="sm"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide-chevron-right"
+            aria-label="Día siguiente"
+            @click="shiftDay(1)"
+          />
         </div>
       </div>
 
       <!-- vista equipo: columnas por barbero -->
-      <div v-show="desktopView === 'team'" class="border-default bg-muted relative hidden max-h-[760px] overflow-auto rounded-2xl border lg:block">
-        <AdminDayBoard :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" @pick="bookFreeSlot" />
-        <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-          <div v-if="loading" class="bg-default/55 absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[1px]">
-            <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
+      <div
+        v-show="desktopView === 'team'"
+        class="border-default bg-muted relative hidden max-h-[760px] overflow-auto rounded-2xl border lg:block"
+      >
+        <AdminDayBoard
+          :day="selectedDay"
+          :barbers="boardBarbers"
+          :appointments="enriched"
+          :free-by-barber="freeByBarber"
+          @select="selected = $event"
+          @pick="bookFreeSlot"
+        />
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          leave-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="loading"
+            class="bg-default/55 absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[1px]"
+          >
+            <div
+              class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg"
+            >
               <UIcon name="i-lucide-loader-circle" class="text-primary size-4 animate-spin" />
               <span class="text-toned text-sm font-medium">Cargando citas…</span>
             </div>
@@ -515,7 +653,10 @@ const weekEnd = computed(() => {
       </div>
 
       <!-- calendario (escritorio) -->
-      <div v-show="desktopView === 'calendar'" class="border-default bg-muted relative hidden overflow-hidden rounded-2xl border lg:block">
+      <div
+        v-show="desktopView === 'calendar'"
+        class="border-default bg-muted relative hidden overflow-hidden rounded-2xl border lg:block"
+      >
         <ClientOnly>
           <ScheduleXCalendar v-if="calendarApp" :calendar-app="calendarApp" />
           <div v-else class="flex h-[720px] flex-col items-center justify-center gap-3">
@@ -530,9 +671,19 @@ const weekEnd = computed(() => {
           </template>
         </ClientOnly>
         <!-- velo de carga mientras llegan/cambian las citas (evita la agenda en blanco) -->
-        <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-          <div v-if="loading && calendarApp" class="bg-default/55 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px]">
-            <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          leave-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="loading && calendarApp"
+            class="bg-default/55 absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px]"
+          >
+            <div
+              class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg"
+            >
               <UIcon name="i-lucide-loader-circle" class="text-primary size-4 animate-spin" />
               <span class="text-toned text-sm font-medium">Cargando citas…</span>
             </div>
@@ -543,22 +694,59 @@ const weekEnd = computed(() => {
       <!-- móvil: selector Columnas / Lista -->
       <div class="flex items-center gap-2 lg:hidden">
         <div class="border-default bg-muted inline-flex rounded-lg border p-0.5">
-          <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition" :class="mobileView === 'columns' ? 'bg-primary text-inverted' : 'text-muted'" @click="mobileView = 'columns'">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="mobileView === 'columns' ? 'bg-primary text-inverted' : 'text-muted'"
+            @click="mobileView = 'columns'"
+          >
             <UIcon name="i-lucide-columns-3" class="mr-1 inline size-4 align-[-2px]" />Columnas
           </button>
-          <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition" :class="mobileView === 'list' ? 'bg-primary text-inverted' : 'text-muted'" @click="mobileView = 'list'">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="mobileView === 'list' ? 'bg-primary text-inverted' : 'text-muted'"
+            @click="mobileView = 'list'"
+          >
             <UIcon name="i-lucide-list" class="mr-1 inline size-4 align-[-2px]" />Lista
           </button>
         </div>
       </div>
 
       <!-- móvil: columnas por barbero (visión general del equipo + huecos libres) -->
-      <div v-show="mobileView === 'columns'" class="border-default bg-muted relative max-h-[68vh] overflow-auto rounded-2xl border lg:hidden">
-        <AdminDayBoard v-if="boardBarbers.length" :day="selectedDay" :barbers="boardBarbers" :appointments="enriched" :free-by-barber="freeByBarber" @select="selected = $event" @pick="bookFreeSlot" />
-        <div v-else class="p-8"><UiEmptyState icon="i-lucide-users" title="Sin barberos" description="Añade barberos en Equipo." /></div>
-        <Transition enter-active-class="transition-opacity duration-200" leave-active-class="transition-opacity duration-200" enter-from-class="opacity-0" leave-to-class="opacity-0">
-          <div v-if="loading" class="bg-default/55 absolute inset-0 z-40 flex items-center justify-center backdrop-blur-[1px]">
-            <div class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg">
+      <div
+        v-show="mobileView === 'columns'"
+        class="border-default bg-muted relative max-h-[68vh] overflow-auto rounded-2xl border lg:hidden"
+      >
+        <AdminDayBoard
+          v-if="boardBarbers.length"
+          :day="selectedDay"
+          :barbers="boardBarbers"
+          :appointments="enriched"
+          :free-by-barber="freeByBarber"
+          @select="selected = $event"
+          @pick="bookFreeSlot"
+        />
+        <div v-else class="p-8">
+          <UiEmptyState
+            icon="i-lucide-users"
+            title="Sin barberos"
+            description="Añade barberos en Equipo."
+          />
+        </div>
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          leave-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="loading"
+            class="bg-default/55 absolute inset-0 z-40 flex items-center justify-center backdrop-blur-[1px]"
+          >
+            <div
+              class="border-default bg-elevated/90 flex items-center gap-2.5 rounded-full border px-4 py-2 shadow-lg"
+            >
               <UIcon name="i-lucide-loader-circle" class="text-primary size-4 animate-spin" />
               <span class="text-toned text-sm font-medium">Cargando…</span>
             </div>
@@ -577,10 +765,15 @@ const weekEnd = computed(() => {
         <div v-else-if="dayAppts.length" class="pt-1">
           <div v-for="a in dayAppts" :key="a.id" class="flex gap-3">
             <div class="w-11 shrink-0 pt-3 text-right">
-              <span class="text-toned font-mono text-xs font-semibold">{{ fmtDate(a.startsAt, 'HH:mm') }}</span>
+              <span class="text-toned font-mono text-xs font-semibold">{{
+                fmtDate(a.startsAt, 'HH:mm')
+              }}</span>
             </div>
             <div class="relative">
-              <span class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2" :style="{ background: a.eventColor || 'var(--jdvm-accent)' }" />
+              <span
+                class="ring-default absolute top-4 -left-px size-2.5 rounded-full ring-2"
+                :style="{ background: a.eventColor || 'var(--jdvm-accent)' }"
+              />
               <span class="bg-border absolute top-6 left-[3px] bottom-0 w-px" />
             </div>
             <button
@@ -590,24 +783,51 @@ const weekEnd = computed(() => {
               @click="selected = a"
             >
               <div class="flex items-center gap-3">
-                <div class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold">
-                  <UIcon v-if="a.type === 'block'" name="i-lucide-lock" class="text-dimmed size-3.5" /><template v-else>{{ initials(a.clientName) }}</template>
+                <div
+                  class="bg-elevated border-default flex size-8 shrink-0 items-center justify-center rounded-full border text-[0.65rem] font-semibold"
+                >
+                  <UIcon
+                    v-if="a.type === 'block'"
+                    name="i-lucide-lock"
+                    class="text-dimmed size-3.5"
+                  /><template v-else>{{ initials(a.clientName) }}</template>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2"><span class="truncate text-sm font-semibold">{{ a.clientName }}</span><ClientInfoButton v-if="a.type !== 'block'" :name="a.clientName" :phone="a.clientPhone" :email="a.clientEmail" /></div>
-                  <div class="text-dimmed truncate text-xs">{{ a.serviceName }} · {{ a.barberName }}</div>
+                  <div class="flex items-center gap-2">
+                    <span class="truncate text-sm font-semibold">{{ a.clientName }}</span
+                    ><ClientInfoButton
+                      v-if="a.type !== 'block'"
+                      :name="a.clientName"
+                      :phone="a.clientPhone"
+                      :email="a.clientEmail"
+                    />
+                  </div>
+                  <div class="text-dimmed truncate text-xs">
+                    {{ a.serviceName }} · {{ a.barberName }}
+                  </div>
                 </div>
                 <AdminPill v-if="a.type === 'block'" kind="neutral">Bloqueado</AdminPill>
-                <AdminPill v-else :kind="mobileStatusKind(a.status)">{{ mobileStatusLabel(a.status) }}</AdminPill>
+                <AdminPill v-else :kind="mobileStatusKind(a.status)">{{
+                  mobileStatusLabel(a.status)
+                }}</AdminPill>
               </div>
             </button>
           </div>
         </div>
-        <UiEmptyState v-else icon="i-lucide-calendar-x" title="Sin citas" :description="`No hay citas el ${fmtDate(selectedDay, 'd MMM')}.`" />
+        <UiEmptyState
+          v-else
+          icon="i-lucide-calendar-x"
+          title="Sin citas"
+          :description="`No hay citas el ${fmtDate(selectedDay, 'd MMM')}.`"
+        />
 
         <!-- huecos libres del barbero filtrado -->
         <div v-if="dayFreeSlots.length" class="mt-4">
-          <p class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"><span class="bg-success size-1.5 rounded-full" />Huecos libres</p>
+          <p
+            class="text-dimmed mb-2.5 flex items-center gap-1.5 font-mono text-[0.6rem] tracking-widest uppercase"
+          >
+            <span class="bg-success size-1.5 rounded-full" />Huecos libres
+          </p>
           <div class="flex flex-wrap gap-2">
             <button
               v-for="(f, i) in dayFreeSlots"
@@ -616,11 +836,15 @@ const weekEnd = computed(() => {
               class="border-success/30 bg-success/10 text-success hover:bg-success/20 flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-xs font-semibold transition"
               @click="barberFilter && bookFreeSlot({ barberId: barberFilter, start: f.start })"
             >
-              <UIcon name="i-lucide-plus" class="size-3" />{{ fmtDate(f.start, 'HH:mm') }}–{{ fmtDate(f.end, 'HH:mm') }}
+              <UIcon name="i-lucide-plus" class="size-3" />{{ fmtDate(f.start, 'HH:mm') }}–{{
+                fmtDate(f.end, 'HH:mm')
+              }}
             </button>
           </div>
         </div>
-        <p v-else-if="!barberFilter" class="text-dimmed mt-4 text-center text-xs">Filtra por un barbero para ver sus huecos libres.</p>
+        <p v-else-if="!barberFilter" class="text-dimmed mt-4 text-center text-xs">
+          Filtra por un barbero para ver sus huecos libres.
+        </p>
       </div>
     </div>
 
@@ -633,36 +857,81 @@ const weekEnd = computed(() => {
       enter-from-class="opacity-0"
       leave-to-class="opacity-0"
     >
-      <div v-if="selected" class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" @click="selected = null">
+      <div
+        v-if="selected"
+        class="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+        @click="selected = null"
+      >
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-        <div class="border-default bg-default relative w-full max-w-md overflow-hidden rounded-t-3xl border sm:rounded-3xl" @click.stop>
+        <div
+          class="border-default bg-default relative w-full max-w-md overflow-hidden rounded-t-3xl border sm:rounded-3xl"
+          @click.stop
+        >
           <div class="px-5 py-5">
             <div class="flex items-start justify-between">
               <div>
-                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase capitalize">{{ fmtDate(selected.startsAt, "EEEE d 'de' MMMM") }}</p>
-                <h2 class="font-display mt-1 text-2xl">{{ fmtDate(selected.startsAt, 'HH:mm') }}–{{ fmtDate(selected.endsAt, 'HH:mm') }}</h2>
+                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase capitalize">
+                  {{ fmtDate(selected.startsAt, "EEEE d 'de' MMMM") }}
+                </p>
+                <h2 class="font-display mt-1 text-2xl">
+                  {{ fmtDate(selected.startsAt, 'HH:mm') }}–{{ fmtDate(selected.endsAt, 'HH:mm') }}
+                </h2>
               </div>
               <span class="font-display text-2xl">{{ formatPrice(selected.price) }}</span>
             </div>
 
             <div class="border-default bg-muted mt-4 space-y-2.5 rounded-2xl border p-4">
               <div class="flex items-center gap-3">
-                <UIcon :name="selected.type === 'block' ? 'i-lucide-lock' : 'i-lucide-user'" class="text-primary size-4" />
-                <span class="text-sm font-semibold">{{ selected.type === 'block' ? 'Hueco bloqueado' : selected.clientName }}</span>
-                <span v-if="selected.clientPhone" class="text-dimmed ml-auto font-mono text-xs">{{ selected.clientPhone }}</span>
+                <UIcon
+                  :name="selected.type === 'block' ? 'i-lucide-lock' : 'i-lucide-user'"
+                  class="text-primary size-4"
+                />
+                <span class="text-sm font-semibold">{{
+                  selected.type === 'block' ? 'Hueco bloqueado' : selected.clientName
+                }}</span>
+                <span v-if="selected.clientPhone" class="text-dimmed ml-auto font-mono text-xs">{{
+                  selected.clientPhone
+                }}</span>
               </div>
-              <div v-if="selected.type === 'block'" class="flex items-center gap-3"><UIcon name="i-lucide-pencil" class="text-primary size-4" /><span class="text-sm">{{ selected.note || 'No disponible' }}</span></div>
-              <div v-else class="flex items-center gap-3"><UIcon name="i-lucide-scissors" class="text-primary size-4" /><span class="text-sm">{{ selected.serviceName }}</span></div>
-              <div class="flex items-center gap-3"><span class="size-3 rounded-full" :style="{ background: selected.barberColor }" /><span class="text-sm">{{ selected.barberName }}</span></div>
-              <div v-if="selected.isRecurring" class="flex items-center gap-3"><UIcon name="i-lucide-repeat" class="text-primary size-4" /><span class="text-dimmed text-xs">Cita fija</span></div>
+              <div v-if="selected.type === 'block'" class="flex items-center gap-3">
+                <UIcon name="i-lucide-pencil" class="text-primary size-4" /><span class="text-sm">{{
+                  selected.note || 'No disponible'
+                }}</span>
+              </div>
+              <div v-else class="flex items-center gap-3">
+                <UIcon name="i-lucide-scissors" class="text-primary size-4" /><span
+                  class="text-sm"
+                  >{{ selected.serviceName }}</span
+                >
+              </div>
+              <div class="flex items-center gap-3">
+                <span
+                  class="size-3 rounded-full"
+                  :style="{ background: selected.barberColor }"
+                /><span class="text-sm">{{ selected.barberName }}</span>
+              </div>
+              <div v-if="selected.isRecurring" class="flex items-center gap-3">
+                <UIcon name="i-lucide-repeat" class="text-primary size-4" /><span
+                  class="text-dimmed text-xs"
+                  >Cita fija</span
+                >
+              </div>
             </div>
 
             <!-- contactar al cliente: WhatsApp / llamar -->
             <div v-if="selected.clientPhone" class="mt-3 grid grid-cols-2 gap-2.5">
-              <a :href="waLink(selected.clientPhone)" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366]/20">
+              <a
+                :href="waLink(selected.clientPhone)"
+                target="_blank"
+                rel="noopener"
+                class="flex items-center justify-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366]/20"
+              >
                 <UIcon name="i-lucide-message-circle" class="size-4" />WhatsApp
               </a>
-              <a :href="telLink(selected.clientPhone)" class="border-default bg-muted text-toned hover:bg-elevated flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition">
+              <a
+                :href="telLink(selected.clientPhone)"
+                class="border-default bg-muted text-toned hover:bg-elevated flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition"
+              >
                 <UIcon name="i-lucide-phone" class="size-4" />Llamar
               </a>
             </div>
@@ -679,20 +948,90 @@ const weekEnd = computed(() => {
             />
 
             <!-- cobro: efectivo / tarjeta (cita ya cobrada) -->
-            <div v-if="selected.status === 'completed'" class="mt-4 flex items-center justify-between gap-3">
-              <span class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</span>
+            <div
+              v-if="selected.status === 'completed'"
+              class="mt-4 flex items-center justify-between gap-3"
+            >
+              <span class="flex items-center gap-2 text-sm font-semibold"
+                ><UIcon name="i-lucide-wallet" class="text-primary size-4" />Cobrado en</span
+              >
               <PaymentToggle :id="selected.id" :method="selected.paymentMethod" />
             </div>
 
+            <!-- propina (100% para el barbero; cuenta en sus ingresos) -->
+            <TipEditor
+              v-if="selected.status === 'completed' && selected.type !== 'block'"
+              :id="selected.id"
+              :tip="selected.tip"
+              class="mt-3"
+              @changed="(t) => selected && (selected = { ...selected, tip: t })"
+            />
+
             <!-- bloqueo: solo se puede quitar -->
-            <UButton v-if="selected.type === 'block'" color="error" variant="soft" block class="mt-4" icon="i-lucide-lock-open" @click="removeBlock(selected.id)">Quitar bloqueo</UButton>
+            <UButton
+              v-if="selected.type === 'block'"
+              color="error"
+              variant="soft"
+              block
+              class="mt-4"
+              icon="i-lucide-lock-open"
+              @click="removeBlock(selected.id)"
+              >Quitar bloqueo</UButton
+            >
             <div v-else class="mt-4 grid grid-cols-2 gap-2.5">
-              <UButton v-if="selected.status === 'booked'" color="success" variant="soft" block icon="i-lucide-check" @click="markCompleted(selected.id)">Completar</UButton>
-              <UButton v-if="selected.status === 'booked'" color="neutral" variant="soft" block icon="i-lucide-user-x" @click="markNoShow(selected.id)">No vino</UButton>
-              <UButton v-if="selected.status === 'booked'" color="warning" variant="soft" block icon="i-lucide-calendar-x" @click="cancelAppt">Cancelar</UButton>
-              <UButton v-if="selected.status === 'no_show'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked(selected.id)">Deshacer “no vino”</UButton>
-              <UButton v-if="selected.status === 'completed'" color="neutral" variant="soft" block icon="i-lucide-undo-2" @click="revertToBooked(selected.id)">Deshacer “hecha”</UButton>
-              <UButton color="error" variant="soft" block icon="i-lucide-trash-2" @click="deleteAppt">Eliminar</UButton>
+              <UButton
+                v-if="selected.status === 'booked'"
+                color="success"
+                variant="soft"
+                block
+                icon="i-lucide-check"
+                @click="markCompleted(selected.id)"
+                >Completar</UButton
+              >
+              <UButton
+                v-if="selected.status === 'booked'"
+                color="neutral"
+                variant="soft"
+                block
+                icon="i-lucide-user-x"
+                @click="markNoShow(selected.id)"
+                >No vino</UButton
+              >
+              <UButton
+                v-if="selected.status === 'booked'"
+                color="warning"
+                variant="soft"
+                block
+                icon="i-lucide-calendar-x"
+                @click="cancelAppt"
+                >Cancelar</UButton
+              >
+              <UButton
+                v-if="selected.status === 'no_show'"
+                color="neutral"
+                variant="soft"
+                block
+                icon="i-lucide-undo-2"
+                @click="revertToBooked(selected.id)"
+                >Deshacer “no vino”</UButton
+              >
+              <UButton
+                v-if="selected.status === 'completed'"
+                color="neutral"
+                variant="soft"
+                block
+                icon="i-lucide-undo-2"
+                @click="revertToBooked(selected.id)"
+                >Deshacer “hecha”</UButton
+              >
+              <UButton
+                color="error"
+                variant="soft"
+                block
+                icon="i-lucide-trash-2"
+                @click="deleteAppt"
+                >Eliminar</UButton
+              >
             </div>
             <!-- liberar solo este día de una cita fija (sin borrar la serie) -->
             <UButton
@@ -703,20 +1042,52 @@ const weekEnd = computed(() => {
               class="mt-2.5"
               icon="i-lucide-calendar-minus"
               @click="freeFixedDay"
-            >Liberar solo este día (cita fija)</UButton>
-            <p v-if="selected.type !== 'block' && selected.status === 'booked' && !isCancellable(selected.startsAt)" class="text-dimmed mt-3 text-center text-xs">
+              >Liberar solo este día (cita fija)</UButton
+            >
+            <p
+              v-if="
+                selected.type !== 'block' &&
+                selected.status === 'booked' &&
+                !isCancellable(selected.startsAt)
+              "
+              class="text-dimmed mt-3 text-center text-xs"
+            >
               Fuera de la ventana de 4 h del cliente · como admin puedes igualmente.
             </p>
 
             <!-- ofrecer veto tras marcar "no vino" -->
-            <div v-if="banPrompt" class="border-warning/40 bg-warning/10 mt-4 rounded-2xl border p-4">
-              <p class="text-sm font-medium">El cliente no se presentó. ¿Vetarlo para que no coja más citas hasta que pague la cita perdida?</p>
+            <div
+              v-if="banPrompt"
+              class="border-warning/40 bg-warning/10 mt-4 rounded-2xl border p-4"
+            >
+              <p class="text-sm font-medium">
+                El cliente no se presentó. ¿Vetarlo para que no coja más citas hasta que pague la
+                cita perdida?
+              </p>
               <div class="mt-3 flex gap-2.5">
-                <UButton color="error" class="flex-1 justify-center" icon="i-lucide-ban" :loading="banBusy" @click="banFromPrompt">Vetar cliente</UButton>
-                <UButton color="neutral" variant="soft" class="flex-1 justify-center" @click="banPrompt = false">Ahora no</UButton>
+                <UButton
+                  color="error"
+                  class="flex-1 justify-center"
+                  icon="i-lucide-ban"
+                  :loading="banBusy"
+                  @click="banFromPrompt"
+                  >Vetar cliente</UButton
+                >
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  class="flex-1 justify-center"
+                  @click="banPrompt = false"
+                  >Ahora no</UButton
+                >
               </div>
             </div>
-            <p v-else-if="selectedBanned" class="text-error mt-3 flex items-center justify-center gap-1.5 text-xs"><UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado.</p>
+            <p
+              v-else-if="selectedBanned"
+              class="text-error mt-3 flex items-center justify-center gap-1.5 text-xs"
+            >
+              <UIcon name="i-lucide-ban" class="size-3.5" />Cliente vetado.
+            </p>
           </div>
         </div>
       </div>

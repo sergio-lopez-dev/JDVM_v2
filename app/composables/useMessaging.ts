@@ -1,4 +1,12 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore'
 import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging'
 
 // Push FCM en el cliente: pedir permiso, obtener/guardar token y avisos en primer
@@ -15,7 +23,9 @@ const DEVICE_KEY = 'jdvm-device-id'
 function getDeviceId(): string {
   let id = localStorage.getItem(DEVICE_KEY)
   if (!id) {
-    id = (globalThis.crypto?.randomUUID?.() ?? `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+    id =
+      globalThis.crypto?.randomUUID?.() ??
+      `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`
     localStorage.setItem(DEVICE_KEY, id)
   }
   return id
@@ -45,7 +55,8 @@ export function useMessaging() {
   async function check() {
     if (!import.meta.client) return
     supported.value = (await isSupported().catch(() => false)) && 'Notification' in window
-    if ('Notification' in window) permission.value = Notification.permission as typeof permission.value
+    if ('Notification' in window)
+      permission.value = Notification.permission as typeof permission.value
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -58,7 +69,12 @@ export function useMessaging() {
   // Borra los tokens de ESTE mismo dispositivo distintos del actual: los del mismo
   // deviceId (esquema nuevo) y los antiguos sin deviceId pero del mismo navegador
   // (mismo userAgent). Evita recibir varias push iguales en un solo equipo.
-  async function cleanupStaleTokens(uid: string, deviceId: string, ua: string, currentToken: string) {
+  async function cleanupStaleTokens(
+    uid: string,
+    deviceId: string,
+    ua: string,
+    currentToken: string,
+  ) {
     try {
       const snap = await getDocs(collection(db, COL.users, uid, 'fcmTokens'))
       const dels: Promise<void>[] = []
@@ -75,13 +91,28 @@ export function useMessaging() {
     }
   }
 
+  // Registra explícitamente el SW de FCM y espera a que esté listo. Dejar que
+  // `getToken` lo auto-registre fallaba en algunos Android (no encontraba/activaba el
+  // SW → el botón "Activar" no hacía nada). Registrarlo a mano y pasárselo a getToken
+  // es lo recomendado y robusto entre navegadores.
+  async function ensureSwRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+    if (!('serviceWorker' in navigator)) return undefined
+    try {
+      const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      await navigator.serviceWorker.ready.catch(() => {})
+      return reg
+    } catch {
+      return undefined
+    }
+  }
+
   // Obtiene el token de este dispositivo y lo guarda (limpiando los antiguos del
   // mismo equipo). Devuelve true si quedó registrado.
   async function registerToken(): Promise<boolean> {
     if (!user.value || !vapidKey) return false
     const messaging = getMessaging(app)
-    // getToken registra automáticamente /firebase-messaging-sw.js en su scope.
-    const token = await getToken(messaging, { vapidKey })
+    const swReg = await ensureSwRegistration()
+    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: swReg })
     if (!token) return false
     lastToken = token
     const uid = user.value.uid
@@ -113,7 +144,11 @@ export function useMessaging() {
       const perm = await Notification.requestPermission()
       permission.value = perm as typeof permission.value
       if (perm !== 'granted') {
-        toast.add({ title: 'Permiso de notificaciones denegado', color: 'warning', icon: 'i-lucide-bell-off' })
+        toast.add({
+          title: 'Permiso de notificaciones denegado',
+          color: 'warning',
+          icon: 'i-lucide-bell-off',
+        })
         return
       }
       const ok = await registerToken()
@@ -121,7 +156,11 @@ export function useMessaging() {
       storedAllowPush.value = true
       toast.add({ title: 'Notificaciones activadas', icon: 'i-lucide-bell-ring', color: 'success' })
     } catch (e) {
-      toast.add({ title: 'No se pudieron activar', description: (e as Error).message, color: 'error' })
+      toast.add({
+        title: 'No se pudieron activar',
+        description: (e as Error).message,
+        color: 'error',
+      })
     } finally {
       enabling.value = false
     }
@@ -134,7 +173,8 @@ export function useMessaging() {
     if (!user.value) return
     storedAllowPush.value = false
     await setDoc(doc(db, COL.users, user.value.uid), { allowPush: false }, { merge: true })
-    if (lastToken) await deleteDoc(doc(db, COL.users, user.value.uid, 'fcmTokens', lastToken)).catch(() => {})
+    if (lastToken)
+      await deleteDoc(doc(db, COL.users, user.value.uid, 'fcmTokens', lastToken)).catch(() => {})
     toast.add({ title: 'Notificaciones desactivadas', icon: 'i-lucide-bell-off' })
   }
 
@@ -186,7 +226,8 @@ export function useMessaging() {
         const d = payload.data || {}
         const title = d.title || payload.notification?.title
         const body = d.body || payload.notification?.body
-        if (title || body) toast.add({ title: title || 'Aviso', description: body, icon: 'i-lucide-bell' })
+        if (title || body)
+          toast.add({ title: title || 'Aviso', description: body, icon: 'i-lucide-bell' })
       })
     } catch {
       /* mensajería no disponible en este contexto */
