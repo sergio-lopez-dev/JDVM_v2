@@ -354,6 +354,16 @@ async function confirm() {
 
 const steps = ['Servicio', 'Fecha', 'Confirmar']
 
+// Enlace a la lista de espera arrastrando el contexto actual (servicio, barbero y el
+// día elegido) → la lista de espera lo preselecciona.
+const waitlistLink = computed(() => {
+  const params = new URLSearchParams()
+  if (selectedService.value) params.set('service', selectedService.value.id)
+  if (!anyBarber.value && selectedBarber.value) params.set('barber', selectedBarber.value.id)
+  params.set('date', fmtDate(selectedDate.value, 'yyyy-MM-dd'))
+  return `/lista-espera?${params.toString()}`
+})
+
 // ----- Soporte escritorio (vista unificada + calendario mensual) -----
 function startOfMonth(d: Date) {
   const x = new Date(d)
@@ -906,7 +916,7 @@ const gcalUrl = computed(() => {
           </div>
 
           <NuxtLink
-            to="/lista-espera"
+            :to="waitlistLink"
             class="border-default flex items-center gap-2.5 rounded-xl border border-dashed p-3.5"
           >
             <UIcon name="i-lucide-bell" class="text-muted size-4" />
@@ -1493,7 +1503,7 @@ const gcalUrl = computed(() => {
             </div>
 
             <NuxtLink
-              to="/lista-espera"
+              :to="waitlistLink"
               class="border-default flex items-center gap-2.5 rounded-xl border border-dashed p-3.5"
             >
               <UIcon name="i-lucide-bell" class="text-muted size-4" />
