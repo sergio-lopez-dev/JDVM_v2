@@ -43,14 +43,25 @@ export function useFixedAppointments() {
 
   // weekday ('mon'..'sun') -> número de día JS (0=dom..6=sáb).
   const WEEKDAY_TO_JS: Record<string, number> = {
-    sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
   }
 
   // Genera las ocurrencias (con hora) dentro del horizonte para un weekday/hora,
   // saltando `intervalWeeks` semanas entre cada una (1 = cada semana, 2 = cada dos…).
   // `startDate` (opcional) = a partir de qué día empieza la serie; nunca antes de hoy
   // (no se materializan citas en el pasado).
-  function occurrences(weekday: string, time: string, intervalWeeks = 1, startDate?: Date): { start: Date; end: Date }[] {
+  function occurrences(
+    weekday: string,
+    time: string,
+    intervalWeeks = 1,
+    startDate?: Date,
+  ): { start: Date; end: Date }[] {
     const [h, m] = time.split(':').map(Number)
     const target = WEEKDAY_TO_JS[weekday] ?? 1
     const step = Math.max(1, intervalWeeks)
@@ -108,14 +119,18 @@ export function useFixedAppointments() {
           (f.clientId || '') === (input.clientId || ''),
       )
       if (dupe) {
-        throw new Error('Ya existe una cita fija idéntica (mismo barbero, día y hora). No se ha duplicado.')
+        throw new Error(
+          'Ya existe una cita fija idéntica (mismo barbero, día y hora). No se ha duplicado.',
+        )
       }
     }
 
-    const slots = occurrences(input.weekday, input.time, interval, opts.startDate).map(({ start }) => ({
-      start,
-      end: new Date(start.getTime() + dur * 60_000),
-    }))
+    const slots = occurrences(input.weekday, input.time, interval, opts.startDate).map(
+      ({ start }) => ({
+        start,
+        end: new Date(start.getTime() + dur * 60_000),
+      }),
+    )
     // Ancla = primera ocurrencia (medianoche), para el cálculo de semanas que "tocan".
     const anchor = new Date(slots[0]!.start)
     anchor.setHours(0, 0, 0, 0)
@@ -219,11 +234,23 @@ export function useFixedAppointments() {
     )
   }
 
+  // Marca un día como excepción de la serie SIN borrar la cita materializada: el hueco
+  // de ese día deja de estar bloqueado por la plantilla (`fixedBusy`). Se usa cuando el
+  // cliente REPROGRAMA o CANCELA su cita fija: la cita se mueve/cancela por su lado, pero
+  // el hueco original (que la plantilla seguía bloqueando) queda libre para otros.
+  async function freeFixedDate(fixedId: string, date: Date) {
+    await updateDoc(doc(db, COL.fixed_appointments, fixedId), {
+      exceptions: arrayUnion(dateKey(date)),
+    })
+  }
+
   // Libera UN día concreto de la serie sin borrarla: marca la excepción en la
   // plantilla y elimina la cita materializada de ese día → el hueco queda libre para
   // reservas (la serie sigue activa el resto de días).
   async function cancelOccurrence(fixedId: string, date: Date) {
-    await updateDoc(doc(db, COL.fixed_appointments, fixedId), { exceptions: arrayUnion(dateKey(date)) })
+    await updateDoc(doc(db, COL.fixed_appointments, fixedId), {
+      exceptions: arrayUnion(dateKey(date)),
+    })
     const dayStart = new Date(date)
     dayStart.setHours(0, 0, 0, 0)
     const dayEnd = new Date(dayStart)
@@ -245,7 +272,9 @@ export function useFixedAppointments() {
     const tplSnap = await getDoc(doc(db, COL.fixed_appointments, fixedId))
     if (!tplSnap.exists()) return
     const f = tplSnap.data() as FixedAppointment
-    await updateDoc(doc(db, COL.fixed_appointments, fixedId), { exceptions: arrayRemove(dateKey(date)) })
+    await updateDoc(doc(db, COL.fixed_appointments, fixedId), {
+      exceptions: arrayRemove(dateKey(date)),
+    })
 
     const svc = services.value.find((s) => s.id === f.serviceId)
     const dur = svc ? effectiveDuration(svc, f.barberId) : 30
@@ -275,5 +304,5 @@ export function useFixedAppointments() {
     })
   }
 
-  return { fixed, create, update, removeSeries, cancelOccurrence, restoreOccurrence }
+  return { fixed, create, update, removeSeries, cancelOccurrence, freeFixedDate, restoreOccurrence }
 }

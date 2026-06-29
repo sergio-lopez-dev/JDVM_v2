@@ -22,7 +22,7 @@ const { active: barbers } = useBarbers()
 const { settings } = useSettings()
 const { create, reschedule, inRange } = useAppointments()
 const { byDocId } = useMyAppointments()
-const { fixed } = useFixedAppointments()
+const { fixed, freeFixedDate } = useFixedAppointments()
 const { studio, name: studioName, codePrefix } = useStudio()
 const studioPlace = computed(() => studio.value.address || studio.value.city || studioName.value)
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
@@ -256,6 +256,11 @@ async function confirmReschedule(svc: Service, slot: Date) {
     if (!barber) throw new Error('No se encontró el barbero de la cita.')
     const endsAt = new Date(slot.getTime() + effectiveDuration(svc, barber.id) * 60_000)
     await reschedule(original.id, { startsAt: slot, endsAt }, original.startsAt)
+    // Si era una cita FIJA, libera su hueco original en la plantilla (excepción): si no,
+    // `fixedBusy` seguiría bloqueando ese hueco y nadie podría cogerlo aunque esté libre.
+    if (original.isRecurring && original.fixedId) {
+      await freeFixedDate(original.fixedId, original.startsAt).catch(() => {})
+    }
     bookingCode.value = `${codePrefix.value}-${original.id.slice(-4).toUpperCase()}`
     selectedBarber.value = barber
     void confetti({

@@ -9,13 +9,16 @@ const route = useRoute()
 const toast = useToast()
 const { byDocId } = useMyAppointments()
 const { cancel } = useAppointments()
+const { freeFixedDate } = useFixedAppointments()
 const { notifyCancellation } = useNotifications()
 const { client } = useCurrentClient()
 const { settings } = useSettings()
 const { studio } = useStudio()
 const { appt, pending } = byDocId(route.params.id as string)
 
-const mapQuery = computed(() => studio.value.address || [studio.value.name, studio.value.city].filter(Boolean).join(', '))
+const mapQuery = computed(
+  () => studio.value.address || [studio.value.name, studio.value.city].filter(Boolean).join(', '),
+)
 
 const cancelHours = computed(() => settings.value?.cancellationWindowHours ?? 4)
 const cancellable = computed(() =>
@@ -28,6 +31,11 @@ async function doCancel() {
   cancelling.value = true
   try {
     await cancel(appt.value.id, appt.value.startsAt)
+    // Cita fija: libera su hueco en la plantilla (excepción) para que `fixedBusy` deje
+    // de bloquearlo y otro cliente pueda cogerlo.
+    if (appt.value.isRecurring && appt.value.fixedId) {
+      await freeFixedDate(appt.value.fixedId, appt.value.startsAt).catch(() => {})
+    }
     await notifyCancellation({
       barberId: appt.value.barberId,
       clientName: client.value?.name || 'Un cliente',
@@ -38,7 +46,12 @@ async function doCancel() {
     toast.add({ title: 'Cita cancelada', icon: 'i-lucide-check', color: 'primary' })
     await navigateTo('/app')
   } catch (e) {
-    toast.add({ title: 'No se pudo cancelar', description: (e as Error).message, color: 'error', icon: 'i-lucide-triangle-alert' })
+    toast.add({
+      title: 'No se pudo cancelar',
+      description: (e as Error).message,
+      color: 'error',
+      icon: 'i-lucide-triangle-alert',
+    })
   } finally {
     cancelling.value = false
   }
@@ -54,14 +67,29 @@ async function doCancel() {
     <div class="flex-1 space-y-4 px-5 py-3">
       <span
         class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold"
-        :class="appt.status === 'cancelled' ? 'border-default text-dimmed' : 'bg-primary/10 border-primary/30 text-primary'"
+        :class="
+          appt.status === 'cancelled'
+            ? 'border-default text-dimmed'
+            : 'bg-primary/10 border-primary/30 text-primary'
+        "
       >
-        <span class="size-1.5 rounded-full" :class="appt.status === 'cancelled' ? 'bg-dimmed' : 'bg-primary'" />
-        {{ appt.status === 'cancelled' ? 'Cancelada' : appt.status === 'completed' ? 'Completada' : 'Confirmada' }}
+        <span
+          class="size-1.5 rounded-full"
+          :class="appt.status === 'cancelled' ? 'bg-dimmed' : 'bg-primary'"
+        />
+        {{
+          appt.status === 'cancelled'
+            ? 'Cancelada'
+            : appt.status === 'completed'
+              ? 'Completada'
+              : 'Confirmada'
+        }}
       </span>
 
       <div>
-        <h1 class="font-display text-4xl leading-none capitalize">{{ fmtDate(appt.startsAt, "EEEE d 'de' MMM") }}</h1>
+        <h1 class="font-display text-4xl leading-none capitalize">
+          {{ fmtDate(appt.startsAt, "EEEE d 'de' MMM") }}
+        </h1>
         <p class="text-primary font-display mt-1.5 text-2xl">
           {{ fmtDate(appt.startsAt, 'HH:mm') }} – {{ fmtDate(appt.endsAt, 'HH:mm') }}
         </p>
@@ -75,7 +103,9 @@ async function doCancel() {
         <div class="border-default flex items-center gap-3 border-b py-3">
           <UIcon name="i-lucide-scissors" class="text-primary size-4" />
           <span class="text-muted flex-1 text-xs">Servicio</span>
-          <span class="text-sm font-semibold">{{ appt.serviceName }} · {{ formatDuration(appt.serviceDuration) }}</span>
+          <span class="text-sm font-semibold"
+            >{{ appt.serviceName }} · {{ formatDuration(appt.serviceDuration) }}</span
+          >
         </div>
         <div class="border-default flex items-center gap-3 border-b py-3">
           <UIcon name="i-lucide-user" class="text-primary size-4" />
@@ -89,7 +119,10 @@ async function doCancel() {
         </div>
       </div>
 
-      <div v-if="appt.status === 'booked'" class="border-default flex gap-2.5 rounded-xl border border-dashed p-3.5">
+      <div
+        v-if="appt.status === 'booked'"
+        class="border-default flex gap-2.5 rounded-xl border border-dashed p-3.5"
+      >
         <UIcon name="i-lucide-clock" class="text-dimmed size-4 shrink-0" />
         <span class="text-dimmed text-xs leading-relaxed">
           Puedes reprogramar o cancelar gratis hasta las
@@ -101,11 +134,38 @@ async function doCancel() {
     <!-- acciones -->
     <div class="border-default bg-default sticky bottom-0 flex gap-2.5 border-t px-5 py-3">
       <template v-if="appt.status === 'booked'">
-        <UButton color="error" variant="outline" size="lg" class="flex-1 justify-center" :loading="cancelling" :disabled="!cancellable" @click="doCancel">Cancelar</UButton>
-        <UButton :to="`/reservar?reschedule=${appt.id}`" color="primary" size="lg" class="flex-[1.4] justify-center" :disabled="!cancellable" icon="i-lucide-refresh-cw">Reprogramar</UButton>
+        <UButton
+          color="error"
+          variant="outline"
+          size="lg"
+          class="flex-1 justify-center"
+          :loading="cancelling"
+          :disabled="!cancellable"
+          @click="doCancel"
+          >Cancelar</UButton
+        >
+        <UButton
+          :to="`/reservar?reschedule=${appt.id}`"
+          color="primary"
+          size="lg"
+          class="flex-[1.4] justify-center"
+          :disabled="!cancellable"
+          icon="i-lucide-refresh-cw"
+          >Reprogramar</UButton
+        >
       </template>
-      <UButton v-else-if="appt.status === 'completed'" :to="`/valorar/${appt.id}`" color="primary" size="lg" block icon="i-lucide-star">Valorar visita</UButton>
-      <UButton v-else to="/reservar" color="primary" size="lg" block icon="i-lucide-scissors">Reservar de nuevo</UButton>
+      <UButton
+        v-else-if="appt.status === 'completed'"
+        :to="`/valorar/${appt.id}`"
+        color="primary"
+        size="lg"
+        block
+        icon="i-lucide-star"
+        >Valorar visita</UButton
+      >
+      <UButton v-else to="/reservar" color="primary" size="lg" block icon="i-lucide-scissors"
+        >Reservar de nuevo</UButton
+      >
     </div>
   </div>
 
@@ -114,7 +174,11 @@ async function doCancel() {
   </div>
 
   <div v-else class="flex min-h-dvh flex-col items-center justify-center gap-4">
-    <UiEmptyState icon="i-lucide-calendar-x" title="Cita no encontrada" description="Puede que se haya cancelado o el enlace no sea válido." />
+    <UiEmptyState
+      icon="i-lucide-calendar-x"
+      title="Cita no encontrada"
+      description="Puede que se haya cancelado o el enlace no sea válido."
+    />
     <UButton to="/citas" color="neutral" variant="soft">Ver mis citas</UButton>
   </div>
 </template>
