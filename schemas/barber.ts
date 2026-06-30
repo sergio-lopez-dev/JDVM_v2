@@ -30,6 +30,12 @@ export const barberSchema = z.object({
   // Orden en que aparece el barbero en el selector de reserva del cliente (asc).
   // Lo fija el admin en Equipo; a igualdad de valor se desempata por nombre.
   sortOrder: z.number().int().default(0),
+  // Barbero TEMPORAL: su acceso a la app caduca fuera del rango [validFrom, validUntil].
+  // Fuera de ese rango no aparece en reserva ni puede entrar en /staff (lo bloquea el
+  // middleware). validFrom opcional (def. = desde ya); validUntil = último día válido.
+  temporary: z.boolean().default(false),
+  validFrom: z.date().optional(),
+  validUntil: z.date().optional(),
 })
 export type Barber = z.infer<typeof barberSchema>
 

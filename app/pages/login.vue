@@ -28,7 +28,12 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
     const u = await signIn(event.data, { remember: remember.value })
     await navigateTo(await destination(u.uid))
   } catch (e) {
-    toast.add({ title: 'No se pudo entrar', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
+    toast.add({
+      title: 'No se pudo entrar',
+      description: authErrorMessage(e),
+      color: 'error',
+      icon: 'i-lucide-triangle-alert',
+    })
   } finally {
     loading.value = false
   }
@@ -40,7 +45,12 @@ async function google() {
     const u = await signInWithGoogle({ remember: remember.value })
     await navigateTo(await destination(u.uid))
   } catch (e) {
-    toast.add({ title: 'Google', description: authErrorMessage(e), color: 'error', icon: 'i-lucide-triangle-alert' })
+    toast.add({
+      title: 'Google',
+      description: authErrorMessage(e),
+      color: 'error',
+      icon: 'i-lucide-triangle-alert',
+    })
   } finally {
     loading.value = false
   }
@@ -49,11 +59,25 @@ async function google() {
 
 <template>
   <div class="flex flex-col gap-8">
+    <!-- aviso: barbero temporal cuyo acceso ha caducado -->
+    <div
+      v-if="route.query.expired === 'barber'"
+      class="border-warning/40 bg-warning/10 text-warning flex items-center gap-3 rounded-xl border px-4 py-3"
+    >
+      <UIcon name="i-lucide-clock-alert" class="size-5 shrink-0" />
+      <p class="text-sm">
+        Tu acceso temporal ha caducado. Si crees que es un error, contacta con el estudio.
+      </p>
+    </div>
+
     <div class="flex flex-col items-center gap-5 text-center">
       <AppLogo variant="mark" :size="44" />
       <div class="space-y-2">
         <p class="font-display text-2xl leading-none">{{ studioName }}</p>
-        <p v-if="studio.city" class="text-primary font-mono text-[0.7rem] tracking-[0.3em] uppercase">
+        <p
+          v-if="studio.city"
+          class="text-primary font-mono text-[0.7rem] tracking-[0.3em] uppercase"
+        >
           {{ studio.city }}
         </p>
         <h1 class="font-display text-4xl leading-none">Bienvenido de nuevo</h1>
@@ -111,7 +135,10 @@ async function google() {
       <NuxtLink to="/registro" class="text-primary font-medium">Regístrate</NuxtLink>
     </p>
 
-    <NuxtLink to="/about-us" class="text-dimmed hover:text-muted flex items-center justify-center gap-1.5 text-xs">
+    <NuxtLink
+      to="/about-us"
+      class="text-dimmed hover:text-muted flex items-center justify-center gap-1.5 text-xs"
+    >
       <UIcon name="i-lucide-arrow-left" class="size-3.5" />Conoce el estudio
     </NuxtLink>
   </div>

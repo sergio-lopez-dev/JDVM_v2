@@ -2,13 +2,25 @@
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { fmtDate } from '~~/lib/format'
 import { toDate } from '~~/lib/datetime'
-import { normalizeEmail, type Barber, type BarberInput, type WeekTimetable, type DateRange } from '~~/schemas'
+import { barberAccessExpired } from '~~/lib/barber'
+import {
+  normalizeEmail,
+  type Barber,
+  type BarberInput,
+  type WeekTimetable,
+  type DateRange,
+} from '~~/schemas'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useHead({ title: 'Equipo · Admin' })
 
 const { barbers, addForUid, sendInvite, update, remove } = useBarbers()
-const { pending: pendingInvites, create: createInvite, sendEmail: sendInviteEmail, remove: removeInvite } = useBarberInvites()
+const {
+  pending: pendingInvites,
+  create: createInvite,
+  sendEmail: sendInviteEmail,
+  remove: removeInvite,
+} = useBarberInvites()
 const { services } = useServices()
 const { reviews } = useReviews()
 const { clients } = useClients()
@@ -21,7 +33,9 @@ const meIsBarber = computed(() => !!me.value && barbers.value.some((b) => b.id =
 
 // Enlace de invitación que comparte el admin (lleva a la pantalla /invitacion).
 const inviteLink = (email: string) =>
-  import.meta.client ? `${window.location.origin}/invitacion?email=${encodeURIComponent(email)}` : ''
+  import.meta.client
+    ? `${window.location.origin}/invitacion?email=${encodeURIComponent(email)}`
+    : ''
 
 const inviteText = (email: string) =>
   `Te invito a unirte al equipo de ${studioName.value} como barbero. Crea tu acceso (Google o contraseña) usando este email (${email}) aquí:`
@@ -32,7 +46,11 @@ async function shareInvite(email: string) {
   const url = inviteLink(email)
   if (import.meta.client && navigator.share) {
     try {
-      await navigator.share({ title: `Invitación · ${studioName.value}`, text: inviteText(email), url })
+      await navigator.share({
+        title: `Invitación · ${studioName.value}`,
+        text: inviteText(email),
+        url,
+      })
     } catch {
       /* el usuario cerró el diálogo de compartir */
     }
@@ -44,7 +62,12 @@ async function shareInvite(email: string) {
 async function copyInvite(email: string) {
   try {
     await navigator.clipboard.writeText(`${inviteText(email)} ${inviteLink(email)}`)
-    toast.add({ title: 'Enlace copiado', description: email, icon: 'i-lucide-clipboard-check', color: 'success' })
+    toast.add({
+      title: 'Enlace copiado',
+      description: email,
+      icon: 'i-lucide-clipboard-check',
+      color: 'success',
+    })
   } catch {
     toast.add({ title: 'No se pudo copiar', color: 'error' })
   }
@@ -58,8 +81,7 @@ async function cancelInvite(email: string) {
 
 // Email de acceso del barbero (vive en users_v2/{uid}, no en el doc del barbero).
 // Solo existe si se creó con cuenta (id del barbero == uid). Sirve para reinvitar.
-const emailOf = (id: string | null) =>
-  (id && clients.value.find((c) => c.id === id)?.email) || ''
+const emailOf = (id: string | null) => (id && clients.value.find((c) => c.id === id)?.email) || ''
 
 const inviting = ref(false)
 async function resendInvite() {
@@ -68,7 +90,12 @@ async function resendInvite() {
   inviting.value = true
   try {
     await sendInvite(email)
-    toast.add({ title: 'Invitación reenviada', description: email, icon: 'i-lucide-mail-check', color: 'success' })
+    toast.add({
+      title: 'Invitación reenviada',
+      description: email,
+      icon: 'i-lucide-mail-check',
+      color: 'success',
+    })
   } catch (e) {
     toast.add({ title: 'No se pudo reenviar', description: (e as Error).message, color: 'error' })
   } finally {
@@ -92,7 +119,11 @@ async function onPhoto(e: Event) {
     await uploadBytes(r, file)
     form.value.photoUrl = await getDownloadURL(r)
   } catch (err) {
-    toast.add({ title: 'No se pudo subir la foto', description: (err as Error).message, color: 'error' })
+    toast.add({
+      title: 'No se pudo subir la foto',
+      description: (err as Error).message,
+      color: 'error',
+    })
   } finally {
     uploadingPhoto.value = false
     if (photoInput.value) photoInput.value.value = ''
@@ -138,6 +169,10 @@ interface FormState {
   servicesOffered: string[]
   timetable: WeekTimetable
   vacations: DateRange[]
+  // Barbero temporal: acceso limitado al rango [validFrom, validUntil].
+  temporary: boolean
+  validFrom: Date | null
+  validUntil: Date | null
 }
 
 function slugify(s: string) {
@@ -167,6 +202,9 @@ function blank(): FormState {
     // Por defecto hereda el horario del local; el admin lo ajusta si hace falta.
     timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
     vacations: [],
+    temporary: false,
+    validFrom: null,
+    validUntil: null,
   }
 }
 
@@ -184,7 +222,8 @@ function startCreate() {
 const addingSelf = ref(false)
 async function addSelfAsBarber() {
   if (!me.value || meIsBarber.value) return
-  const name = me.value.displayName || clients.value.find((c) => c.id === me.value!.uid)?.name || 'Yo'
+  const name =
+    me.value.displayName || clients.value.find((c) => c.id === me.value!.uid)?.name || 'Yo'
   addingSelf.value = true
   try {
     const payload: BarberInput = {
@@ -200,9 +239,15 @@ async function addSelfAsBarber() {
       servicesOffered: services.value.map((s) => s.id),
       timetable: structuredClone(toRaw(settings.value?.timetable ?? {})) as WeekTimetable,
       vacations: [],
+      temporary: false,
     }
     await addForUid(me.value.uid, payload)
-    toast.add({ title: 'Ya eres barbero', description: 'Edita tu horario y servicios cuando quieras.', icon: 'i-lucide-check', color: 'success' })
+    toast.add({
+      title: 'Ya eres barbero',
+      description: 'Edita tu horario y servicios cuando quieras.',
+      icon: 'i-lucide-check',
+      color: 'success',
+    })
   } catch (e) {
     toast.add({ title: 'No se pudo añadir', description: (e as Error).message, color: 'error' })
   } finally {
@@ -225,6 +270,9 @@ function startEdit(b: Barber) {
     servicesOffered: [...(b.servicesOffered ?? [])],
     timetable: structuredClone(toRaw(b.timetable ?? {})),
     vacations: (b.vacations ?? []).map((v) => ({ start: toDate(v.start), end: toDate(v.end) })),
+    temporary: b.temporary ?? false,
+    validFrom: b.validFrom ? toDate(b.validFrom) : null,
+    validUntil: b.validUntil ? toDate(b.validUntil) : null,
   }
   open.value = true
 }
@@ -259,14 +307,34 @@ function removeVacation(i: number) {
   form.value.vacations.splice(i, 1)
 }
 
+// Rango de validez del barbero temporal (date inputs).
+function parseDateInput(v: string): Date | null {
+  const [y, m, d] = v.split('-').map(Number)
+  return y && m && d ? new Date(y, m - 1, d) : null
+}
+
 async function save() {
   if (!form.value.name.trim()) {
-    toast.add({ title: 'El nombre es obligatorio', color: 'error', icon: 'i-lucide-triangle-alert' })
+    toast.add({
+      title: 'El nombre es obligatorio',
+      color: 'error',
+      icon: 'i-lucide-triangle-alert',
+    })
     return
   }
   // En alta se crea la cuenta de acceso del barbero y se le invita por email.
   if (!form.value.id && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) {
     toast.add({ title: 'Email no válido', color: 'error', icon: 'i-lucide-triangle-alert' })
+    return
+  }
+  // Un barbero temporal necesita al menos la fecha de fin (cuándo caduca su acceso).
+  if (form.value.temporary && !form.value.validUntil) {
+    toast.add({
+      title: 'Falta la fecha de fin',
+      description: 'Indica hasta cuándo es válido el barbero temporal.',
+      color: 'error',
+      icon: 'i-lucide-triangle-alert',
+    })
     return
   }
   // No permitir invitar sobre un email que YA tiene cuenta (cliente o barbero) o una
@@ -278,14 +346,19 @@ async function save() {
     if (existingUser) {
       toast.add({
         title: 'Ese email ya tiene cuenta',
-        description: 'Ya existe un usuario con ese email. Usa otro o, si eres tú, pulsa "Añadirme como barbero".',
+        description:
+          'Ya existe un usuario con ese email. Usa otro o, si eres tú, pulsa "Añadirme como barbero".',
         color: 'error',
         icon: 'i-lucide-triangle-alert',
       })
       return
     }
     if (pendingInvites.value.some((i) => i.email === norm)) {
-      toast.add({ title: 'Ya hay una invitación pendiente para ese email', color: 'error', icon: 'i-lucide-triangle-alert' })
+      toast.add({
+        title: 'Ya hay una invitación pendiente para ese email',
+        color: 'error',
+        icon: 'i-lucide-triangle-alert',
+      })
       return
     }
   }
@@ -305,6 +378,12 @@ async function save() {
       servicesOffered: form.value.servicesOffered,
       timetable: form.value.timetable,
       vacations: form.value.vacations,
+      temporary: form.value.temporary,
+      // Firestore no admite undefined: solo se incluyen si es temporal y están fijadas.
+      ...(form.value.temporary && form.value.validFrom ? { validFrom: form.value.validFrom } : {}),
+      ...(form.value.temporary && form.value.validUntil
+        ? { validUntil: form.value.validUntil }
+        : {}),
     }
     if (form.value.id) {
       await update(form.value.id, payload)
@@ -323,7 +402,13 @@ async function save() {
       // Email de marca opcional (si hay Cloud Function + Resend configurados). Si no,
       // da igual: la invitación funciona por enlace. Intento silencioso en 2º plano.
       sendInviteEmail(inviteEmail)
-        .then(() => toast.add({ title: 'Además, email enviado', icon: 'i-lucide-mail-check', color: 'success' }))
+        .then(() =>
+          toast.add({
+            title: 'Además, email enviado',
+            icon: 'i-lucide-mail-check',
+            color: 'success',
+          }),
+        )
         .catch(() => {})
     }
     open.value = false
@@ -368,32 +453,96 @@ async function confirmRemove() {
 
 <template>
   <div>
-    <AdminHeader title="Equipo" :sub="`${barbers.length} barberos · gestiona horarios, servicios y permisos`">
+    <AdminHeader
+      title="Equipo"
+      :sub="`${barbers.length} barberos · gestiona horarios, servicios y permisos`"
+    >
       <template #actions>
-        <UButton v-if="!meIsBarber" color="neutral" variant="soft" icon="i-lucide-user-plus" :loading="addingSelf" @click="addSelfAsBarber">Añadirme como barbero</UButton>
+        <UButton
+          v-if="!meIsBarber"
+          color="neutral"
+          variant="soft"
+          icon="i-lucide-user-plus"
+          :loading="addingSelf"
+          @click="addSelfAsBarber"
+          >Añadirme como barbero</UButton
+        >
         <UButton color="primary" icon="i-lucide-plus" @click="startCreate">Añadir barbero</UButton>
       </template>
     </AdminHeader>
 
     <div class="px-5 py-6 pb-24 lg:px-7 lg:pb-6">
       <div class="grid gap-4 lg:grid-cols-2">
-        <AdminCard v-for="(b, idx) in barbers" :key="b.id" :pad="false" class="overflow-hidden" :class="!b.active ? 'opacity-70' : ''">
+        <AdminCard
+          v-for="(b, idx) in barbers"
+          :key="b.id"
+          :pad="false"
+          class="overflow-hidden"
+          :class="!b.active ? 'opacity-70' : ''"
+        >
           <!-- cabecera -->
           <div class="flex gap-4 p-5">
             <div class="relative shrink-0">
               <UiAvatar :name="b.name" :src="b.photoUrl || null" :size="64" :ring="b.color" />
-              <span class="absolute right-0.5 bottom-0.5 size-3.5 rounded-full border-2" :class="b.active ? 'bg-success' : 'bg-transparent'" :style="{ borderColor: 'var(--jdvm-bg-1)', background: b.active ? '' : 'var(--jdvm-fg-2)' }" />
+              <span
+                class="absolute right-0.5 bottom-0.5 size-3.5 rounded-full border-2"
+                :class="b.active ? 'bg-success' : 'bg-transparent'"
+                :style="{
+                  borderColor: 'var(--jdvm-bg-1)',
+                  background: b.active ? '' : 'var(--jdvm-fg-2)',
+                }"
+              />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <div class="font-display truncate text-2xl leading-none">{{ b.name }}</div>
-                  <div class="text-primary mt-1.5 font-mono text-[0.65rem] tracking-wide">@{{ b.slug }}</div>
+                  <div class="text-primary mt-1.5 font-mono text-[0.65rem] tracking-wide">
+                    @{{ b.slug }}
+                  </div>
+                  <span
+                    v-if="b.temporary"
+                    class="mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.6rem] font-semibold"
+                    :class="
+                      barberAccessExpired(b)
+                        ? 'border-error/40 bg-error/10 text-error'
+                        : 'border-primary/30 bg-primary/10 text-primary'
+                    "
+                  >
+                    <UIcon name="i-lucide-clock" class="size-3" />
+                    {{ barberAccessExpired(b) ? 'Caducado' : 'Temporal'
+                    }}<span v-if="b.validUntil">
+                      · hasta {{ fmtDate(toDate(b.validUntil), 'd MMM') }}</span
+                    >
+                  </span>
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
-                  <button type="button" aria-label="Subir" :disabled="reordering || idx === 0" class="text-dimmed hover:text-default disabled:opacity-30" @click="move(b, -1)"><UIcon name="i-lucide-chevron-up" class="size-[18px]" /></button>
-                  <button type="button" aria-label="Bajar" :disabled="reordering || idx === barbers.length - 1" class="text-dimmed hover:text-default disabled:opacity-30" @click="move(b, 1)"><UIcon name="i-lucide-chevron-down" class="size-[18px]" /></button>
-                  <button type="button" aria-label="Editar" class="text-dimmed hover:text-default" @click="startEdit(b)"><UIcon name="i-lucide-pencil" class="size-[18px]" /></button>
+                  <button
+                    type="button"
+                    aria-label="Subir"
+                    :disabled="reordering || idx === 0"
+                    class="text-dimmed hover:text-default disabled:opacity-30"
+                    @click="move(b, -1)"
+                  >
+                    <UIcon name="i-lucide-chevron-up" class="size-[18px]" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Bajar"
+                    :disabled="reordering || idx === barbers.length - 1"
+                    class="text-dimmed hover:text-default disabled:opacity-30"
+                    @click="move(b, 1)"
+                  >
+                    <UIcon name="i-lucide-chevron-down" class="size-[18px]" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Editar"
+                    class="text-dimmed hover:text-default"
+                    @click="startEdit(b)"
+                  >
+                    <UIcon name="i-lucide-pencil" class="size-[18px]" />
+                  </button>
                 </div>
               </div>
               <p v-if="b.bio" class="text-muted mt-2 line-clamp-2 text-xs">{{ b.bio }}</p>
@@ -423,19 +572,39 @@ async function confirmRemove() {
                 v-for="[key, letter] in DAY_LETTERS"
                 :key="key"
                 class="flex size-[1.6rem] items-center justify-center rounded-[7px] border text-[0.7rem] font-semibold"
-                :class="isOpenDay(b, key) ? 'border-primary/30 bg-primary/15 text-primary' : 'border-default text-dimmed'"
-              >{{ letter }}</span>
+                :class="
+                  isOpenDay(b, key)
+                    ? 'border-primary/30 bg-primary/15 text-primary'
+                    : 'border-default text-dimmed'
+                "
+                >{{ letter }}</span
+              >
             </div>
-            <UButton size="xs" variant="soft" :color="b.active ? 'warning' : 'success'" :icon="b.active ? 'i-lucide-pause' : 'i-lucide-play'" @click="toggleActive(b)">{{ b.active ? 'Pausar' : 'Activar' }}</UButton>
+            <UButton
+              size="xs"
+              variant="soft"
+              :color="b.active ? 'warning' : 'success'"
+              :icon="b.active ? 'i-lucide-pause' : 'i-lucide-play'"
+              @click="toggleActive(b)"
+              >{{ b.active ? 'Pausar' : 'Activar' }}</UButton
+            >
           </div>
         </AdminCard>
 
         <!-- alta -->
-        <button type="button" class="border-default hover:border-primary/40 flex items-center gap-4 rounded-2xl border border-dashed p-5 text-left" @click="startCreate">
-          <span class="bg-primary/15 flex size-12 items-center justify-center rounded-xl"><UIcon name="i-lucide-users" class="text-primary size-5" /></span>
+        <button
+          type="button"
+          class="border-default hover:border-primary/40 flex items-center gap-4 rounded-2xl border border-dashed p-5 text-left"
+          @click="startCreate"
+        >
+          <span class="bg-primary/15 flex size-12 items-center justify-center rounded-xl"
+            ><UIcon name="i-lucide-users" class="text-primary size-5"
+          /></span>
           <div class="flex-1">
             <div class="text-sm font-semibold">¿Amplías plantilla?</div>
-            <div class="text-dimmed mt-0.5 text-xs">Añade un barbero, define su horario y servicios. Aparecerá al instante en la app.</div>
+            <div class="text-dimmed mt-0.5 text-xs">
+              Añade un barbero, define su horario y servicios. Aparecerá al instante en la app.
+            </div>
           </div>
           <UIcon name="i-lucide-plus" class="text-primary size-5" />
         </button>
@@ -456,123 +625,322 @@ async function confirmRemove() {
               <UiAvatar :name="inv.barber.name" :size="44" :ring="inv.barber.color" />
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-semibold">{{ inv.barber.name }}</div>
-                <div class="text-dimmed truncate text-xs">{{ inv.email }} · pendiente de aceptar</div>
+                <div class="text-dimmed truncate text-xs">
+                  {{ inv.email }} · pendiente de aceptar
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-2 sm:ml-auto sm:shrink-0">
-              <UButton size="sm" color="primary" variant="soft" icon="i-lucide-share-2" class="flex-1 justify-center sm:flex-none" @click="shareInvite(inv.email)">Compartir</UButton>
-              <UButton size="sm" color="neutral" variant="soft" icon="i-lucide-link" aria-label="Copiar enlace" @click="copyInvite(inv.email)" />
-              <UButton size="sm" color="error" variant="ghost" icon="i-lucide-x" aria-label="Cancelar" @click="cancelInvite(inv.email)" />
+              <UButton
+                size="sm"
+                color="primary"
+                variant="soft"
+                icon="i-lucide-share-2"
+                class="flex-1 justify-center sm:flex-none"
+                @click="shareInvite(inv.email)"
+                >Compartir</UButton
+              >
+              <UButton
+                size="sm"
+                color="neutral"
+                variant="soft"
+                icon="i-lucide-link"
+                aria-label="Copiar enlace"
+                @click="copyInvite(inv.email)"
+              />
+              <UButton
+                size="sm"
+                color="error"
+                variant="ghost"
+                icon="i-lucide-x"
+                aria-label="Cancelar"
+                @click="cancelInvite(inv.email)"
+              />
             </div>
           </div>
         </div>
         <p class="text-dimmed mt-3 text-xs">
-          Comparte el enlace con el barbero. Al entrar con Google o contraseña usando ese email, se unirá al equipo automáticamente.
+          Comparte el enlace con el barbero. Al entrar con Google o contraseña usando ese email, se
+          unirá al equipo automáticamente.
         </p>
       </section>
     </div>
 
     <!-- editor (drawer) -->
-    <Transition enter-active-class="transition-opacity" leave-active-class="transition-opacity" enter-from-class="opacity-0" leave-to-class="opacity-0">
+    <Transition
+      enter-active-class="transition-opacity"
+      leave-active-class="transition-opacity"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
       <div v-if="open" class="fixed inset-0 z-50 flex justify-end" @click="open = false">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-        <aside class="border-default bg-default relative flex h-full w-full max-w-lg flex-col overflow-hidden border-l" @click.stop>
+        <aside
+          class="border-default bg-default relative flex h-full w-full max-w-lg flex-col overflow-hidden border-l"
+          @click.stop
+        >
           <header class="border-default flex items-center justify-between border-b px-5 py-4">
-            <span class="font-display text-lg">{{ form.id ? 'Editar barbero' : 'Nuevo barbero' }}</span>
-            <button type="button" aria-label="Cerrar" class="text-muted flex size-8 items-center justify-center" @click="open = false"><UIcon name="i-lucide-x" class="size-5" /></button>
+            <span class="font-display text-lg">{{
+              form.id ? 'Editar barbero' : 'Nuevo barbero'
+            }}</span>
+            <button
+              type="button"
+              aria-label="Cerrar"
+              class="text-muted flex size-8 items-center justify-center"
+              @click="open = false"
+            >
+              <UIcon name="i-lucide-x" class="size-5" />
+            </button>
           </header>
 
           <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
             <div class="grid grid-cols-2 gap-3">
-              <UFormField label="Nombre"><UInput v-model="form.name" placeholder="Dani Ruiz" class="w-full" /></UFormField>
-              <UFormField label="Slug"><UInput v-model="form.slug" placeholder="dani-ruiz" class="w-full" /></UFormField>
+              <UFormField label="Nombre"
+                ><UInput v-model="form.name" placeholder="Dani Ruiz" class="w-full"
+              /></UFormField>
+              <UFormField label="Slug"
+                ><UInput v-model="form.slug" placeholder="dani-ruiz" class="w-full"
+              /></UFormField>
             </div>
 
             <!-- Invitación: solo en alta. No se crea cuenta aquí; el barbero se da de
                  alta él mismo (Google o contraseña) con este email y se convierte en
                  barbero al entrar. Ver pantalla /invitacion + reclamo en useAuth. -->
             <div v-if="!form.id" class="border-default bg-muted/50 space-y-2 rounded-xl border p-3">
-              <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Invitación</p>
+              <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">
+                Invitación
+              </p>
               <UFormField label="Email del barbero">
-                <UInput v-model="form.email" type="email" autocomplete="off" placeholder="dani@jdvm.es" class="w-full" />
+                <UInput
+                  v-model="form.email"
+                  type="email"
+                  autocomplete="off"
+                  placeholder="dani@jdvm.es"
+                  class="w-full"
+                />
               </UFormField>
-              <p class="text-dimmed text-xs">Se creará una invitación. El barbero entra con <strong class="text-default">Google o contraseña</strong> usando este email y aterriza en su app (<span class="font-mono">/staff</span>).</p>
+              <p class="text-dimmed text-xs">
+                Se creará una invitación. El barbero entra con
+                <strong class="text-default">Google o contraseña</strong> usando este email y
+                aterriza en su app (<span class="font-mono">/staff</span>).
+              </p>
             </div>
 
             <!-- En edición: reenviar la invitación si el barbero tiene cuenta. -->
-            <div v-else-if="emailOf(form.id)" class="border-default bg-muted/50 flex items-center justify-between gap-3 rounded-xl border p-3">
+            <div
+              v-else-if="emailOf(form.id)"
+              class="border-default bg-muted/50 flex items-center justify-between gap-3 rounded-xl border p-3"
+            >
               <div class="min-w-0">
-                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Cuenta de acceso</p>
+                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">
+                  Cuenta de acceso
+                </p>
                 <p class="mt-1 truncate text-sm">{{ emailOf(form.id) }}</p>
               </div>
-              <UButton color="neutral" variant="soft" size="sm" icon="i-lucide-mail" :loading="inviting" @click="resendInvite">Reenviar invitación</UButton>
+              <UButton
+                color="neutral"
+                variant="soft"
+                size="sm"
+                icon="i-lucide-mail"
+                :loading="inviting"
+                @click="resendInvite"
+                >Reenviar invitación</UButton
+              >
             </div>
             <div class="grid grid-cols-[auto_1fr] items-end gap-3">
               <UFormField label="Color">
-                <input v-model="form.color" type="color" class="border-default bg-muted h-10 w-14 cursor-pointer rounded-lg border" />
+                <input
+                  v-model="form.color"
+                  type="color"
+                  class="border-default bg-muted h-10 w-14 cursor-pointer rounded-lg border"
+                />
               </UFormField>
-              <UFormField label="Instagram"><UInput v-model="form.instagram" placeholder="usuario" class="w-full" /></UFormField>
+              <UFormField label="Instagram"
+                ><UInput v-model="form.instagram" placeholder="usuario" class="w-full"
+              /></UFormField>
             </div>
-            <UFormField label="Bio"><UTextarea v-model="form.bio" :rows="2" placeholder="Especialista en…" class="w-full" /></UFormField>
+            <UFormField label="Bio"
+              ><UTextarea
+                v-model="form.bio"
+                :rows="2"
+                placeholder="Especialista en…"
+                class="w-full"
+            /></UFormField>
 
             <UFormField label="Foto de perfil">
               <div class="flex items-center gap-3">
-                <UiAvatar :name="form.name" :src="form.photoUrl || null" :size="56" :ring="form.color" />
-                <input ref="photoInput" type="file" accept="image/*" class="hidden" @change="onPhoto" />
-                <UButton color="neutral" variant="soft" icon="i-lucide-upload" :loading="uploadingPhoto" @click="photoInput?.click()">Subir foto</UButton>
-                <UButton v-if="form.photoUrl" color="neutral" variant="ghost" icon="i-lucide-x" aria-label="Quitar" @click="form.photoUrl = ''" />
+                <UiAvatar
+                  :name="form.name"
+                  :src="form.photoUrl || null"
+                  :size="56"
+                  :ring="form.color"
+                />
+                <input
+                  ref="photoInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onPhoto"
+                />
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide-upload"
+                  :loading="uploadingPhoto"
+                  @click="photoInput?.click()"
+                  >Subir foto</UButton
+                >
+                <UButton
+                  v-if="form.photoUrl"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  aria-label="Quitar"
+                  @click="form.photoUrl = ''"
+                />
               </div>
             </UFormField>
 
-            <div class="border-default bg-muted flex items-center justify-between rounded-xl border p-3">
-              <div><p class="text-sm font-semibold">Activo</p><p class="text-dimmed text-xs">Aparece en reserva y estudio</p></div>
+            <div
+              class="border-default bg-muted flex items-center justify-between rounded-xl border p-3"
+            >
+              <div>
+                <p class="text-sm font-semibold">Activo</p>
+                <p class="text-dimmed text-xs">Aparece en reserva y estudio</p>
+              </div>
               <USwitch v-model="form.active" />
+            </div>
+
+            <!-- barbero temporal: acceso limitado a un rango de fechas -->
+            <div class="border-default bg-muted space-y-3 rounded-xl border p-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold">Barbero temporal</p>
+                  <p class="text-dimmed text-xs">Su acceso caduca fuera del rango de fechas</p>
+                </div>
+                <USwitch v-model="form.temporary" />
+              </div>
+              <div v-if="form.temporary" class="grid grid-cols-2 gap-3">
+                <UFormField label="Desde (opcional)">
+                  <input
+                    type="date"
+                    :value="form.validFrom ? fmtDate(form.validFrom, 'yyyy-MM-dd') : ''"
+                    class="border-default bg-elevated text-default w-full rounded-lg border px-2 py-1.5 text-xs [color-scheme:dark]"
+                    @input="
+                      form.validFrom = parseDateInput(($event.target as HTMLInputElement).value)
+                    "
+                  />
+                </UFormField>
+                <UFormField label="Hasta">
+                  <input
+                    type="date"
+                    :value="form.validUntil ? fmtDate(form.validUntil, 'yyyy-MM-dd') : ''"
+                    :min="form.validFrom ? fmtDate(form.validFrom, 'yyyy-MM-dd') : undefined"
+                    class="border-default bg-elevated text-default w-full rounded-lg border px-2 py-1.5 text-xs [color-scheme:dark]"
+                    @input="
+                      form.validUntil = parseDateInput(($event.target as HTMLInputElement).value)
+                    "
+                  />
+                </UFormField>
+              </div>
+              <p v-if="form.temporary" class="text-dimmed text-xs">
+                Tras la fecha <strong class="text-default">Hasta</strong>, su cuenta caduca: deja de
+                aparecer en reserva y no podrá acceder a la app.
+              </p>
             </div>
 
             <UFormField label="Comisión del barbero (%)" hint="Solo la ve él y el admin">
               <div class="flex items-center gap-3">
-                <UInput v-model.number="form.commissionPercent" type="number" min="0" max="100" class="w-28" />
-                <span class="text-dimmed text-xs">del importe de sus servicios. El resto es del local.</span>
+                <UInput
+                  v-model.number="form.commissionPercent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="w-28"
+                />
+                <span class="text-dimmed text-xs"
+                  >del importe de sus servicios. El resto es del local.</span
+                >
               </div>
             </UFormField>
 
             <UFormField label="Orden en reserva" hint="Menor = aparece antes">
               <div class="flex items-center gap-3">
                 <UInput v-model.number="form.sortOrder" type="number" min="0" class="w-28" />
-                <span class="text-dimmed text-xs">posición del barbero en el selector del cliente.</span>
+                <span class="text-dimmed text-xs"
+                  >posición del barbero en el selector del cliente.</span
+                >
               </div>
             </UFormField>
 
             <div>
-              <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">Servicios que ofrece</p>
+              <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">
+                Servicios que ofrece
+              </p>
               <div class="flex flex-wrap gap-2">
                 <button
                   v-for="s in services"
                   :key="s.id"
                   type="button"
                   class="rounded-full border px-3 py-1.5 text-sm"
-                  :class="form.servicesOffered.includes(s.id) ? 'border-primary/40 bg-primary/10 text-primary' : 'border-default bg-muted text-muted'"
+                  :class="
+                    form.servicesOffered.includes(s.id)
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-default bg-muted text-muted'
+                  "
                   @click="toggleService(s.id)"
-                >{{ s.name }}</button>
+                >
+                  {{ s.name }}
+                </button>
               </div>
             </div>
 
             <div>
-              <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">Horario semanal</p>
+              <p class="text-dimmed mb-2 font-mono text-[0.6rem] tracking-widest uppercase">
+                Horario semanal
+              </p>
               <WeekTimetableEditor v-model="form.timetable" />
             </div>
 
             <div>
               <div class="mb-2 flex items-center justify-between">
-                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">Vacaciones</p>
-                <button type="button" class="text-primary text-xs font-semibold" @click="addVacation">+ Añadir</button>
+                <p class="text-dimmed font-mono text-[0.6rem] tracking-widest uppercase">
+                  Vacaciones
+                </p>
+                <button
+                  type="button"
+                  class="text-primary text-xs font-semibold"
+                  @click="addVacation"
+                >
+                  + Añadir
+                </button>
               </div>
               <div v-if="form.vacations.length" class="space-y-2">
-                <div v-for="(v, i) in form.vacations" :key="i" class="border-default bg-muted flex items-center gap-2 rounded-xl border p-2.5">
-                  <input type="date" :value="fmtDate(v.start, 'yyyy-MM-dd')" class="border-default bg-elevated text-default flex-1 rounded-lg border px-2 py-1 text-xs [color-scheme:dark]" @input="setVacation(i, 'start', ($event.target as HTMLInputElement).value)" />
+                <div
+                  v-for="(v, i) in form.vacations"
+                  :key="i"
+                  class="border-default bg-muted flex items-center gap-2 rounded-xl border p-2.5"
+                >
+                  <input
+                    type="date"
+                    :value="fmtDate(v.start, 'yyyy-MM-dd')"
+                    class="border-default bg-elevated text-default flex-1 rounded-lg border px-2 py-1 text-xs [color-scheme:dark]"
+                    @input="setVacation(i, 'start', ($event.target as HTMLInputElement).value)"
+                  />
                   <span class="text-dimmed text-xs">→</span>
-                  <input type="date" :value="fmtDate(v.end, 'yyyy-MM-dd')" class="border-default bg-elevated text-default flex-1 rounded-lg border px-2 py-1 text-xs [color-scheme:dark]" @input="setVacation(i, 'end', ($event.target as HTMLInputElement).value)" />
-                  <button type="button" class="text-error flex size-7 items-center justify-center" @click="removeVacation(i)"><UIcon name="i-lucide-trash-2" class="size-4" /></button>
+                  <input
+                    type="date"
+                    :value="fmtDate(v.end, 'yyyy-MM-dd')"
+                    class="border-default bg-elevated text-default flex-1 rounded-lg border px-2 py-1 text-xs [color-scheme:dark]"
+                    @input="setVacation(i, 'end', ($event.target as HTMLInputElement).value)"
+                  />
+                  <button
+                    type="button"
+                    class="text-error flex size-7 items-center justify-center"
+                    @click="removeVacation(i)"
+                  >
+                    <UIcon name="i-lucide-trash-2" class="size-4" />
+                  </button>
                 </div>
               </div>
               <p v-else class="text-dimmed text-xs">Sin vacaciones programadas.</p>
@@ -580,10 +948,18 @@ async function confirmRemove() {
           </div>
 
           <footer class="border-default flex items-center gap-2.5 border-t px-5 py-4">
-            <UButton v-if="form.id" color="error" variant="ghost" icon="i-lucide-trash-2" @click="confirmRemove" />
+            <UButton
+              v-if="form.id"
+              color="error"
+              variant="ghost"
+              icon="i-lucide-trash-2"
+              @click="confirmRemove"
+            />
             <div class="flex-1" />
             <UButton color="neutral" variant="ghost" @click="open = false">Cancelar</UButton>
-            <UButton color="primary" :loading="saving" icon="i-lucide-check" @click="save">Guardar</UButton>
+            <UButton color="primary" :loading="saving" icon="i-lucide-check" @click="save"
+              >Guardar</UButton
+            >
           </footer>
         </aside>
       </div>

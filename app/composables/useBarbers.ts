@@ -16,15 +16,14 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import type { Barber, BarberInput } from '~~/schemas'
+import { barberAccessExpired } from '~~/lib/barber'
 
 // Contraseña temporal fuerte: el barbero NUNCA la usa. Solo existe para poder crear
 // la cuenta; el barbero fija la suya con el enlace del email de invitación.
 function tempPassword(): string {
   const bytes = new Uint8Array(24)
   globalThis.crypto.getRandomValues(bytes)
-  return (
-    Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') + 'Aa1!'
-  )
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') + 'Aa1!'
 }
 
 // Traduce los códigos de error de Firebase Auth a un mensaje claro en español.
@@ -56,7 +55,9 @@ export function useBarbers() {
     (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, 'es')
   const barbers = computed(() => [...barbersRaw.value].sort(byOrder))
 
-  const active = computed(() => barbers.value.filter((b) => b.active))
+  // Activos y "vigentes": un barbero temporal fuera de su rango de fechas se trata como
+  // inactivo (no aparece en reserva, estudio, agenda ni selectores).
+  const active = computed(() => barbers.value.filter((b) => b.active && !barberAccessExpired(b)))
   const bySlug = (slug: string) =>
     computed(() => barbers.value.find((b) => b.slug === slug) ?? null)
 
@@ -66,8 +67,7 @@ export function useBarbers() {
   // admin para añadirse a sí mismo como barbero sin crear otra cuenta: conserva su
   // rol y, como barbers/{uid} == su uid, las reglas de citas cuadran. No toca
   // users/{uid} (sigue siendo admin → es admin Y barbero a la vez).
-  const addForUid = (uid: string, input: BarberInput) =>
-    setDoc(doc(db, COL.barbers, uid), input)
+  const addForUid = (uid: string, input: BarberInput) => setDoc(doc(db, COL.barbers, uid), input)
 
   // Conecta una instancia de Auth al emulador si la app principal lo está (dev),
   // para no pegar a prod al crear cuentas / enviar emails.
@@ -176,5 +176,15 @@ export function useBarbers() {
     await deleteDoc(doc(db, COL.users, id)).catch(() => {})
   }
 
-  return { barbers, active, bySlug, create, addForUid, createWithAccount, sendInvite, update, remove }
+  return {
+    barbers,
+    active,
+    bySlug,
+    create,
+    addForUid,
+    createWithAccount,
+    sendInvite,
+    update,
+    remove,
+  }
 }

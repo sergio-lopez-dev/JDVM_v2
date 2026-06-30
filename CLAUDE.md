@@ -666,3 +666,17 @@ recompensas (catálogo) y los canjes.
   `getToken` auto-registraba el SW y fallaba. Ahora [`useMessaging`](app/composables/useMessaging.ts)
   registra explícitamente `/firebase-messaging-sw.js`, espera a `serviceWorker.ready` y se lo pasa a
   `getToken` (`serviceWorkerRegistration`). El error real se muestra en el toast para diagnosticar.
+
+### 15.6 Barbero temporal (acceso que caduca)
+
+- **Modelo:** `barber.temporary` + `validFrom?`/`validUntil?` (schema). Un barbero temporal solo tiene
+  acceso dentro de `[validFrom, validUntil]` (inclusive por día; `validFrom` opcional = desde ya).
+- **Helper puro** [`barberAccessExpired`](lib/barber.ts) (tolerante a Date | Timestamp). Lo usan:
+  - [`useBarbers`](app/composables/useBarbers.ts): `active` excluye a los temporales fuera de rango →
+    desaparecen de reserva, estudio, agenda y selectores (y no se generan sus huecos).
+  - **Middleware** [`barber`](app/middleware/barber.ts): si un rol `barber` está caducado, cierra su
+    sesión (`signOut`) y lo manda a `/login?expired=barber` (banner de aviso en [`login.vue`](app/pages/login.vue)).
+- **Admin** lo configura en [`/admin/equipo`](app/pages/admin/equipo.vue): toggle "Barbero temporal" +
+  fechas Desde/Hasta (Hasta obligatoria). Chip "Temporal · hasta d MMM" / "Caducado" en la tarjeta. El
+  alta normal es por invitación: las fechas viajan en `barberInvite.barber` (BarberInput) y se
+  materializan al reclamar la invitación. Enforcement a nivel de app (reglas heredadas permisivas).
